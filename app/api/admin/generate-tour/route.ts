@@ -8,16 +8,23 @@ export async function GET() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceKey) {
-    return NextResponse.json({ ok: false, error: "Supabase credentials not set" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Supabase credentials not set" },
+      { status: 500 }
+    );
   }
 
-  const supabase = createClient(url, serviceKey);
+  const supabase = createClient(url, serviceKey, {
+    auth: { persistSession: false }
+  });
 
   // 1. Haal artworks op
-  const { data: artworks } = await supabase.from("artworks").select("*");
+  const { data: artworks, error: artError } = await supabase
+    .from("artworks")
+    .select("*");
 
-  if (!artworks || artworks.length === 0) {
-    return NextResponse.json({ ok: false, error: "No artworks" }, { status: 500 });
+  if (artError || !artworks || artworks.length === 0) {
+    return NextResponse.json({ ok: false, error: "No artworks found" });
   }
 
   // 2. Kies 6 willekeurige
@@ -27,11 +34,11 @@ export async function GET() {
   // 3. Tour aanmaken
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: tour } = await supabase
+  const { data: tour, error: tourError } = await supabase
     .from("tours")
     .insert({
-      title: "Testtour",
-      description: "Eenvoudige testtour (nog zonder AI)",
+      title: "Testtour MuseaThuis",
+      description: "Eenvoudige testtour zonder AI-teksten.",
       tour_type: "daily",
       status: "draft",
       planned_for_date: today
@@ -39,20 +46,30 @@ export async function GET() {
     .select()
     .single();
 
-  let p = 1;
+  if (tourError || !tour) {
+    return NextResponse.json(
+      { ok: false, error: tourError?.message || "Error creating tour" },
+      { status: 500 }
+    );
+  }
+
+  // 4. Koppel de artworks + placeholderteksten
+  let pos = 1;
 
   for (const art of selected) {
+    // koppel het kunstwerk aan de tour
     await supabase.from("tour_items").insert({
       tour_id: tour.id,
       artwork_id: art.id,
-      position: p++
+      position: pos++
     });
 
+    // placeholdertekst opslaan
     await supabase.from("artwork_texts").insert({
       artwork_id: art.id,
       language: "nl",
       text_type: "tour",
-      content: `Placeholdertekst voor ${art.title}.`,
+      content: `Placeholdertekst voor ${art.title}. Deze tekst wordt later vervangen door AI.`,
       duration_seconds: 180,
       is_ai_generated: false
     });
@@ -61,6 +78,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     message: "Testtour aangemaakt",
-    tour_id: tour.id
+    tour_id: tour.id,
+    artworks_count: selected.length
   });
 }
