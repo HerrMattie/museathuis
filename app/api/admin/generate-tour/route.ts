@@ -113,8 +113,9 @@ export async function GET() {
       position: pos
     });
 
-    let content =
-      `Placeholdertekst voor ${art.title}. Deze tekst wordt later vervangen door een AI-gegenereerde tourtekst.`;
+    // standaard: placeholder
+    let content = `Placeholdertekst voor ${art.title}. Deze tekst wordt later vervangen door een AI-gegenereerde tourtekst.`;
+    let isAi = false;
 
     // Alleen voor het eerste werk proberen we een echte AI-tekst
     if (pos === 1) {
@@ -130,10 +131,14 @@ export async function GET() {
       ].join("\n");
 
       try {
-        content = await callOpenAI(openaiKey, prompt);
+        const aiText = await callOpenAI(openaiKey, prompt);
+        if (aiText && aiText.trim().length > 0) {
+          content = aiText;
+          isAi = true;
+        }
       } catch (error) {
         // Als AI faalt, houden we de placeholdertekst
-        // eslint-disable-next-line no-console
+        // en isAi blijft false
         console.error("OpenAI-fout, placeholder gebruikt:", error);
       }
     }
@@ -145,11 +150,12 @@ export async function GET() {
       text_type: "tour",
       content,
       duration_seconds: 180,
-      is_ai_generated: pos === 1
+      is_ai_generated: isAi
     });
 
     pos += 1;
   }
+
 
   return NextResponse.json({
     ok: true,
