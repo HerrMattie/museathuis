@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  experimental: {
-    appDir: true
-  }
+  // leeg of jouw eigen settings
 };
 
 export default nextConfig;
