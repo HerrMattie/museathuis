@@ -16,43 +16,43 @@ export type TourOfToday = {
   date: string;
   title: string;
   subtitle: string | null;
+  isPremium: boolean;
   artworks: TourArtwork[];
 };
 
+export type TourListItem = {
+  id: string;
+  date: string;
+  title: string;
+  isPublished: boolean;
+  isPremium: boolean;
+};
+
+export type TourDetail = {
+  id: string;
+  date: string;
+  title: string;
+  subtitle: string | null;
+  isPublished: boolean;
+  isPremium: boolean;
+  artworks: TourArtwork[];
+};
+
+type RawTourRow = {
+  id: string;
+  date: string;
+  title: string;
+  subtitle: string | null;
+  is_published: boolean;
+  is_premium: boolean;
+};
+
 /**
- * Retourneert de tour van vandaag met de bijbehorende kunstwerken,
- * of null als er geen gepubliceerde tour is ingepland.
+ * Interne helper om artworks voor een tour op te halen.
  */
-export async function getTourOfToday(): Promise<TourOfToday | null> {
+async function getArtworksForTour(tourId: string): Promise<TourArtwork[]> {
   const supabase = supabaseServerClient;
 
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-
-  // 1. Haal de tour van vandaag op
-  const { data: tour, error: tourError } = await supabase
-    .from('tours')
-    .select('id, date, title, subtitle')
-    .eq('date', today)
-    .eq('is_published', true)
-    .single();
-
-  if (tourError) {
-    // Geen tour gevonden is geen "harde" fout, maar wel een signaal
-    if (tourError.code === 'PGRST116') {
-      // no rows
-      return null;
-    }
-    console.error('[getTourOfToday] fout bij ophalen tour:', tourError);
-    throw tourError;
-  }
-
-  if (!tour) {
-    return null;
-  }
-
-  // 2. Haal de gekoppelde kunstwerken op via de koppeltabel tour_artworks
-  // Hiervoor is in Supabase een relatie nodig:
-  // tour_artworks.artworks -> artworks.id (foreign key)
   const { data: artworkRows, error: artworksError } = await supabase
     .from('tour_artworks')
     .select(
@@ -68,18 +68,15 @@ export async function getTourOfToday(): Promise<TourOfToday | null> {
       )
     `
     )
-    .eq('tour_id', tour.id)
+    .eq('tour_id', tourId)
     .order('position', { ascending: true });
 
   if (artworksError) {
-    console.error(
-      '[getTourOfToday] fout bij ophalen tour_artworks:',
-      artworksError
-    );
+    console.error('[getArtworksForTour] fout:', artworksError);
     throw artworksError;
   }
 
-  const artworks: TourArtwork[] =
+  return (
     artworkRows?.map((row: any) => {
       const aw = row.artworks || {};
       return {
@@ -91,45 +88,65 @@ export async function getTourOfToday(): Promise<TourOfToday | null> {
         yearTo: aw.year_to ?? null,
         imageUrl: aw.image_url ?? null
       };
-    }) ?? [];
+    }) ?? []
+  );
+}
+
+/**
+ * Tour voor een specifieke datum ophalen (YYYY-MM-DD).
+ */
+export async function getTourForDate(date: string): Promise<TourOfToday | null> {
+  const supabase = supabaseServerClient;
+
+  const { data: tour, error: tourError } = await supabase
+    .from('tours')
+    .select('id, date, title, subtitle, is_published, is_premium')
+    .eq('date', date)
+    .eq('is_published', true)
+    .single<RawTourRow>();
+
+  if (tourError) {
+    if (tourError.code === 'PGRST116') {
+      return null;
+    }
+    console.error('[getTourForDate] fout:', tourError);
+    throw tourError;
+  }
+
+  if (!tour) return null;
+
+  const artworks = await getArtworksForTour(tour.id);
 
   return {
     id: tour.id,
     date: tour.date,
     title: tour.title,
-    subtitle: tour.subtitle ?? null,
+    subtitle: tour.subtitle,
+    isPremium: tour.is_premium,
     artworks
   };
 }
 
-// lib/repos/tourRepo.ts (onder je bestaande exports toevoegen)
-
-export type TourListItem = {
-  id: string;
-  date: string;
-  title: string;
-  isPublished: boolean;
-};
-
-export type TourDetail = {
-  id: string;
-  date: string;
-  title: string;
-  subtitle: string | null;
-  isPublished: boolean;
-  artworks: TourArtwork[];
-};
+/**
+ * Robuuste tour van vandaag:
+ * - Haalt eerst tour voor vandaag op.
+ * - Als er geen is, geeft null terug (frontend toont nette melding).
+ * (Eventuele fallbacklogica kun je hier later toevoegen.)
+ */
+export async function getTourOfToday(): Promise<TourOfToday | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  return getTourForDate(today);
+}
 
 /**
- * Lijst van komende en recente tours voor admin/CRM gebruik.
- * Past eventueel de filter aan (bijv. alleen toekomst).
+ * Lijst van tours voor adminoverzicht (recentste eerst).
  */
 export async function listToursForAdmin(limit = 30): Promise<TourListItem[]> {
   const supabase = supabaseServerClient;
 
   const { data, error } = await supabase
     .from('tours')
-    .select('id, date, title, is_published')
+    .select('id, date, title, is_published, is_premium')
     .order('date', { ascending: false })
     .limit(limit);
 
@@ -139,26 +156,59 @@ export async function listToursForAdmin(limit = 30): Promise<TourListItem[]> {
   }
 
   return (
-    data?.map((row: any) => ({
+    (data as RawTourRow[] | null)?.map(row => ({
       id: row.id,
       date: row.date,
       title: row.title,
-      isPublished: row.is_published
+      isPublished: row.is_published,
+      isPremium: row.is_premium
     })) ?? []
   );
 }
 
 /**
- * Detail van één tour (met artworks) voor admin.
+ * Tours in een datumbereik (voor kalender/planning).
+ */
+export async function listToursInRange(
+  fromDate: string,
+  toDate: string
+): Promise<TourListItem[]> {
+  const supabase = supabaseServerClient;
+
+  const { data, error } = await supabase
+    .from('tours')
+    .select('id, date, title, is_published, is_premium')
+    .gte('date', fromDate)
+    .lte('date', toDate)
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('[listToursInRange] fout:', error);
+    throw error;
+  }
+
+  return (
+    (data as RawTourRow[] | null)?.map(row => ({
+      id: row.id,
+      date: row.date,
+      title: row.title,
+      isPublished: row.is_published,
+      isPremium: row.is_premium
+    })) ?? []
+  );
+}
+
+/**
+ * Detail van één tour (admin).
  */
 export async function getTourById(id: string): Promise<TourDetail | null> {
   const supabase = supabaseServerClient;
 
   const { data: tour, error: tourError } = await supabase
     .from('tours')
-    .select('id, date, title, subtitle, is_published')
+    .select('id, date, title, subtitle, is_published, is_premium')
     .eq('id', id)
-    .single();
+    .single<RawTourRow>();
 
   if (tourError) {
     if (tourError.code === 'PGRST116') {
@@ -168,49 +218,15 @@ export async function getTourById(id: string): Promise<TourDetail | null> {
     throw tourError;
   }
 
-  const { data: artworkRows, error: artworksError } = await supabase
-    .from('tour_artworks')
-    .select(
-      `
-      position,
-      artworks (
-        id,
-        title,
-        artist_name,
-        year_from,
-        year_to,
-        image_url
-      )
-    `
-    )
-    .eq('tour_id', tour.id)
-    .order('position', { ascending: true });
-
-  if (artworksError) {
-    console.error('[getTourById] fout artworks:', artworksError);
-    throw artworksError;
-  }
-
-  const artworks: TourArtwork[] =
-    artworkRows?.map((row: any) => {
-      const aw = row.artworks || {};
-      return {
-        id: aw.id,
-        position: row.position,
-        title: aw.title ?? null,
-        artistName: aw.artist_name ?? null,
-        yearFrom: aw.year_from ?? null,
-        yearTo: aw.year_to ?? null,
-        imageUrl: aw.image_url ?? null
-      };
-    }) ?? [];
+  const artworks = await getArtworksForTour(tour.id);
 
   return {
     id: tour.id,
     date: tour.date,
     title: tour.title,
-    subtitle: tour.subtitle ?? null,
+    subtitle: tour.subtitle,
     isPublished: tour.is_published,
+    isPremium: tour.is_premium,
     artworks
   };
 }
