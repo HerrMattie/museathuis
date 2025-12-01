@@ -1,7 +1,8 @@
 // app/tour/today/page.tsx
+import Link from 'next/link';
 import { getTourOfToday } from '@/lib/repos/tourRepo';
 
-export const revalidate = 60; // elke minuut refreshen is meestal ruim voldoende
+export const revalidate = 60; // elke minuut refreshen
 
 export default async function TourTodayPage() {
   const tour = await getTourOfToday();
@@ -37,37 +38,42 @@ export default async function TourTodayPage() {
 
       <section className="space-y-6">
         {tour.artworks.map(artwork => (
-          <article
+          <Link
             key={artwork.id}
-            className="border rounded-lg p-4 flex flex-col md:flex-row gap-4"
+            href={`/artworks/${artwork.id}`}
+            className="block border rounded-lg p-4 hover:shadow-sm transition-shadow bg-white"
           >
-            {artwork.imageUrl && (
-              <div className="md:w-1/3 flex-shrink-0">
-                {/* Later kun je hier Next/Image gebruiken */}
-                <img
-                  src={artwork.imageUrl}
-                  alt={artwork.title ?? 'Kunstwerk'}
-                  className="w-full h-auto rounded-md object-cover"
-                />
-              </div>
-            )}
+            <article className="flex flex-col md:flex-row gap-4">
+              {artwork.imageUrl && (
+                <div className="md:w-1/3 flex-shrink-0">
+                  <img
+                    src={artwork.imageUrl}
+                    alt={artwork.title ?? 'Kunstwerk'}
+                    className="w-full h-auto rounded-md object-cover"
+                  />
+                </div>
+              )}
 
-            <div className="md:flex-1">
-              <h2 className="text-xl font-semibold mb-1">
-                {artwork.position}. {artwork.title ?? 'Ongetiteld'}
-              </h2>
-              {artwork.artistName && (
-                <p className="text-sm text-gray-700">
-                  {artwork.artistName}
+              <div className="md:flex-1">
+                <h2 className="text-xl font-semibold mb-1">
+                  {artwork.position}. {artwork.title ?? 'Ongetiteld'}
+                </h2>
+                {artwork.artistName && (
+                  <p className="text-sm text-gray-700">
+                    {artwork.artistName}
+                  </p>
+                )}
+                {(artwork.yearFrom || artwork.yearTo) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {artwork.yearFrom ?? '?'} – {artwork.yearTo ?? '?'}
+                  </p>
+                )}
+                <p className="text-xs text-blue-700 mt-2">
+                  Klik voor meer informatie over dit kunstwerk
                 </p>
-              )}
-              {(artwork.yearFrom || artwork.yearTo) && (
-                <p className="text-xs text-gray-500 mt-1">
-                  {artwork.yearFrom ?? '?'} – {artwork.yearTo ?? '?'}
-                </p>
-              )}
-            </div>
-          </article>
+              </div>
+            </article>
+          </Link>
         ))}
       </section>
     </main>
