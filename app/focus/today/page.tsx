@@ -1,16 +1,16 @@
-import Link from "next/link";
-
-export default function Page() {
+export default function FocusPage() {
   return (
-    <div className="main-grid">
-      <section className="card">
-        <span className="badge">Sectie</span>
-        <h2>Focus van de dag</h2>
-        <p>Placeholder voor de publieke focus-sessie van de dag.</p>
-        <div className="link-row">
-          <Link href="/">Terug naar start</Link>
-        </div>
-      </section>
+    <div className="py-10 space-y-6 max-w-3xl">
+      <h1 className="text-3xl font-semibold">Focus modus</h1>
+      <p className="text-sm text-neutral-700">
+        In de focus modus krijg je ongeveer tien minuten verdieping op één
+        kunstwerk: kunstenaar, tijdsgeest, techniek en betekenis. Deze pagina
+        wordt later gevuld met een lijst van geselecteerde werken.
+      </p>
+      <p className="text-sm text-neutral-500">
+        Technisch komt hier een koppeling met de focus content uit het CRM en
+        een premiumcheck.
+      </p>
     </div>
   );
 }
