@@ -1,43 +1,55 @@
-// app/tour/page.tsx
-// Later maken we hier een async functie die echte data ophaalt.
+import Link from "next/link";
 
-const dummyWorks = [
-  {
-    id: 1,
-    title: "Voorbeeldwerk 1",
-    artist: "Voorbeeldkunstenaar",
-    museum: "Rijksmuseum",
-  },
-  {
-    id: 2,
-    title: "Voorbeeldwerk 2",
-    artist: "Voorbeeldkunstenaar",
-    museum: "The Met",
-  },
-];
+const testTour = {
+  id: "test-tour-1",
+  title: "Testtour: Schilderijen uit de Gouden Eeuw",
+  durationMinutes: 18,
+  works: [
+    {
+      id: "work-1",
+      title: "Portret van een koopman",
+      artist: "Voorbeeldkunstenaar",
+      museum: "Rijksmuseum",
+    },
+    {
+      id: "work-2",
+      title: "Gezicht op de haven",
+      artist: "Voorbeeldkunstenaar",
+      museum: "Rijksmuseum",
+    },
+    {
+      id: "work-3",
+      title: "Stilleven met boeken",
+      artist: "Voorbeeldkunstenaar",
+      museum: "Rijksmuseum",
+    },
+  ],
+};
 
-export default function TourPage() {
+export default function TodayTourPage() {
   return (
     <div className="py-10 space-y-8">
-      <section className="space-y-3">
+      <section className="space-y-2">
         <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-          Tour van vandaag
+          Tour van vandaag (test)
         </p>
-        <h1 className="text-3xl font-semibold">Dagelijkse kunsttour</h1>
+        <h1 className="text-3xl font-semibold">{testTour.title}</h1>
         <p className="text-sm text-neutral-700 max-w-2xl">
-          Dit is de tour van vandaag. In de definitieve versie wordt deze tour
-          automatisch gekozen en ingepland in het CRM. Elk werk heeft audio van
-          ongeveer drie minuten.
+          Dit is een testtour om de pagina en indeling te controleren.
+          Later wordt deze tour automatisch uit het CRM en de database geladen.
+        </p>
+        <p className="text-xs text-neutral-500">
+          Totale luistertijd circa {testTour.durationMinutes} minuten.
         </p>
       </section>
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Kunstwerken in deze tour</h2>
         <div className="space-y-3">
-          {dummyWorks.map((work) => (
+          {testTour.works.map((work) => (
             <div
               key={work.id}
-              className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm flex justify-between items-center"
+              className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm"
             >
               <div>
                 <p className="font-medium">{work.title}</p>
@@ -46,7 +58,7 @@ export default function TourPage() {
                 </p>
               </div>
               <button className="text-xs rounded-full border px-3 py-1 hover:bg-neutral-100">
-                Bekijk werk
+                Luister fragment
               </button>
             </div>
           ))}
@@ -54,12 +66,17 @@ export default function TourPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Jouw ervaring</h2>
+        <h2 className="text-lg font-semibold">Volgende stap</h2>
         <p className="text-sm text-neutral-700 max-w-2xl">
-          Na de koppeling met de database kun je hier de tour afronden, een
-          beoordeling geven en badges verdienen. Voor nu is dit een visuele
-          schets van de indeling.
+          Als deze opzet goed voelt, koppelen we deze pagina in de volgende stap
+          aan een echte tour uit je database en planning.
         </p>
+        <Link
+          href="/"
+          className="inline-flex text-sm font-medium text-[#5b7fba] hover:underline"
+        >
+          Terug naar home
+        </Link>
       </section>
     </div>
   );
