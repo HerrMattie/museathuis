@@ -1,15 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("Supabase env vars ontbreken");
+const url = process.env.SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!url || !key) {
+  throw new Error("Supabase environment variables ontbreken (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
 }
 
-export const supabaseServer = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-    },
-  }
-);
+export const supabaseServer = createClient(url, key, {
+  auth: { persistSession: false }
+});
