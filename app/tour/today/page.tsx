@@ -1,83 +1,91 @@
-import Link from "next/link";
-
-const testTour = {
-  id: "test-tour-1",
-  title: "Testtour: Schilderijen uit de Gouden Eeuw",
-  durationMinutes: 18,
-  works: [
-    {
-      id: "work-1",
-      title: "Portret van een koopman",
-      artist: "Voorbeeldkunstenaar",
-      museum: "Rijksmuseum",
-    },
-    {
-      id: "work-2",
-      title: "Gezicht op de haven",
-      artist: "Voorbeeldkunstenaar",
-      museum: "Rijksmuseum",
-    },
-    {
-      id: "work-3",
-      title: "Stilleven met boeken",
-      artist: "Voorbeeldkunstenaar",
-      museum: "Rijksmuseum",
-    },
-  ],
+type Work = {
+  id: string;
+  title: string;
+  artist: string;
+  museum: string;
 };
 
-export default function TodayTourPage() {
+type Tour = {
+  id: string;
+  title: string;
+  intro: string;
+  durationMinutes: number;
+  works: Work[];
+};
+
+async function getTodayTour(): Promise<Tour> {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/tour/today`, {
+    // voorkomt caching tijdens ontwikkelen
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error("Kon tour van vandaag niet ophalen");
+  }
+
+  return res.json();
+}
+
+export default async function TodayTourPage() {
+  const tour = await getTodayTour();
+
   return (
-    <div className="py-10 space-y-8">
-      <section className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-          Tour van vandaag (test)
-        </p>
-        <h1 className="text-3xl font-semibold">{testTour.title}</h1>
-        <p className="text-sm text-neutral-700 max-w-2xl">
-          Dit is een testtour om de pagina en indeling te controleren.
-          Later wordt deze tour automatisch uit het CRM en de database geladen.
-        </p>
-        <p className="text-xs text-neutral-500">
-          Totale luistertijd circa {testTour.durationMinutes} minuten.
-        </p>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Kunstwerken in deze tour</h2>
-        <div className="space-y-3">
-          {testTour.works.map((work) => (
-            <div
-              key={work.id}
-              className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm"
-            >
-              <div>
-                <p className="font-medium">{work.title}</p>
-                <p className="text-neutral-600">
-                  {work.artist} · {work.museum}
-                </p>
-              </div>
-              <button className="text-xs rounded-full border px-3 py-1 hover:bg-neutral-100">
-                Luister fragment
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Volgende stap</h2>
-        <p className="text-sm text-neutral-700 max-w-2xl">
-          Als deze opzet goed voelt, koppelen we deze pagina in de volgende stap
-          aan een echte tour uit je database en planning.
-        </p>
-        <Link
-          href="/"
-          className="inline-flex text-sm font-medium text-[#5b7fba] hover:underline"
+    <div className="py-10">
+      <section>
+        <p
+          style={{
+            textTransform: "uppercase",
+            letterSpacing: "0.2em",
+            fontSize: "0.7rem",
+            color: "#737373",
+            marginBottom: "0.5rem",
+          }}
         >
-          Terug naar home
-        </Link>
+          Tour van vandaag
+        </p>
+        <h1>{tour.title}</h1>
+        <p style={{ fontSize: "0.9rem", maxWidth: "40rem" }}>{tour.intro}</p>
+        <p style={{ fontSize: "0.75rem", color: "#737373" }}>
+          Totale luistertijd circa {tour.durationMinutes} minuten.
+        </p>
+      </section>
+
+      <section>
+        <h2>Kunstwerken in deze tour</h2>
+        {tour.works.map((work) => (
+          <div
+            key={work.id}
+            style={{
+              border: "1px solid #e5e5e5",
+              borderRadius: "16px",
+              padding: "0.75rem 1rem",
+              marginBottom: "0.5rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: "0.9rem",
+              background: "#ffffff",
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 500 }}>{work.title}</div>
+              <div style={{ color: "#555" }}>
+                {work.artist} · {work.museum}
+              </div>
+            </div>
+            <button className="btn-secondary">Bekijk werk</button>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h2>Volgende stap</h2>
+        <p style={{ fontSize: "0.9rem", maxWidth: "40rem" }}>
+          Deze tour komt nu uit een eenvoudige API-route. In een volgende stap
+          vervangen we de mock data door een echte tour uit je database en CRM,
+          zonder de voorkant nog eens te hoeven aanpassen.
+        </p>
       </section>
     </div>
   );
-} 
+}
