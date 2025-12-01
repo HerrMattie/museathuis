@@ -8,6 +8,7 @@ type CreateTourInput = {
   date: string;
   title: string;
   subtitle?: string;
+  isPremium?: boolean;
 };
 
 type UpdateTourMetaInput = {
@@ -16,6 +17,7 @@ type UpdateTourMetaInput = {
   title: string;
   subtitle?: string;
   isPublished: boolean;
+  isPremium: boolean;
 };
 
 type AddArtworkInput = {
@@ -32,13 +34,14 @@ type RemoveArtworkInput = {
 export async function createTour(input: CreateTourInput) {
   const supabase = supabaseServerClient;
 
-  const { date, title, subtitle } = input;
+  const { date, title, subtitle, isPremium } = input;
 
   const { error } = await supabase.from('tours').insert({
     date,
     title,
     subtitle: subtitle || null,
-    is_published: false
+    is_published: false,
+    is_premium: isPremium ?? false
   });
 
   if (error) {
@@ -46,14 +49,13 @@ export async function createTour(input: CreateTourInput) {
     throw new Error('Kon tour niet aanmaken');
   }
 
-  // Admin overzicht opnieuw valideren
   revalidatePath('/admin/tours');
 }
 
 export async function updateTourMeta(input: UpdateTourMetaInput) {
   const supabase = supabaseServerClient;
 
-  const { id, date, title, subtitle, isPublished } = input;
+  const { id, date, title, subtitle, isPublished, isPremium } = input;
 
   const { error } = await supabase
     .from('tours')
@@ -61,7 +63,8 @@ export async function updateTourMeta(input: UpdateTourMetaInput) {
       date,
       title,
       subtitle: subtitle || null,
-      is_published: isPublished
+      is_published: isPublished,
+      is_premium: isPremium
     })
     .eq('id', id);
 
@@ -79,7 +82,6 @@ export async function addArtworkToTour(input: AddArtworkInput) {
   const supabase = supabaseServerClient;
   const { tourId, artworkId, position } = input;
 
-  // Bepaal automatisch positie als die niet is opgegeven
   let finalPosition = position;
 
   if (!finalPosition) {
