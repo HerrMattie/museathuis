@@ -10,14 +10,26 @@ export default async function AdminToursPage() {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
-      <header>
-        <h1 className="text-2xl font-semibold mb-2">
-          Tours (admin overzicht)
-        </h1>
-        <p className="text-sm text-gray-600">
-          Overzicht van tours in het systeem en mogelijkheid om nieuwe tours aan te maken.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold mb-2">
+            Tours (admin overzicht)
+          </h1>
+          <p className="text-sm text-gray-600">
+            Overzicht van tours in het systeem en mogelijkheid om nieuwe tours aan te maken.
+          </p>
+        </div>
+      
+        <div className="text-right">
+          <Link
+            href="/admin/artworks"
+            className="text-xs text-blue-700 hover:underline"
+          >
+            Naar kunstwerken-overzicht
+          </Link>
+        </div>
       </header>
+
 
       <section className="border rounded-lg p-4 bg-white">
         <h2 className="text-lg font-semibold mb-3">
