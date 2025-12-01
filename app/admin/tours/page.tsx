@@ -1,6 +1,7 @@
 // app/admin/tours/page.tsx
 import Link from 'next/link';
 import { listToursForAdmin } from '@/lib/repos/tourRepo';
+import { createTour } from './actions';
 
 export const revalidate = 60;
 
@@ -8,18 +9,92 @@ export default async function AdminToursPage() {
   const tours = await listToursForAdmin(50);
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-10">
-      <header className="mb-8">
+    <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+      <header>
         <h1 className="text-2xl font-semibold mb-2">
           Tours (admin overzicht)
         </h1>
         <p className="text-sm text-gray-600">
-          Overzicht van de meest recente en komende tours. Gebruik dit om te controleren
-          of tours goed in de database staan.
+          Overzicht van tours in het systeem en mogelijkheid om nieuwe tours aan te maken.
         </p>
       </header>
 
-      <section className="border rounded-lg overflow-hidden">
+      <section className="border rounded-lg p-4 bg-white">
+        <h2 className="text-lg font-semibold mb-3">
+          Nieuwe tour aanmaken
+        </h2>
+        <p className="text-xs text-gray-600 mb-3">
+          Vul datum en titel in. De tour wordt als concept opgeslagen. Publiceren doe je in het detail scherm.
+        </p>
+
+        <form
+          action={async formData => {
+            "use server";
+
+            const date = String(formData.get('date') || '').trim();
+            const title = String(formData.get('title') || '').trim();
+            const subtitle = String(formData.get('subtitle') || '').trim();
+
+            if (!date || !title) {
+              throw new Error('Datum en titel zijn verplicht');
+            }
+
+            await createTour({
+              date,
+              title,
+              subtitle: subtitle || undefined
+            });
+          }}
+          className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)] items-start"
+        >
+          <label className="text-sm text-gray-700">
+            Datum
+          </label>
+          <input
+            type="date"
+            name="date"
+            className="border rounded px-2 py-1 text-sm w-full"
+            required
+          />
+
+          <label className="text-sm text-gray-700">
+            Titel
+          </label>
+          <input
+            type="text"
+            name="title"
+            className="border rounded px-2 py-1 text-sm w-full"
+            placeholder="Titel van de tour"
+            required
+          />
+
+          <label className="text-sm text-gray-700">
+            Subtitel (optioneel)
+          </label>
+          <input
+            type="text"
+            name="subtitle"
+            className="border rounded px-2 py-1 text-sm w-full"
+            placeholder="Korte toelichting"
+          />
+
+          <div></div>
+          <button
+            type="submit"
+            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Tour aanmaken
+          </button>
+        </form>
+      </section>
+
+      <section className="border rounded-lg overflow-hidden bg-white">
+        <div className="px-4 py-3 border-b bg-gray-50">
+          <h2 className="text-sm font-semibold">
+            Bestaande tours
+          </h2>
+        </div>
+
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
@@ -54,7 +129,7 @@ export default async function AdminToursPage() {
                     href={`/admin/tours/${tour.id}`}
                     className="text-xs font-medium text-blue-700 hover:underline"
                   >
-                    Bekijken
+                    Bekijken en bewerken
                   </Link>
                 </td>
               </tr>
