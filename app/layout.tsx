@@ -1,43 +1,56 @@
-import "./globals.css";
-import Link from "next/link";
+// app/layout.tsx
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import './globals.css';
 
-export const metadata = {
-  title: "MuseaThuis",
-  description: "Dagelijkse kunsttours en verdiepende verhalen, gewoon thuis.",
+export const metadata: Metadata = {
+  title: 'MuseaThuis',
+  description: 'Digitale kunsttours en beleving vanuit huis'
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="nl">
-      <body>
-        <header>
-          <nav>
-            <Link href="/">MuseaThuis</Link>
-            <div className="right-links">
-              <Link href="/tour/today">Tour van vandaag</Link>
-              <Link href="/game">Game</Link>
-              <Link href="/focus">Focus</Link>
-              <Link href="/premium">Premium</Link>
-              <Link href="/museums">Voor musea</Link>
-              <Link href="/profile" className="login-link">
-                Inloggen
-              </Link>
+      <body className="bg-gray-100 text-gray-900">
+        <div className="min-h-screen flex flex-col">
+          <header className="border-b bg-white">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Link href="/" className="text-lg font-semibold">
+                  MuseaThuis
+                </Link>
+                <nav className="hidden md:flex items-center gap-4 text-sm">
+                  <Link href="/tour/today" className="hover:underline">
+                    Tour van vandaag
+                  </Link>
+                  <Link href="/health" className="hover:underline">
+                    Systeemstatus
+                  </Link>
+                </nav>
+              </div>
+
+              <nav className="flex items-center gap-3 text-xs md:text-sm">
+                <Link href="/login" className="hover:underline">
+                  Inloggen
+                </Link>
+                <Link href="/admin" className="hover:underline">
+                  Admin
+                </Link>
+              </nav>
             </div>
-          </nav>
-        </header>
+          </header>
 
-        <main>{children}</main>
+          <main className="flex-1">
+            {children}
+          </main>
 
-        <footer>
-          <div className="footer-inner">
-            <span>© {new Date().getFullYear()} MuseaThuis</span>
-            <span>Dagelijkse kunst, gewoon thuis.</span>
-          </div>
-        </footer>
+          <footer className="border-t bg-white mt-8">
+            <div className="max-w-6xl mx-auto px-4 py-4 text-xs text-gray-500 flex items-center justify-between">
+              <span>© {new Date().getFullYear()} MuseaThuis</span>
+              <span>Interne testomgeving</span>
+            </div>
+          </footer>
+        </div>
       </body>
     </html>
   );
