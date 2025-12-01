@@ -1,16 +1,16 @@
-import Link from "next/link";
-
-export default function Page() {
+export default function GamePage() {
   return (
-    <div className="main-grid">
-      <section className="card">
-        <span className="badge">Sectie</span>
-        <h2>Game van vandaag</h2>
-        <p>Placeholder voor de publieke weergave van de game van vandaag.</p>
-        <div className="link-row">
-          <Link href="/">Terug naar start</Link>
-        </div>
-      </section>
+    <div className="py-10 space-y-6 max-w-3xl">
+      <h1 className="text-3xl font-semibold">Dagelijkse game</h1>
+      <p className="text-sm text-neutral-700">
+        Hier komt de dagelijkse kunstgame. Denk aan quizvragen, raad het
+        kunstwerk of tijdlijnspellen. Voor nu is dit een placeholder zodat
+        de structuur van de site compleet is.
+      </p>
+      <p className="text-sm text-neutral-500">
+        In een latere stap koppelen we deze pagina aan de game logica en
+        de puntenregistratie.
+      </p>
     </div>
   );
 }
