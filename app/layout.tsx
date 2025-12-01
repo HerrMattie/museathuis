@@ -20,13 +20,13 @@ export default function RootLayout({
               MuseaThuis
             </Link>
             <div className="flex items-center gap-4 text-sm">
-              <Link href="/tour" className="hover:underline">
+              <Link href="/tour/today" className="hover:underline">
                 Tour van vandaag
               </Link>
-              <Link href="/game" className="hover:underline">
+              <Link href="/game/today" className="hover:underline">
                 Game
               </Link>
-              <Link href="/focus" className="hover:underline">
+              <Link href="/focus/today" className="hover:underline">
                 Focus
               </Link>
               <Link href="/premium" className="hover:underline">
