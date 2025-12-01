@@ -1,16 +1,15 @@
-import Link from "next/link";
-
-export default function Page() {
+export default function ProfilePage() {
   return (
-    <div className="main-grid">
-      <section className="card">
-        <span className="badge">Sectie</span>
-        <h2>Profiel</h2>
-        <p>Placeholder voor profiel, badges, ranking en voorkeuren.</p>
-        <div className="link-row">
-          <Link href="/">Terug naar start</Link>
-        </div>
-      </section>
+    <div className="py-10 space-y-6 max-w-3xl">
+      <h1 className="text-3xl font-semibold">Jouw MuseaThuis profiel</h1>
+      <p className="text-sm text-neutral-700">
+        Hier kun je straks je voortgang zien: afgeronde tours, badges, favoriete
+        thema&apos;s en je premiumstatus.
+      </p>
+      <p className="text-sm text-neutral-500">
+        In een volgende stap koppelen we dit aan de gebruikersdatabase en
+        analytics.
+      </p>
     </div>
   );
 }
