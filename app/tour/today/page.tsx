@@ -1,91 +1,75 @@
-type Work = {
-  id: string;
-  title: string;
-  artist: string;
-  museum: string;
-};
+// app/tour/today/page.tsx
+import { getTourOfToday } from '@/lib/repos/tourRepo';
 
-type Tour = {
-  id: string;
-  title: string;
-  intro: string;
-  durationMinutes: number;
-  works: Work[];
-};
+export const revalidate = 60; // elke minuut refreshen is meestal ruim voldoende
 
-async function getTodayTour(): Promise<Tour> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/tour/today`, {
-    // voorkomt caching tijdens ontwikkelen
-    cache: "no-store",
-  });
+export default async function TourTodayPage() {
+  const tour = await getTourOfToday();
 
-  if (!res.ok) {
-    throw new Error("Kon tour van vandaag niet ophalen");
+  if (!tour) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <h1 className="text-2xl font-semibold mb-4">
+          Tour van vandaag
+        </h1>
+        <p className="text-sm text-gray-600">
+          Er is vandaag nog geen tour ingepland of gepubliceerd.
+        </p>
+      </main>
+    );
   }
 
-  return res.json();
-}
-
-export default async function TodayTourPage() {
-  const tour = await getTodayTour();
-
   return (
-    <div className="py-10">
-      <section>
-        <p
-          style={{
-            textTransform: "uppercase",
-            letterSpacing: "0.2em",
-            fontSize: "0.7rem",
-            color: "#737373",
-            marginBottom: "0.5rem",
-          }}
-        >
-          Tour van vandaag
+    <main className="max-w-4xl mx-auto px-4 py-10">
+      <header className="mb-8">
+        <h1 className="text-3xl font-semibold mb-2">
+          {tour.title}
+        </h1>
+        {tour.subtitle && (
+          <p className="text-base text-gray-700">
+            {tour.subtitle}
+          </p>
+        )}
+        <p className="text-xs text-gray-500 mt-2">
+          Datum: {tour.date}
         </p>
-        <h1>{tour.title}</h1>
-        <p style={{ fontSize: "0.9rem", maxWidth: "40rem" }}>{tour.intro}</p>
-        <p style={{ fontSize: "0.75rem", color: "#737373" }}>
-          Totale luistertijd circa {tour.durationMinutes} minuten.
-        </p>
-      </section>
+      </header>
 
-      <section>
-        <h2>Kunstwerken in deze tour</h2>
-        {tour.works.map((work) => (
-          <div
-            key={work.id}
-            style={{
-              border: "1px solid #e5e5e5",
-              borderRadius: "16px",
-              padding: "0.75rem 1rem",
-              marginBottom: "0.5rem",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              fontSize: "0.9rem",
-              background: "#ffffff",
-            }}
+      <section className="space-y-6">
+        {tour.artworks.map(artwork => (
+          <article
+            key={artwork.id}
+            className="border rounded-lg p-4 flex flex-col md:flex-row gap-4"
           >
-            <div>
-              <div style={{ fontWeight: 500 }}>{work.title}</div>
-              <div style={{ color: "#555" }}>
-                {work.artist} · {work.museum}
+            {artwork.imageUrl && (
+              <div className="md:w-1/3 flex-shrink-0">
+                {/* Later kun je hier Next/Image gebruiken */}
+                <img
+                  src={artwork.imageUrl}
+                  alt={artwork.title ?? 'Kunstwerk'}
+                  className="w-full h-auto rounded-md object-cover"
+                />
               </div>
+            )}
+
+            <div className="md:flex-1">
+              <h2 className="text-xl font-semibold mb-1">
+                {artwork.position}. {artwork.title ?? 'Ongetiteld'}
+              </h2>
+              {artwork.artistName && (
+                <p className="text-sm text-gray-700">
+                  {artwork.artistName}
+                </p>
+              )}
+              {(artwork.yearFrom || artwork.yearTo) && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {artwork.yearFrom ?? '?'} – {artwork.yearTo ?? '?'}
+                </p>
+              )}
             </div>
-            <button className="btn-secondary">Bekijk werk</button>
-          </div>
+          </article>
         ))}
       </section>
-
-      <section>
-        <h2>Volgende stap</h2>
-        <p style={{ fontSize: "0.9rem", maxWidth: "40rem" }}>
-          Deze tour komt nu uit een eenvoudige API-route. In een volgende stap
-          vervangen we de mock data door een echte tour uit je database en CRM,
-          zonder de voorkant nog eens te hoeven aanpassen.
-        </p>
-      </section>
-    </div>
+    </main>
   );
 }
