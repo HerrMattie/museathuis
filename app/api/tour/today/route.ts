@@ -13,7 +13,7 @@ export async function GET() {
   // Haal 3 echte werken op – pas evt. tabel/kolomnamen aan
   const { data, error } = await supabaseServer
     .from("artworks")
-    .select("id, title, artist_name, location_city, collection_name, museum")
+    .select("id, title, artist_name, location_city, museum")
     .limit(3);
 
   if (error) {
@@ -30,10 +30,7 @@ export async function GET() {
     id: String(row.id),
     title: row.title ?? "Zonder titel",
     artist: row.artist_name ?? "Onbekende kunstenaar",
-    museum:
-      row.museum ??
-      row.location_city ??
-      "Onbekend museum",
+    museum: row.museum ?? row.location_city ?? "Onbekend museum",
   }));
 
   const tour = {
@@ -41,7 +38,7 @@ export async function GET() {
     title: "Oefentour met echte kunstwerken",
     intro:
       "Deze oefentour bestaat uit drie echte records uit de database. Later vervang je dit door een geplande tour uit het CRM, maar de voorkant kan zo blijven.",
-    durationMinutes: 3 * 3, // grove schatting: 3 minuten per werk
+    durationMinutes: 3 * 3,
     works,
   };
 
