@@ -37,6 +37,7 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+      {/* Kop en status */}
       <section className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold mb-1">
@@ -45,21 +46,40 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
           <p className="text-sm text-gray-600">
             Tour ID: {tour.id}
           </p>
+          <p className="text-sm text-gray-600">
+            Datum: {tour.date}
+          </p>
         </div>
 
-        <div className="text-right">
-          <p className="text-xs text-gray-500 mb-1">
-            Publicatiestatus
-          </p>
-          {tour.isPublished ? (
-            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-green-50 text-green-700">
-              Gepubliceerd
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-yellow-50 text-yellow-700">
-              Concept
-            </span>
-          )}
+        <div className="text-right space-y-1">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">
+              Publicatiestatus
+            </p>
+            {tour.isPublished ? (
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-green-50 text-green-700">
+                Gepubliceerd
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-yellow-50 text-yellow-700">
+                Concept
+              </span>
+            )}
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">
+              Premium
+            </p>
+            {tour.isPremium ? (
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-purple-50 text-purple-700">
+                Premium tour
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs bg-gray-50 text-gray-600">
+                Standaard tour
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
@@ -72,25 +92,28 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
         </Link>
       </section>
 
-      {/* Metagegevens bewerken */}
+      {/* Metagegevens bewerken incl. premium */}
       <section className="border rounded-lg p-4 bg-white">
         <h2 className="text-lg font-semibold mb-3">
           Metagegevens tour bewerken
         </h2>
         <p className="text-xs text-gray-600 mb-3">
-          Pas datum, titel, subtitel en publicatiestatus aan. Wijzigingen zijn direct zichtbaar in de frontend.
+          Pas datum, titel, subtitel, publicatiestatus en premiumstatus aan. Wijzigingen zijn direct zichtbaar in de frontend.
         </p>
 
         <form
           action={async formData => {
-            "use server";
+            'use server';
 
             const date = String(formData.get('date') || '').trim();
             const title = String(formData.get('title') || '').trim();
             const subtitle = String(formData.get('subtitle') || '').trim();
+
             const isPublishedValue = String(formData.get('is_published') || 'false');
+            const isPremiumValue = String(formData.get('is_premium') || 'false');
 
             const isPublished = isPublishedValue === 'true';
+            const isPremium = isPremiumValue === 'true';
 
             if (!date || !title) {
               throw new Error('Datum en titel zijn verplicht');
@@ -101,7 +124,8 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
               date,
               title,
               subtitle: subtitle || undefined,
-              isPublished
+              isPublished,
+              isPremium
             });
           }}
           className="grid gap-3 md:grid-cols-[160px_minmax(0,1fr)] items-start"
@@ -141,25 +165,51 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
           <label className="text-sm text-gray-700">
             Publicatiestatus
           </label>
-          <div className="flex items-center gap-4 text-sm">
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="radio"
-                name="is_published"
-                value="false"
-                defaultChecked={!tour.isPublished}
-              />
-              <span>Concept</span>
-            </label>
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="radio"
-                name="is_published"
-                value="true"
-                defaultChecked={tour.isPublished}
-              />
-              <span>Gepubliceerd</span>
-            </label>
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex items-center gap-4">
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="is_published"
+                  value="false"
+                  defaultChecked={!tour.isPublished}
+                />
+                <span>Concept</span>
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input
+                  type="radio"
+                  name="is_published"
+                  value="true"
+                  defaultChecked={tour.isPublished}
+                />
+                <span>Gepubliceerd</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-gray-700">
+                Premium tour
+              </span>
+              <label className="inline-flex items-center gap-1 text-xs">
+                <input
+                  type="radio"
+                  name="is_premium"
+                  value="false"
+                  defaultChecked={!tour.isPremium}
+                />
+                <span>Nee</span>
+              </label>
+              <label className="inline-flex items-center gap-1 text-xs">
+                <input
+                  type="radio"
+                  name="is_premium"
+                  value="true"
+                  defaultChecked={tour.isPremium}
+                />
+                <span>Ja</span>
+              </label>
+            </div>
           </div>
 
           <div></div>
@@ -189,13 +239,12 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
             Kunstwerk toevoegen
           </h3>
           <p className="text-xs text-gray-600 mb-2">
-            Vul het ID van een bestaand artwork in. Positie wordt automatisch bepaald
-            als je deze leeg laat.
+            Vul het ID van een bestaand artwork in. Positie wordt automatisch bepaald als je deze leeg laat.
           </p>
 
           <form
             action={async formData => {
-              "use server";
+              'use server';
 
               const artworkId = String(formData.get('artwork_id') || '').trim();
               const posRaw = String(formData.get('position') || '').trim();
@@ -250,7 +299,7 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
           {tour.artworks.map(artwork => (
             <article
               key={artwork.id}
-              className="border rounded-lg p-3 flex gap-3 items-start"
+              className="border rounded-lg p-3 flex gap-3 items-start bg-white"
             >
               {artwork.imageUrl && (
                 <div className="w-20 h-20 flex-shrink-0">
@@ -292,7 +341,7 @@ export default async function AdminTourDetailPage({ params }: PageProps) {
               {/* Verwijderknop */}
               <form
                 action={async formData => {
-                  "use server";
+                  'use server';
 
                   const artworkId = String(formData.get('artwork_id') || '').trim();
 
