@@ -13,8 +13,11 @@ export default async function TourTodayPage() {
         <h1 className="text-2xl font-semibold mb-4">
           Tour van vandaag
         </h1>
-        <p className="text-sm text-gray-600">
-          Er is vandaag nog geen tour ingepland of gepubliceerd.
+        <p className="text-sm text-gray-600 mb-2">
+          Er is vandaag geen gepubliceerde tour ingepland.
+        </p>
+        <p className="text-xs text-gray-500">
+          Plan in de adminomgeving een tour in op de huidige datum en publiceer deze om hier zichtbaar te maken.
         </p>
       </main>
     );
@@ -26,14 +29,27 @@ export default async function TourTodayPage() {
         <h1 className="text-3xl font-semibold mb-2">
           {tour.title}
         </h1>
+
         {tour.subtitle && (
           <p className="text-base text-gray-700">
             {tour.subtitle}
           </p>
         )}
-        <p className="text-xs text-gray-500 mt-2">
-          Datum: {tour.date}
+
+        <p className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+          <span>Datum: {tour.date}</span>
+          {tour.isPremium && (
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 bg-purple-100 text-[11px] text-purple-800">
+              Premium tour
+            </span>
+          )}
         </p>
+
+        {tour.isPremium && (
+          <p className="mt-3 text-sm text-purple-900 bg-purple-50 border border-purple-100 rounded px-3 py-2">
+            Dit is een premiumtour. Toegang kan later gekoppeld worden aan een premiumabonnement. Voor nu is de tour vrijgegeven voor test- en beheersdoeleinden.
+          </p>
+        )}
       </header>
 
       <section className="space-y-6">
@@ -58,16 +74,19 @@ export default async function TourTodayPage() {
                 <h2 className="text-xl font-semibold mb-1">
                   {artwork.position}. {artwork.title ?? 'Ongetiteld'}
                 </h2>
+
                 {artwork.artistName && (
                   <p className="text-sm text-gray-700">
                     {artwork.artistName}
                   </p>
                 )}
+
                 {(artwork.yearFrom || artwork.yearTo) && (
                   <p className="text-xs text-gray-500 mt-1">
                     {artwork.yearFrom ?? '?'} – {artwork.yearTo ?? '?'}
                   </p>
                 )}
+
                 <p className="text-xs text-blue-700 mt-2">
                   Klik voor meer informatie over dit kunstwerk
                 </p>
@@ -75,6 +94,12 @@ export default async function TourTodayPage() {
             </article>
           </Link>
         ))}
+
+        {tour.artworks.length === 0 && (
+          <p className="text-sm text-gray-600">
+            Er zijn nog geen kunstwerken gekoppeld aan deze tour. Voeg artworks toe via de adminomgeving.
+          </p>
+        )}
       </section>
     </main>
   );
