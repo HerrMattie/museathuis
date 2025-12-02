@@ -1,4 +1,3 @@
-// components/section/DayItemCard.tsx
 import Link from "next/link";
 import { PremiumOverlay } from "@/components/premium/PremiumOverlay";
 

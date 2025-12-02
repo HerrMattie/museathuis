@@ -1,4 +1,3 @@
-// app/(public)/games/page.tsx
 import { SectionHero } from "@/components/section/SectionHero";
 import { DayItemCard } from "@/components/section/DayItemCard";
 

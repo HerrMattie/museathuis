@@ -1,4 +1,3 @@
-// components/premium/PremiumOverlay.tsx
 export function PremiumOverlay() {
   return (
     <div className="absolute inset-0">

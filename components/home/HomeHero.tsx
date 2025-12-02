@@ -1,4 +1,3 @@
-// components/home/HomeHero.tsx
 export function HomeHero() {
   return (
     <section className="space-y-6">

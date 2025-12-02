@@ -1,4 +1,3 @@
-// components/section/SectionHero.tsx
 interface SectionHeroProps {
   title: string;
   subtitle: string;

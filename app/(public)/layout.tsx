@@ -1,4 +1,3 @@
-// app/(public)/layout.tsx
 import "../globals.css";
 import type { ReactNode } from "react";
 import { AudioPlayerProvider } from "@/components/audio/AudioPlayerProvider";

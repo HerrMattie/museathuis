@@ -1,4 +1,3 @@
-// app/(public)/page.tsx
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomePanel } from "@/components/home/HomePanel";
 
