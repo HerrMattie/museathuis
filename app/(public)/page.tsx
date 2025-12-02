@@ -1,37 +1,47 @@
 // app/(public)/page.tsx
-import Link from "next/link";
-import { Suspense } from "react";
-import { TodayTourPreview } from "@/components/tour/TodayTourPreview";
-import { SkeletonTourPreview } from "@/components/tour/SkeletonTourPreview";
+import { HomeHero } from "@/components/home/HomeHero";
+import { HomePanel } from "@/components/home/HomePanel";
 
 export default function HomePage() {
   return (
     <div className="space-y-10">
+      <HomeHero />
+
       <section className="space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Tour van vandaag
-        </h1>
-        <p className="max-w-xl text-sm text-neutral-300">
-          Elke dag een nieuwe museale tour met acht kunstwerken, audio en
-          verdiepende toelichting. Ongeveer tien minuten, speciaal voor thuis.
-        </p>
-        <Suspense fallback={<SkeletonTourPreview />}>
-          <TodayTourPreview />
-        </Suspense>
+        <h2 className="text-sm font-medium uppercase tracking-[0.35em] text-neutral-400">
+          Ontdek
+        </h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <HomePanel
+            title="Tours"
+            description="Dagelijkse kunsttours van circa tien minuten met audio en museale teksten."
+            href="/tours"
+            accent="tours"
+          />
+          <HomePanel
+            title="Games"
+            description="Speelse quizzen en opdrachten rond kunstwerken om je oog te trainen."
+            href="/games"
+            accent="games"
+          />
+          <HomePanel
+            title="Focus"
+            description="Tien minuten verdieping op één kunstwerk, met context, tijdsbeeld en techniek."
+            href="/focus"
+            accent="focus"
+          />
+        </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Premium</h2>
-        <p className="max-w-xl text-sm text-neutral-300">
-          Met Premium krijg je toegang tot twee extra tours per dag, games en
-          focus modus met tien minuten verdieping per kunstwerk.
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium uppercase tracking-[0.35em] text-neutral-400">
+          Over MuseaThuis
+        </h3>
+        <p className="max-w-2xl text-sm text-neutral-300 leading-relaxed">
+          MuseaThuis brengt dagelijks een nieuwe, zorgvuldig opgebouwde kunstervaring naar je
+          woonkamer. Korte tours, speelse games en diepe focus-sessies helpen je stap voor stap
+          een eigen kijk op kunst te ontwikkelen, zonder overload.
         </p>
-        <Link
-          href="/premium"
-          className="inline-flex items-center rounded-full bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
-        >
-          Word premium
-        </Link>
       </section>
     </div>
   );
