@@ -63,12 +63,21 @@ ${JSON.stringify(artworks, null, 2)}
     temperature: 0.7,
   });
 
-  const raw = completion.output[0].content[0];
+  // Typing van openai.responses is redelijk complex; we cast hier pragmatisch naar any
+  const outputAny = completion as any;
+  const raw = outputAny.output?.[0]?.content?.[0];
+
+  if (!raw) {
+    logger.error("OpenAI response had unexpected shape", { completion });
+    throw new Error("Unexpected OpenAI response shape for tour");
+  }
+
   if (raw.type !== "output_text") {
     throw new Error("Unexpected OpenAI response type for tour");
   }
 
-  const text = raw.text;
+  const text = raw.text as string;
+
   let parsed: {
     title: string;
     description: string;
