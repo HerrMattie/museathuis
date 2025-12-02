@@ -50,7 +50,7 @@ export async function getArtworkById(id: string): Promise<Artwork | null> {
     .single();
 
   if (error) {
-    if (error.code === 'PGRST116') {
+    if ((error as any).code === 'PGRST116') {
       // geen rij gevonden
       return null;
     }
@@ -61,16 +61,16 @@ export async function getArtworkById(id: string): Promise<Artwork | null> {
   if (!data) return null;
 
   return {
-    id: data.id,
-    title: data.title ?? null,
-    artistName: data.artist_name ?? null,
-    yearFrom: data.year_from ?? null,
-    yearTo: data.year_to ?? null,
-    imageUrl: data.image_url ?? null,
-    museum: data.museum ?? null,
-    locationCity: data.location_city ?? null,
-    locationCountry: data.location_country ?? null,
-    description: data.description_primary ?? null
+    id: (data as any).id,
+    title: (data as any).title ?? null,
+    artistName: (data as any).artist_name ?? null,
+    yearFrom: (data as any).year_from ?? null,
+    yearTo: (data as any).year_to ?? null,
+    imageUrl: (data as any).image_url ?? null,
+    museum: (data as any).museum ?? null,
+    locationCity: (data as any).location_city ?? null,
+    locationCountry: (data as any).location_country ?? null,
+    description: (data as any).description_primary ?? null
   };
 }
 
@@ -115,7 +115,7 @@ export async function searchArtworksForAdmin(
   }
 
   return (
-    data?.map((row: any) => ({
+    (data as any[] | null)?.map(row => ({
       id: row.id,
       title: row.title ?? null,
       artistName: row.artist_name ?? null,
