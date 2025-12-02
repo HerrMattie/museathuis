@@ -8,6 +8,7 @@ interface TourPageContentProps {
   id?: string;
 }
 
+
 async function loadTour(mode: Mode, id?: string) {
   try {
     let url: string;
