@@ -9,27 +9,54 @@ interface TourPageContentProps {
 }
 
 async function loadTour(mode: Mode, id?: string) {
-  let url: string;
+  try {
+    let url: string;
 
-  if (mode === "today") {
-    url = `${process.env.NEXT_PUBLIC_APP_BASE_URL}/api/tours/today`;
-  } else if (mode === "byId" && id) {
-    url = `${process.env.NEXT_PUBLIC_APP_BASE_URL}/api/tours/${id}`;
-  } else {
-    throw new Error("Invalid tour mode");
+    if (mode === "today") {
+      url = "/api/tours/today";
+    } else if (mode === "byId" && id) {
+      url = `/api/tours/${id}`;
+    } else {
+      return null;
+    }
+
+    const res = await fetch(url, { cache: "no-store" });
+
+    if (!res.ok) {
+      // Geen tour beschikbaar of serverfout
+      return null;
+    }
+
+    const tour = await res.json();
+    return tour;
+  } catch {
+    // Netwerk- of runtimefout: liever een nette fallback dan een throw
+    return null;
   }
-
-  const res = await fetch(url, { cache: "no-store" });
-
-  if (!res.ok) {
-    throw new Error("Kon tour niet laden");
-  }
-
-  return res.json();
 }
 
 export async function TourPageContent(props: TourPageContentProps) {
   const tour = await loadTour(props.mode, props.id);
+
+  if (!tour) {
+    return (
+      <article className="space-y-4">
+        <header className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
+            Tour van vandaag
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Nog geen tour beschikbaar
+          </h1>
+        </header>
+        <p className="max-w-xl text-sm text-neutral-300">
+          De tour van vandaag is nog niet beschikbaar of kon niet geladen
+          worden. Zodra er een nieuwe tour gepland is, verschijnt deze hier.
+        </p>
+      </article>
+    );
+  }
+
   const items = (tour.tour_items ?? []).sort(
     (a: any, b: any) => a.position - b.position
   );
