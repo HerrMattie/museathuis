@@ -16,8 +16,6 @@ export default function HomePage() {
           verdiepende toelichting. Ongeveer tien minuten, speciaal voor thuis.
         </p>
         <Suspense fallback={<SkeletonTourPreview />}>
-          {/* Server component die tour van vandaag laadt */}
-          {/* @ts-expect-error Server Component */}
           <TodayTourPreview />
         </Suspense>
       </section>
