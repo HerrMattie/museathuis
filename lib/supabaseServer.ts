@@ -11,3 +11,6 @@ export const supabaseService = createClient(
     },
   }
 );
+
+// Backwards compatible naam voor bestaande imports
+export const supabaseServerClient = supabaseService;
