@@ -8,24 +8,32 @@ export type GenerateDailyTourOptions = {
 
 /**
  * Placeholder AI-tour generator.
- * Later vervang je dit door de echte tour-engine (selectie artworks + aanmaken tour + tour_items).
+ * Accepteert óf een string (datum) óf een options-object.
  */
 export async function generateDailyTour(
-  options: GenerateDailyTourOptions = {}
+  options?: GenerateDailyTourOptions | string
 ) {
-  const today = options.date ?? new Date().toISOString().slice(0, 10);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  let targetDate = todayIso;
+
+  if (typeof options === "string") {
+    // route.ts roept generateDailyTour(targetDate: string) aan
+    targetDate = options || todayIso;
+  } else if (options && options.date) {
+    targetDate = options.date;
+  }
+
   const supabase = supabaseServer();
 
-  // Dummy: maak een tour-record aan met alleen titel/intro
   const { data, error } = await supabase
     .from("tours")
     .insert({
-      title: `Placeholder tour voor ${today}`,
+      title: `Placeholder tour voor ${targetDate}`,
       intro:
-        "Dit is een placeholder-tour uit de AI-engine. Vervang deze functie door de echte tourgenerator.",
+        "Dit is een placeholder-tour uit de AI-engine. Vervang deze functie later door de echte tourgenerator.",
       status: "draft",
       is_premium: false,
-      scheduled_for: today
+      scheduled_for: targetDate
     })
     .select()
     .single();
@@ -37,10 +45,10 @@ export async function generateDailyTour(
 
   return {
     ok: true,
-    date: today,
+    date: targetDate,
     tour: data
   };
 }
 
-// Zorg dat default import ook werkt (mocht je die ergens gebruiken)
+// Laat dit onderaan staan als je al een default export hebt:
 export default generateDailyTour;
