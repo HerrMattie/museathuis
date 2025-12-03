@@ -1,44 +1,51 @@
-// middleware.ts
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+
+const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER;
+const BASIC_AUTH_PASSWORD = process.env.BASIC_AUTH_PASSWORD;
+
+// Alleen deze paden beveiligen
+const PROTECTED_PREFIXES = ["/admin", "/crm"];
 
 export function middleware(req: NextRequest) {
-  const { nextUrl } = req;
+  const { pathname } = req.nextUrl;
 
-  // Alleen alles onder /admin beveiligen
-  if (!nextUrl.pathname.startsWith('/admin')) {
+  // Publieke routes: laat alles gewoon door
+  const needsAuth = PROTECTED_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
+  if (!needsAuth) {
     return NextResponse.next();
   }
 
-  const basicAuth = req.headers.get('authorization');
-  const adminUser = process.env.ADMIN_USER;
-  const adminPassword = process.env.ADMIN_PASSWORD;
-
-  if (!adminUser || !adminPassword) {
-    console.error(
-      '[middleware] ADMIN_USER of ADMIN_PASSWORD ontbreekt. Stel deze in als environment variables.'
-    );
-    return new NextResponse('Admin configuratie ontbreekt', { status: 500 });
+  // Als er geen credentials zijn ingesteld, gewoon doorlaten
+  if (!BASIC_AUTH_USER || !BASIC_AUTH_PASSWORD) {
+    return NextResponse.next();
   }
 
-  if (basicAuth) {
-    const [, base64] = basicAuth.split(' ');
-    const [user, password] = Buffer.from(base64, 'base64').toString().split(':');
+  const authHeader = req.headers.get("authorization");
 
-    if (user === adminUser && password === adminPassword) {
-      return NextResponse.next();
+  if (authHeader) {
+    const [scheme, encoded] = authHeader.split(" ");
+
+    if (scheme === "Basic" && encoded) {
+      const decoded = Buffer.from(encoded, "base64").toString("utf-8");
+      const [user, password] = decoded.split(":");
+
+      if (user === BASIC_AUTH_USER && password === BASIC_AUTH_PASSWORD) {
+        return NextResponse.next();
+      }
     }
   }
 
-  return new NextResponse('Authentication required', {
+  return new NextResponse("Authentication required", {
     status: 401,
     headers: {
-      'WWW-Authenticate': 'Basic realm="MuseaThuis Admin"'
-    }
+      "WWW-Authenticate": 'Basic realm="MuseaThuis Admin"',
+    },
   });
 }
 
-// Zorg dat dit alleen op /admin wordt toegepast
+// Middleware toepassen op alle routes, maar in de functie zelf filteren
 export const config = {
-  matcher: ['/admin/:path*']
+  matcher: ["/:path*"],
 };
