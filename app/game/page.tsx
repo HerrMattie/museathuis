@@ -1,10 +1,9 @@
-export default function Page() {
+export default function GameOverviewPage() {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Games</h1>
-      <p className="text-sm text-gray-700">
-        Deze pagina is een placeholder in de MuseaThuis v2 basis. De daadwerkelijke
-        inhoud wordt gevoed vanuit Supabase en de AI-generatoren.
+      <h2 className="text-xl font-semibold">Games</h2>
+      <p className="text-sm text-slate-300">
+        Hier komt de overzichtspagina met dagelijkse games en rankings.
       </p>
     </div>
   );
