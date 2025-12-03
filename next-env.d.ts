@@ -2,7 +2,6 @@
 /// <reference types="next/image-types/global" />
 
 declare module "*.svg" {
-  import * as React from "react";
-  const content: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  const content: any;
   export default content;
 }
