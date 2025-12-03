@@ -5,7 +5,7 @@ import { supabaseServer } from "@/lib/supabaseClient";
  * Placeholder voor het starten van een Rijksmuseum-ingest.
  * Maakt alleen een record in ingestion_jobs aan.
  */
-export async function queueRijksmuseumImportRun() {
+export async function startRijksmuseumImport() {
   const supabase = supabaseServer();
 
   const { data, error } = await supabase
@@ -26,5 +26,5 @@ export async function queueRijksmuseumImportRun() {
   return { ok: true, job: data };
 }
 
-// Ook hier beide importstijlen mogelijk maken
-export default queueRijksmuseumImportRun;
+// Ook als default export beschikbaar
+export default startRijksmuseumImport;
