@@ -19,7 +19,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/tour"
+              href="/tour/today"
               className="rounded-full bg-[#5b7fba] px-6 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               Start tour van vandaag
