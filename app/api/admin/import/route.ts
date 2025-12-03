@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
-import { startMuseumImport } from "@/lib/import/startMuseumImport";
+import { startRijksmuseumImport } from "@/lib/import/rijksmuseumImport";
 
-export async function POST(request: Request) {
-  const { museumId } = await request.json();
-  if (!museumId) {
-    return NextResponse.json({ error: "museumId is required" }, { status: 400 });
-  }
-
+export async function POST(req: Request) {
   try {
-    const result = await startMuseumImport(museumId);
-    return NextResponse.json({ ok: true, datasetId: result.datasetId });
+    const body = await req.json().catch(() => ({}));
+    const museumId = body.museumId as string | undefined;
+
+    if (!museumId) {
+      return NextResponse.json({ error: "museumId is verplicht" }, { status: 400 });
+    }
+
+    const result = await startRijksmuseumImport(museumId);
+
+    return NextResponse.json({ ok: true, imported: result.importedCount });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Import error", err);
+    return NextResponse.json({ error: err.message ?? "Onbekende fout" }, { status: 500 });
   }
 }
