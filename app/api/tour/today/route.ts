@@ -14,11 +14,8 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // Eenvoudige "vandaag" logica; als je precies Europe/Amsterdam wilt,
-    // kun je dit later verfijnen.
-    const today = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-    // 1. Haal de tour van vandaag op
     const { data: tour, error: tourError } = await supabase
       .from("tours")
       .select("*")
@@ -33,7 +30,6 @@ export async function GET() {
       );
     }
 
-    // 2. Haal alle items van deze tour op
     const { data: items, error: itemsError } = await supabase
       .from("tour_items")
       .select("id, tour_id, artwork_id, order_index")
@@ -55,11 +51,8 @@ export async function GET() {
       );
     }
 
-    const artworkIds = Array.from(
-      new Set(items.map((i) => i.artwork_id))
-    );
+    const artworkIds = Array.from(new Set(items.map((i: any) => i.artwork_id)));
 
-    // 3. Haal de bijbehorende artworks op
     const { data: artworks, error: artworksError } = await supabase
       .from("artworks")
       .select(
@@ -76,10 +69,10 @@ export async function GET() {
     }
 
     const artworksById = new Map(
-      (artworks ?? []).map((a) => [a.id, a])
+      (artworks ?? []).map((a: any) => [a.id, a])
     );
 
-    const itemsWithArtworks = items.map((item) => ({
+    const itemsWithArtworks = (items ?? []).map((item: any) => ({
       id: item.id,
       order_index: item.order_index,
       artwork_id: item.artwork_id,
