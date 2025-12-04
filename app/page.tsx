@@ -95,3 +95,37 @@ export default function HomePage() {
               </p>
             </div>
             <p className="mt-4 text-xs font-medium text-slate-400 group-hover:text-slate-200">
+              Naar weekselectie &rarr;
+            </p>
+          </Link>
+
+          <Link
+            href="/premium?view=month"
+            className="group flex flex-col justify-between rounded-lg border border-slate-800 bg-slate-950/60 p-4 transition hover:border-slate-500 hover:bg-slate-950"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Selectie
+                </p>
+                <span className="rounded-full border border-amber-500/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                  Premium
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-50">
+                Beste van de maand
+              </h3>
+              <p className="text-sm text-slate-300">
+                Een langere avondtour met een thematische selectie uit de beste
+                MuseaThuis-programma&apos;s van deze maand.
+              </p>
+            </div>
+            <p className="mt-4 text-xs font-medium text-slate-400 group-hover:text-slate-200">
+              Naar maandselectie &rarr;
+            </p>
+          </Link>
+        </div>
+      </section>
+    </>
+  );
+}
