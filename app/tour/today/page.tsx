@@ -1,57 +1,78 @@
-import { createClient } from "@supabase/supabase-js";
-import { TourTheater } from "@/components/TourTheater";
+export const metadata = {
+  title: "Tours van vandaag",
+  description:
+    "Overzicht van de drie tours van vandaag: één gratis en twee voor premiumleden.",
+};
 
-function getServiceClient() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key, { auth: { persistSession: false } });
+type TourCardProps = {
+  title: string;
+  label: string;
+  description: string;
+  isPremium: boolean;
+};
+
+function TourCard({ title, label, description, isPremium }: TourCardProps) {
+  return (
+    <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div className="flex gap-4">
+        <div className="hidden h-24 w-20 flex-none rounded-lg bg-slate-800 sm:block" />
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <p className="text-xs uppercase tracking-wide text-slate-400">
+              {label}
+            </p>
+            {isPremium && (
+              <span className="rounded-full border border-amber-500/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                Premium
+              </span>
+            )}
+          </div>
+          <h2 className="text-lg font-semibold text-slate-50">{title}</h2>
+          <p className="text-xs text-slate-300">{description}</p>
+        </div>
+      </div>
+      <button className="mt-4 inline-flex text-xs font-medium text-amber-300 hover:text-amber-200">
+        Bekijk tour
+      </button>
+    </div>
+  );
 }
 
-export default async function TodayTourPage() {
-  const supabase = getServiceClient();
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data: tour } = await supabase
-    .from("tours")
-    .select("id,title,intro")
-    .eq("date", today)
-    .maybeSingle();
-
-  if (!tour?.id) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-10 space-y-3">
-        <h1 className="text-2xl font-semibold">Tour van vandaag</h1>
-        <p className="text-sm text-neutral-700">
-          Er is nog geen tour ingepland voor vandaag. Probeer later opnieuw of genereer
-          een tour vanuit het CRM.
-        </p>
-      </div>
-    );
-  }
-
-  const { data: items } = await supabase
-    .from("tour_items")
-    .select("position, ai_text, artworks ( id, title, artist, year_from, year_to, object_type, material, image_url )")
-    .eq("tour_id", tour.id)
-    .order("position", { ascending: true });
-
-  const mappedItems = (items ?? []).map((it: any) => ({
-    id: it.artworks.id as string,
-    title: it.artworks.title as string,
-    artist: it.artworks.artist as string | null,
-    year_from: it.artworks.year_from as number | null,
-    year_to: it.artworks.year_to as number | null,
-    object_type: it.artworks.object_type as string | null,
-    material: it.artworks.material as string | null,
-    image_url: it.artworks.image_url as string | null,
-    ai_text: it.ai_text as string | null
-  }));
-
+export default function ToursTodayPage() {
   return (
-    <TourTheater
-      tourTitle={tour.title ?? "Tour van vandaag"}
-      tourIntro={tour.intro}
-      items={mappedItems}
-    />
+    <div className="space-y-6">
+      <header className="space-y-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-50">
+          Tours van vandaag
+        </h1>
+        <p className="max-w-2xl text-sm text-slate-300">
+          Elke dag selecteert MuseaThuis drie tours. Eén tour is gratis
+          toegankelijk, de andere twee zijn beschikbaar voor premiumleden. Op
+          deze pagina zie je in één oogopslag de onderwerpen en kun je een tour
+          kiezen om te starten.
+        </p>
+      </header>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <TourCard
+          title="Gratis tour van vandaag"
+          label="Gratis"
+          description="De gratis tour van vandaag, met een duidelijke rode draad en een compacte selectie meesterwerken."
+          isPremium={false}
+        />
+        <TourCard
+          title="Premiumtour 1"
+          label="Tour"
+          description="Een verdiepend thema, bijvoorbeeld rond een periode, museum of kunstenaar, met meer werken en uitleg."
+          isPremium={true}
+        />
+        <TourCard
+          title="Premiumtour 2"
+          label="Tour"
+          description="Een tweede premiumtour met een andere invalshoek, zodat je kunt kiezen wat het beste past bij je interesse."
+          isPremium={true}
+        />
+      </section>
+    </div>
   );
 }
