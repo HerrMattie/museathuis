@@ -12,9 +12,9 @@ export default function SalonPage() {
           MuseaThuis Salon
         </h1>
         <p className="max-w-2xl text-sm text-slate-300">
-          De Salonmodus is ontworpen voor gebruik op een groter scherm, bijvoorbeeld
-          in de woonkamer. Je kiest een set kunstwerken; MuseaThuis toont ze
-          rustig na elkaar, met minimale interface.
+          De Salonmodus is ontworpen voor gebruik op een groter scherm, bij
+          een etentje, borrel of rustige avond. Je kiest een set kunstwerken en
+          MuseaThuis toont ze rustig na elkaar, met minimale interface.
         </p>
       </header>
 
@@ -23,9 +23,9 @@ export default function SalonPage() {
           Curated en persoonlijke salons
         </h2>
         <p className="max-w-2xl text-sm text-slate-300">
-          Later kun je hier zowel door MuseaThuis samengestelde salons als eigen
-          salons tonen. De data kan komen uit de tabellen{" "}
-          <code>salon_sets</code> en <code>salon_set_items</code>.
+          Je kunt kiezen uit salons die door MuseaThuis zijn samengesteld of
+          zelf salons samenstellen uit je favoriete werken. Zo wordt je
+          woonkamer een eigen kleine tentoonstellingsruimte.
         </p>
       </section>
 
@@ -34,9 +34,9 @@ export default function SalonPage() {
           Casting en avondbeleving
         </h2>
         <p className="max-w-2xl text-sm text-slate-300">
-          Deze pagina leent zich goed voor gebruik met casting naar een TV of
-          groot scherm. De technische koppeling zit vooral in de frontend en
-          hoeft geen extra databasetabellen te gebruiken.
+          De Salonmodus is ideaal in combinatie met casting naar je televisie of
+          een groot scherm. De vormgeving is rustig, met weinig knoppen en veel
+          ruimte voor kijken en gesprek.
         </p>
       </section>
     </div>
