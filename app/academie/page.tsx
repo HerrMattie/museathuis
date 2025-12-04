@@ -24,15 +24,9 @@ export default function AcademiePage() {
         </h2>
         <p className="max-w-2xl text-sm text-slate-300">
           Binnen de Academie vind je leerlijnen rond periodes, thema&apos;s en
-          kunstenaars. Elke leerlijn bestaat uit een reeks tours en focus-
-          sessies, met een duidelijke opbouw in moeilijkheidsgraad. Jij bepaalt
-          het tempo; wij zorgen voor structuur.
-        </p>
-        <p className="text-sm text-slate-400">
-          Deze pagina kan straks gevoed worden vanuit de tabellen{" "}
-          <code>learning_tracks</code> en{" "}
-          <code>learning_track_items</code>, inclusief een indicatie van de
-          totale duur per traject.
+          kunstenaars. Elke leerlijn bestaat uit een reeks tours en
+          focusmomenten met een duidelijke opbouw. Jij bepaalt het tempo; wij
+          zorgen voor structuur en samenhang.
         </p>
       </section>
 
@@ -41,13 +35,10 @@ export default function AcademiePage() {
           Avondprogramma&apos;s en weekenden
         </h2>
         <p className="max-w-2xl text-sm text-slate-300">
-          Elke maand is er een live-avond, en elk weekend een langer
+          Elke maand is er een live-avond en elk weekend een langer
           avondprogramma rond een museum of thema. Deze programma&apos;s
-          combineren tours, spel en focus tot één coherent geheel.
-        </p>
-        <p className="text-sm text-slate-400">
-          De koppeling naar deze programma&apos;s kan verlopen via{" "}
-          <code>evening_programs</code> en <code>live_events</code>.
+          combineren tours, spel en focus tot één geheel, zodat je een complete
+          museumavond thuis kunt beleven.
         </p>
       </section>
 
@@ -57,8 +48,8 @@ export default function AcademiePage() {
         </h2>
         <p className="max-w-2xl text-sm text-slate-300">
           De Academie is onderdeel van het premiumlidmaatschap van MuseaThuis.
-          Hier voeg je later de logica toe om alleen gebruikers met een actief
-          abonnement toegang te geven.
+          Als premiumlid krijg je toegang tot alle leerlijnen, avondprogramma&apos;s
+          en toekomstige verdiepende modules.
         </p>
       </section>
     </div>
