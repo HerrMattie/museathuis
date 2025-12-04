@@ -1,77 +1,200 @@
-export const metadata = {
-  title: "Tours van vandaag",
-  description:
-    "Overzicht van de drie tours van vandaag: één gratis en twee voor premiumleden.",
-};
+"use client";
 
-type TourCardProps = {
+import { useEffect, useState } from "react";
+
+type Artwork = {
+  id: number;
   title: string;
-  label: string;
-  description: string;
-  isPremium: boolean;
+  artist_name: string | null;
+  year_from: number | null;
+  year_to: number | null;
+  image_url: string | null;
+  description_primary: string | null;
 };
 
-function TourCard({ title, label, description, isPremium }: TourCardProps) {
-  return (
-    <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-      <div className="flex gap-4">
-        <div className="hidden h-24 w-20 flex-none rounded-lg bg-slate-800 sm:block" />
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">
-              {label}
-            </p>
-            {isPremium && (
-              <span className="rounded-full border border-amber-500/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                Premium
-              </span>
-            )}
-          </div>
-          <h2 className="text-lg font-semibold text-slate-50">{title}</h2>
-          <p className="text-xs text-slate-300">{description}</p>
-        </div>
-      </div>
-      <button className="mt-4 inline-flex text-xs font-medium text-amber-300 hover:text-amber-200">
-        Bekijk tour
-      </button>
-    </div>
-  );
-}
+type TourItem = {
+  id: string;
+  order_index: number;
+  artwork_id: number;
+  artwork: Artwork | null;
+};
 
-export default function ToursTodayPage() {
-  return (
-    <div className="space-y-6">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-50">
-          Tours van vandaag
+type Tour = {
+  id: string;
+  date: string;
+  title: string;
+  intro: string | null;
+  is_premium: boolean;
+  items: TourItem[];
+};
+
+type ApiResponse = {
+  tour: Tour;
+};
+
+export default function TourTodayPage() {
+  const [tour, setTour] = useState<Tour | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const loadTour = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/tour/today", {
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error || "Er is geen dagtour beschikbaar.");
+          setLoading(false);
+          return;
+        }
+
+        const data: ApiResponse = await res.json();
+        setTour(data.tour);
+        setIndex(0);
+        setLoading(false);
+      } catch (e) {
+        console.error(e);
+        setError("Er ging iets mis bij het ophalen van de dagtour.");
+        setLoading(false);
+      }
+    };
+
+    loadTour();
+  }, []);
+
+  const handlePrev = () => {
+    if (!tour) return;
+    setIndex((prev) =>
+      prev > 0 ? prev - 1 : prev
+    );
+  };
+
+  const handleNext = () => {
+    if (!tour) return;
+    setIndex((prev) =>
+      prev < tour.items.length - 1 ? prev + 1 : prev
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <p>Dagtour wordt geladen...</p>
+      </div>
+    );
+  }
+
+  if (error || !tour) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-semibold mb-4">
+          Dagtour
         </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Elke dag selecteert MuseaThuis drie tours. Eén tour is gratis
-          toegankelijk, de andere twee zijn beschikbaar voor premiumleden. Op
-          deze pagina zie je in één oogopslag de onderwerpen en kun je een tour
-          kiezen om te starten.
+        <p className="text-red-600">
+          {error || "Er is geen dagtour gevonden."}
+        </p>
+      </div>
+    );
+  }
+
+  const currentItem = tour.items[index];
+  const artwork = currentItem.artwork;
+
+  const positionLabel = `${index + 1} / ${tour.items.length}`;
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+      {/* Kop en intro */}
+      <header className="space-y-2">
+        <h1 className="text-3xl font-bold">
+          {tour.title}
+        </h1>
+        {tour.intro && (
+          <p className="text-base text-gray-700">
+            {tour.intro}
+          </p>
+        )}
+        <p className="text-sm text-gray-500">
+          Dagtour {tour.date} · {positionLabel}
         </p>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <TourCard
-          title="Gratis tour van vandaag"
-          label="Gratis"
-          description="De gratis tour van vandaag, met een duidelijke rode draad en een compacte selectie meesterwerken."
-          isPremium={false}
-        />
-        <TourCard
-          title="Premiumtour 1"
-          label="Tour"
-          description="Een verdiepend thema, bijvoorbeeld rond een periode, museum of kunstenaar, met meer werken en uitleg."
-          isPremium={true}
-        />
-        <TourCard
-          title="Premiumtour 2"
-          label="Tour"
-          description="Een tweede premiumtour met een andere invalshoek, zodat je kunt kiezen wat het beste past bij je interesse."
-          isPremium={true}
-        />
+      {/* Theatermodus blok */}
+      <section className="bg-white rounded-2xl shadow-md p-4 md:p-6 space-y-4">
+        {/* Afbeelding groot */}
+        <div className="w-full flex justify-center items-center bg-black rounded-xl overflow-hidden aspect-[16/9]">
+          {artwork?.image_url ? (
+            <img
+              src={artwork.image_url}
+              alt={artwork.title || "Kunstwerk"}
+              className="h-full w-auto object-contain"
+            />
+          ) : (
+            <div className="text-white text-sm">
+              Geen afbeelding beschikbaar
+            </div>
+          )}
+        </div>
+
+        {/* Metadata en tekst */}
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold">
+            {artwork?.title || "Onbekende titel"}
+          </h2>
+
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">
+              Kunstenaar:
+            </span>{" "}
+            {artwork?.artist_name || "Onbekend"}
+          </p>
+
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">
+              Datering:
+            </span>{" "}
+            {artwork?.year_from
+              ? artwork.year_to &&
+                artwork.year_to !== artwork.year_from
+                ? `${artwork.year_from} - ${artwork.year_to}`
+                : artwork.year_from
+              : "Onbekend"}
+          </p>
+
+          {artwork?.description_primary && (
+            <p className="mt-3 text-base text-gray-800 leading-relaxed">
+              {artwork.description_primary}
+            </p>
+          )}
+        </div>
+
+        {/* Navigatieknoppen */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          <button
+            onClick={handlePrev}
+            className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
+            disabled={index === 0}
+          >
+            Vorige
+          </button>
+
+          <span className="text-sm text-gray-600">
+            {positionLabel}
+          </span>
+
+          <button
+            onClick={handleNext}
+            className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
+            disabled={index === tour.items.length - 1}
+          >
+            Volgende
+          </button>
+        </div>
       </section>
     </div>
   );
