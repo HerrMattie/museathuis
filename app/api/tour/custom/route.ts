@@ -32,7 +32,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // 1. Kandidaat-works ophalen
   let query = supabase
     .from("artworks")
     .select("id, title, artist_name, year_from, year_to, museum")
@@ -66,10 +65,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // 2. Selectie maken (nu simpel: eerste N)
   const selected = artworks.slice(0, maxWorks);
 
-  // 3. Tourrecord aanmaken
   const tourTitle =
     title ||
     (selected[0]?.museum
@@ -78,7 +75,7 @@ export async function POST(req: Request) {
 
   const introText =
     "Deze tour is automatisch samengesteld op basis van jouw filters in de MuseaThuis-database. " +
-    "De volgorde en selectie kun je later verfijnen in het CRM.";
+    "De volgorde en selectie kun je later verfijnen.";
 
   const { data: tour, error: tourError } = await supabase
     .from("tours")
@@ -100,7 +97,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // 4. Teksten ophalen (type 'primary')
   const artworkIds = selected.map((a) => a.id);
 
   const { data: texts, error: textsError } = await supabase
@@ -122,7 +118,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // 5. Tour-items schrijven
   const tourItems = selected.map((artwork, index) => ({
     tour_id: tour.id,
     position: index + 1,
