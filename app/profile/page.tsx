@@ -1,10 +1,16 @@
-export default function Page() {
+export default function ProfilePage() {
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Profiel</h1>
-      <p className="text-sm text-gray-700">
-        Deze pagina is een placeholder in de MuseaThuis v2 basis. De daadwerkelijke
-        inhoud wordt gevoed vanuit Supabase en de AI-generatoren.
+      <h2 className="text-2xl font-semibold">Profiel</h2>
+      <p className="text-slate-300 max-w-2xl">
+        Dit wordt de plek waar gebruikers hun voorkeuren, voortgang en badges
+        zien. De data komt straks uit <code>profiles</code>,{" "}
+        <code>user_preferences</code>, <code>tour_progress</code> en{" "}
+        <code>user_badges</code>.
+      </p>
+      <p className="text-slate-400 text-sm">
+        Voor nu staat hier alleen een placeholder; zo kun je eerst de
+        navigatiestructuur en het premium-ecosysteem technisch afronden.
       </p>
     </div>
   );
