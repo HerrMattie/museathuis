@@ -1,4 +1,4 @@
-import { supabaseBrowserClient } from "@/lib/supabaseClient";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 import { fetchRijksmuseumCollection } from "@/lib/import/sources/rijksmuseumCollection";
 import { fetchRijksmuseumOAI } from "@/lib/import/sources/rijksmuseumOAI";
 import { mergeAndFilterArtworks } from "@/lib/import/mergeFilter";
