@@ -3,19 +3,30 @@ import { generateDailyTour } from "@/lib/ai/tourGenerator";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const date = body.date as string | undefined;
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
 
-    const today = new Date();
-    const isoToday = today.toISOString().slice(0, 10);
-
+    const date = body?.date as string | undefined;
+    const isoToday = new Date().toISOString().slice(0, 10);
     const targetDate = date ?? isoToday;
 
+    // generateDailyTour verwacht een string (datum)
     const result = await generateDailyTour(targetDate);
 
-    return NextResponse.json({ ok: true, ...result });
+    // Geen dubbele "ok" meer, we geven het resultaat één-op-één terug
+    return NextResponse.json(result);
   } catch (err: any) {
     console.error("Generate tour error", err);
-    return NextResponse.json({ error: err.message ?? "Onbekende fout" }, { status: 500 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: err?.message ?? "Onbekende fout"
+      },
+      { status: 500 }
+    );
   }
 }
