@@ -2,27 +2,32 @@
 import { enrichFromWikidata } from "./wikidata";
 import { enrichWithAI } from "./openai";
 
-// Voorkomt "unused import" problemen
-void enrichFromWikidata;
-void enrichWithAI;
-
 export type EnrichArtworkOptions = {
   useWikidata?: boolean;
   useAI?: boolean;
 };
 
 /**
- * Placeholder verrijkingsfunctie.
- * Contract: accepteert een artwork (any) en geeft een (eventueel verrijkt) object terug.
- * Later kun je hier stap voor stap Wikidata + AI verrijking inbouwen.
+ * Centrale verrijkingsfunctie.
+ * Contract: accepteert een artwork en geeft een (eventueel verrijkt) artwork terug.
+ * Voor nu: veilige placeholders, later vul je de echte logica in.
  */
 export async function enrichArtwork(
   artwork: any,
-  _options: EnrichArtworkOptions = {}
+  options: EnrichArtworkOptions = {}
 ): Promise<any> {
-  // Voor nu doen we niets met Wikidata/AI, alleen de structuur staat.
-  return { ...artwork };
+  let result = { ...artwork };
+
+  if (options.useWikidata) {
+    result = await enrichFromWikidata(result);
+  }
+
+  if (options.useAI) {
+    result = await enrichWithAI(result);
+  }
+
+  return result;
 }
 
-// Default export zodat "import enrichArtwork from ..." ook werkt
+// Default export zodat beide import-vormen werken
 export default enrichArtwork;
