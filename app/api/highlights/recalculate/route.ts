@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
 function getWeekStart(d = new Date()): string {
-  const day = d.getDay(); // 0=zo,1=ma,...
-  const diff = (day + 6) % 7; // afstand tot maandag
+  const day = d.getDay();
+  const diff = (day + 6) % 7;
   const monday = new Date(d);
   monday.setDate(d.getDate() - diff);
   monday.setHours(0, 0, 0, 0);
