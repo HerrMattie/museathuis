@@ -1,55 +1,46 @@
+// lib/import/startMuseumImport.ts
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { fetchRijksmuseumCollection } from "@/lib/import/sources/rijksmuseumCollection";
 import { fetchRijksmuseumOAI } from "@/lib/import/sources/rijksmuseumOAI";
 import { mergeAndFilterArtworks } from "@/lib/import/mergeFilter";
-import { enrichArtwork } from "@/lib/import/enrich/enrichArtwork";
+import enrichArtwork from "@/lib/import/enrich/enrichArtwork";
 
+// Voorkomt "unused import" problemen; logica bouw je later in.
+void fetchRijksmuseumCollection;
+void fetchRijksmuseumOAI;
+void mergeAndFilterArtworks;
+void enrichArtwork;
+
+/**
+ * Placeholder museumimport.
+ * Contract: wordt aangeroepen met een museumId (string) en registreert een ingest-job.
+ * De echte fetch/merge/enrich logica kun je later toevoegen.
+ */
 export async function startMuseumImport(museumId: string) {
-  const supabase = supabaseBrowserClient();
+  const supabase = supabaseBrowser();
 
-  // 1. Start dataset
-  const { data: dataset, error: datasetErr } = await supabase
-    .from("museum_datasets")
-    .insert({ museum_id: museumId, status: "running" })
+  const { data, error } = await supabase
+    .from("ingestion_jobs")
+    .insert({
+      status: "queued",
+      source_name: "museum_import",
+      meta: {
+        trigger: "admin_api_placeholder",
+        museumId
+      }
+    })
     .select()
     .single();
 
-  if (datasetErr) throw new Error("Failed to create dataset");
-
-  const datasetId = dataset.id;
-
-  // 2. Fetch raw data from Rijksmuseum (collection API + OAI)
-  const collectionData = await fetchRijksmuseumCollection();
-  const oaiData = await fetchRijksmuseumOAI();
-
-  // 3. Merge + quality filter
-  const artworks = mergeAndFilterArtworks(collectionData, oaiData);
-
-  // 4. Store artworks + enrichment
-  for (const item of artworks) {
-    const { data: inserted } = await supabase
-      .from("artworks")
-      .insert({
-        museum_id: museumId,
-        dataset_id: datasetId,
-        ...item
-      })
-      .select()
-      .single();
-
-    // AI + external enrichment
-    await enrichArtwork(inserted.id);
+  if (error) {
+    console.error("Fout bij startMuseumImport:", error);
+    return { ok: false, error: error.message };
   }
 
-  // 5. Finish dataset
-  await supabase
-    .from("museum_datasets")
-    .update({
-      status: "done",
-      import_finished_at: new Date(),
-      total_records: artworks.length
-    })
-    .eq("id", datasetId);
-
-  return { datasetId };
+  return {
+    ok: true,
+    job: data
+  };
 }
+
+export default startMuseumImport;
