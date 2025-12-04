@@ -5,20 +5,28 @@ type TodayCardProps = {
   description: string;
   href: string;
   label: string;
+  imageHint: string;
 };
 
-function TodayCard({ title, description, href, label }: TodayCardProps) {
+function TodayCard({ title, description, href, label, imageHint }: TodayCardProps) {
   return (
     <Link
       href={href}
       className="group flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-slate-500 hover:bg-slate-900"
     >
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
-          {label}
-        </p>
-        <h2 className="text-xl font-semibold text-slate-50">{title}</h2>
-        <p className="text-sm text-slate-300">{description}</p>
+      <div className="flex gap-4">
+        <div className="hidden h-24 w-20 flex-none overflow-hidden rounded-lg bg-slate-800 sm:block">
+          <div className="flex h-full w-full items-center justify-center px-2 text-[11px] text-slate-300">
+            {imageHint}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            {label}
+          </p>
+          <h2 className="text-xl font-semibold text-slate-50">{title}</h2>
+          <p className="text-sm text-slate-300">{description}</p>
+        </div>
       </div>
       <p className="mt-4 text-xs font-medium text-slate-400 group-hover:text-slate-200">
         Bekijk &rarr;
@@ -32,33 +40,36 @@ export default function HomePage() {
     <>
       <section className="space-y-3">
         <h1 className="text-4xl font-semibold tracking-tight text-slate-50 md:text-5xl">
-          Vandaag bij MuseaThuis
+          MuseaThuis: museale beleving thuis
         </h1>
         <p className="max-w-2xl text-sm text-slate-300">
-          Eén digitale dagkaart met een tour, een spel en een focuswerk. Alles
-          zorgvuldig samengesteld uit topmusea wereldwijd, voor een hoogwaardige
-          kunstbeleving thuis.
+          MuseaThuis is een hoogwaardige culturele omgeving voor thuis. Elke dag
+          kun je kiezen uit nieuwe tours, spellen en rustige kijkmomenten,
+          samengesteld uit topmusea wereldwijd.
         </p>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
         <TodayCard
-          title="Tour van vandaag"
-          description="Een museale rondleiding langs een aantal meesterwerken, met uitleg in ongeveer drie minuten per werk."
+          title="Tours van vandaag"
+          description="Kies uit drie zorgvuldig samengestelde tours. Eén tour is gratis toegankelijk, twee zijn beschikbaar voor premiumleden."
           href="/tour/today"
-          label="Tour"
+          label="Tours"
+          imageHint="Afbeelding uit de gratis tour van vandaag."
         />
         <TodayCard
-          title="Spel van vandaag"
-          description="Speel een kunstquiz of herkenningsspel op basis van werken uit de collectie. Licht en speels, met serieuze inhoud."
+          title="Spellen van vandaag"
+          description="Ontdek drie kunstspellen. Luchtig spelen met serieuze inhoud, op basis van geselecteerde kunstwerken."
           href="/game"
-          label="Game"
+          label="Spellen"
+          imageHint="Afbeelding uit het gratis spel van vandaag."
         />
         <TodayCard
-          title="Focus van vandaag"
-          description="Eén kunstwerk in theatermodus, met meer tijd voor kijken, luisteren en reflectie. Ideaal voor een rustig kijkmoment."
+          title="Focusmomenten van vandaag"
+          description="Drie rustige kijkmomenten met één kunstwerk centraal, inclusief verdiepende toelichting en audio."
           href="/focus"
           label="Focus"
+          imageHint="Afbeelding van het gratis focuswerk van vandaag."
         />
       </section>
 
@@ -68,8 +79,9 @@ export default function HomePage() {
             Het beste van MuseaThuis
           </h2>
           <p className="max-w-2xl text-sm text-slate-300">
-            Ontdek de hoogst gewaardeerde tours, games en focusmomenten van
-            onze leden. Deze selectie is beschikbaar voor premiumleden.
+            Ontdek welke tours, spellen en focusmomenten het hoogst worden
+            gewaardeerd door onze leden. Deze selecties zijn beschikbaar voor
+            premiumleden.
           </p>
         </header>
         <div className="grid gap-4 md:grid-cols-2">
@@ -87,11 +99,11 @@ export default function HomePage() {
                 </span>
               </div>
               <h3 className="text-lg font-semibold text-slate-50">
-                Beste van de week
+                Het beste van deze week
               </h3>
               <p className="text-sm text-slate-300">
-                De meest bekeken en best beoordeelde dagkaart van deze week:
-                tour, game en focus in één avondprogramma.
+                Een selectie van de hoogst gewaardeerde tours, spellen en
+                focusmomenten van de afgelopen week.
               </p>
             </div>
             <p className="mt-4 text-xs font-medium text-slate-400 group-hover:text-slate-200">
@@ -113,11 +125,11 @@ export default function HomePage() {
                 </span>
               </div>
               <h3 className="text-lg font-semibold text-slate-50">
-                Beste van de maand
+                Het beste van deze maand
               </h3>
               <p className="text-sm text-slate-300">
-                Een langere avondtour met een thematische selectie uit de beste
-                MuseaThuis-programma&apos;s van deze maand.
+                De meest geliefde MuseaThuis-programma&apos;s van deze maand,
+                gebundeld in één selectie.
               </p>
             </div>
             <p className="mt-4 text-xs font-medium text-slate-400 group-hover:text-slate-200">
@@ -125,6 +137,23 @@ export default function HomePage() {
             </p>
           </Link>
         </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        <h2 className="text-2xl font-semibold text-slate-50">
+          Maak van elk scherm een kunstwerk
+        </h2>
+        <p className="max-w-2xl text-sm text-slate-300">
+          Met Salon verandert elk scherm in een rustige kunstpresentatie. Kies
+          een sfeer en laat een reeks kunstwerken in je eigen tempo voorbij
+          komen, thuis op de bank of tijdens een etentje.
+        </p>
+        <Link
+          href="/salon"
+          className="inline-flex text-sm font-medium text-amber-300 hover:text-amber-200"
+        >
+          Ontdek Salon &rarr;
+        </Link>
       </section>
     </>
   );
