@@ -1,42 +1,28 @@
-// lib/supabaseClient.ts
-import { createClient } from "@supabase/supabase-js";
+// lib/import/enrich/enrichArtwork.ts
+import { enrichFromWikidata } from "./wikidata";
+import { enrichWithAI } from "./openai";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Voorkomt "unused import" problemen
+void enrichFromWikidata;
+void enrichWithAI;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Supabase URL of Anon key ontbreekt. Check je environment variables.");
+export type EnrichArtworkOptions = {
+  useWikidata?: boolean;
+  useAI?: boolean;
+};
+
+/**
+ * Placeholder verrijkingsfunctie.
+ * Contract: accepteert een artwork (any) en geeft een (eventueel verrijkt) object terug.
+ * Later kun je hier stap voor stap Wikidata + AI verrijking inbouwen.
+ */
+export async function enrichArtwork(
+  artwork: any,
+  _options: EnrichArtworkOptions = {}
+): Promise<any> {
+  // Voor nu doen we niets met Wikidata/AI, alleen de structuur staat.
+  return { ...artwork };
 }
 
-/**
- * Client voor gebruik in de browser (public anon key).
- */
-export const supabaseBrowser = () => {
-  return createClient(supabaseUrl, supabaseAnonKey);
-};
-
-/**
- * Client met service role, alleen op de server gebruiken.
- */
-export const supabaseServer = () => {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY ontbreekt");
-  }
-  return createClient(supabaseUrl, serviceKey, {
-    auth: {
-      persistSession: false
-    }
-  });
-};
-
-/**
- * Backwards compatible aliassen:
- * - supabaseBrowserClient  (zelfde als supabaseBrowser)
- * - supabaseServiceRoleClient (zelfde als supabaseServer)
- * Zo hoeven bestaande imports niet aangepast te worden.
- */
-export const supabaseBrowserClient = supabaseBrowser;
-export const supabaseServiceRoleClient = supabaseServer;
-
-export default supabaseBrowser;
+// Default export zodat "import enrichArtwork from ..." ook werkt
+export default enrichArtwork;
