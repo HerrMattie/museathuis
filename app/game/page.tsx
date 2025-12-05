@@ -5,12 +5,15 @@ import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { RatingStars } from "@/components/RatingStars";
 
+type LoadState = "idle" | "loading" | "loaded" | "empty" | "error";
+
 type GameMeta = {
   id: string;
   title: string;
+  intro: string | null;
+  game_type: string | null;
+  instructions: string | null;
 };
-
-type LoadState = "idle" | "loading" | "loaded" | "error" | "empty";
 
 export default function GameTodayPage() {
   const [state, setState] = useState<LoadState>("idle");
@@ -19,7 +22,7 @@ export default function GameTodayPage() {
 
   const [userId, setUserId] = useState<string | null>(null);
   const [ownRating, setOwnRating] = useState<number | null>(null);
-  const [ratingLoading, setRatingLoading] = useState<boolean>(false);
+  const [ratingLoading, setRatingLoading] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,7 +48,10 @@ export default function GameTodayPage() {
         .eq("day_date", today)
         .limit(1);
 
-      if (scheduleError) throw scheduleError;
+      if (scheduleError) {
+        console.error("Fout dagprogram_schedule (game):", scheduleError);
+        throw scheduleError;
+      }
 
       const gameId = scheduleRows && scheduleRows.length > 0 ? scheduleRows[0].game_id : null;
 
@@ -56,22 +62,32 @@ export default function GameTodayPage() {
 
       const { data: gameRows, error: gameError } = await supabase
         .from("games")
-        .select("id, title")
+        .select("*")
         .eq("id", gameId)
         .limit(1);
 
-      if (gameError) throw gameError;
+      if (gameError) {
+        console.error("Fout games:", gameError);
+        throw gameError;
+      }
 
-      const game = gameRows && gameRows.length > 0 ? gameRows[0] : null;
+      const game = gameRows && gameRows.length > 0 ? (gameRows[0] as any) : null;
       if (!game) {
         setState("empty");
         return;
       }
 
-      setMeta({ id: String(game.id), title: game.title ?? "Spel van vandaag" });
+      setMeta({
+        id: String(game.id),
+        title: game.title || game.name || "Spel van vandaag",
+        intro: game.intro_text || game.description || null,
+        game_type: game.game_type || game.type || null,
+        instructions: game.instructions || game.rules || null,
+      });
+
       setState("loaded");
     } catch (e: any) {
-      console.error("Fout bij laden spel:", e);
+      console.error("Fout bij laden spel van vandaag:", e);
       setError("Het spel van vandaag kon niet worden geladen. Probeer het later opnieuw.");
       setState("error");
     }
@@ -107,7 +123,7 @@ export default function GameTodayPage() {
       if (ratingFetchError) throw ratingFetchError;
 
       const row = ratingRows && ratingRows.length > 0 ? ratingRows[0] : null;
-      setOwnRating(row ? row.rating : null);
+      setOwnRating(row ? (row as any).rating : null);
       setRatingLoading(false);
     } catch (e: any) {
       console.error("Fout bij laden beoordeling spel:", e);
@@ -134,15 +150,13 @@ export default function GameTodayPage() {
         return;
       }
 
-      const { error: upsertError } = await supabase
-        .from("game_ratings")
-        .upsert({
-          user_id: user.id,
-          game_id: meta.id,
-          rating: value,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+      const { error: upsertError } = await supabase.from("game_ratings").upsert({
+        user_id: user.id,
+        game_id: meta.id,
+        rating: value,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
 
       if (upsertError) throw upsertError;
 
@@ -162,16 +176,16 @@ export default function GameTodayPage() {
         <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
-              Spellen
+              Spel
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
               {meta?.title ?? "Spel van vandaag"}
             </h1>
-            <p className="mt-2 max-w-xl text-sm text-slate-400">
-              In deze fase tonen we hier alvast de spel-titel van vandaag uit het dagprogramma.
-              De inhoudelijke spelvorm werkt u stap voor stap verder uit.
-            </p>
-
+            {meta?.game_type && (
+              <p className="mt-1 text-xs text-slate-400">
+                Speltype: {meta.game_type}
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <RatingStars
                 value={ownRating}
@@ -192,7 +206,10 @@ export default function GameTodayPage() {
             </div>
           </div>
           <div className="text-xs text-slate-400">
-            <Link href="/" className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900">
+            <Link
+              href="/"
+              className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
+            >
               Terug naar vandaag
             </Link>
           </div>
@@ -212,18 +229,33 @@ export default function GameTodayPage() {
 
         {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
-            Er is voor vandaag nog geen spel ingepland in het dagprogramma. Voeg in het CRM een
-            spel toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
+            Er is voor vandaag nog geen spel ingepland in het dagprogramma. Voeg in het CRM een spel
+            toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
           </div>
         )}
 
-        {state === "loaded" && meta && (
-          <div className="rounded-3xl bg-slate-900/80 p-8 text-sm text-slate-200">
-            <p>
-              Hier komt de eerste spelvariant (bijvoorbeeld een meerkeuzequiz gekoppeld aan concrete
-              kunstwerken). U heeft nu in ieder geval een stabiele koppeling tussen dagprogramma en
-              het publieksscherm voor spellen. De beoordelingen van gebruikers worden al opgeslagen.
-            </p>
+        {state === "loaded" && (
+          <div className="space-y-4 rounded-3xl bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
+            {meta?.intro && (
+              <p className="whitespace-pre-line">{meta.intro}</p>
+            )}
+            {meta?.instructions && (
+              <div className="rounded-2xl bg-slate-950/70 p-4">
+                <h2 className="text-sm font-semibold text-slate-50">
+                  Speluitleg
+                </h2>
+                <p className="mt-2 whitespace-pre-line text-slate-200">
+                  {meta.instructions}
+                </p>
+              </div>
+            )}
+            {!meta?.instructions && (
+              <p className="text-slate-400">
+                Voor dit spel is nog geen interactieve spel-ervaring ingericht. In een volgende fase
+                voegen we hier het eerste werkende speltype toe (bijvoorbeeld: welk werk hoort bij
+                deze beschrijving?).
+              </p>
+            )}
           </div>
         )}
       </div>

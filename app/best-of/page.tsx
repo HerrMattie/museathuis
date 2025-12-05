@@ -1,323 +1,254 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-type BestItem = {
+type LoadState = "idle" | "loading" | "loaded" | "error";
+
+type BestOfRow = {
   id: string;
-  title: string | null;
-  averageRating: number;
-  ratingCount: number;
+  title: string;
+  avg_rating: number;
+  ratings_count: number;
 };
 
-type BestOfSection = {
-  tours: BestItem[];
-  games: BestItem[];
-  focus: BestItem[];
+type BestOfBucket = {
+  label: string;
+  tours: BestOfRow[];
+  games: BestOfRow[];
+  focus: BestOfRow[];
 };
-
-function formatRating(r: number): string {
-  const rounded = Math.round(r * 10) / 10;
-  return rounded.toString().replace(".", ",");
-}
 
 export default function BestOfPage() {
-  const [weekData, setWeekData] = useState<BestOfSection | null>(null);
-  const [monthData, setMonthData] = useState<BestOfSection | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
-
-  const supabase = supabaseBrowser();
+  const [week, setWeek] = useState<BestOfBucket | null>(null);
+  const [month, setMonth] = useState<BestOfBucket | null>(null);
 
   useEffect(() => {
-    async function loadBestOf() {
-      setLoading(true);
-      setError(null);
+    void loadBestOf();
+  }, []);
 
-      try {
-        const now = new Date();
-        const weekAgo = new Date(now);
-        weekAgo.setDate(now.getDate() - 7);
-        const monthAgo = new Date(now);
-        monthAgo.setDate(now.getDate() - 30);
+  async function loadBestOf() {
+    setState("loading");
+    setError(null);
 
-        // Helper: ratings ophalen met fallback als created_at niet bestaat
-        async function fetchRatings(
-          table: string,
-          idColumn: string
-        ): Promise<{ all: any[]; week: any[]; month: any[] }> {
-          // Proberen met created_at
-          const { data, error: err } = await supabase
-            .from(table)
-            .select(`${idColumn}, rating, created_at`)
-            .order("created_at", { ascending: false });
+    try {
+      const supabase = supabaseBrowser();
 
-          if (err) {
-            // Fallback zonder datums, alles telt dan mee als "all-time"
-            const { data: data2, error: err2 } = await supabase
-              .from(table)
-              .select(`${idColumn}, rating`);
-            if (err2 || !data2) {
-              return { all: [], week: [], month: [] };
-            }
-            return { all: data2, week: data2, month: data2 };
-          }
+      const [
+        toursWeekRes,
+        gamesWeekRes,
+        focusWeekRes,
+        toursMonthRes,
+        gamesMonthRes,
+        focusMonthRes,
+      ] = await Promise.all([
+        supabase
+          .from("tour_bestof_week")
+          .select("tour_id, title, avg_rating, ratings_count")
+          .order("avg_rating", { ascending: false })
+          .order("ratings_count", { ascending: false })
+          .limit(5),
+        supabase
+          .from("game_bestof_week")
+          .select("game_id, title, avg_rating, ratings_count")
+          .order("avg_rating", { ascending: false })
+          .order("ratings_count", { ascending: false })
+          .limit(5),
+        supabase
+          .from("focus_bestof_week")
+          .select("focus_id, title, avg_rating, ratings_count")
+          .order("avg_rating", { ascending: false })
+          .order("ratings_count", { ascending: false })
+          .limit(5),
+        supabase
+          .from("tour_bestof_month")
+          .select("tour_id, title, avg_rating, ratings_count")
+          .order("avg_rating", { ascending: false })
+          .order("ratings_count", { ascending: false })
+          .limit(5),
+        supabase
+          .from("game_bestof_month")
+          .select("game_id, title, avg_rating, ratings_count")
+          .order("avg_rating", { ascending: false })
+          .order("ratings_count", { ascending: false })
+          .limit(5),
+        supabase
+          .from("focus_bestof_month")
+          .select("focus_id, title, avg_rating, ratings_count")
+          .order("avg_rating", { ascending: false })
+          .order("ratings_count", { ascending: false })
+          .limit(5),
+      ]);
 
-          if (!data) return { all: [], week: [], month: [] };
+      if (toursWeekRes.error) throw toursWeekRes.error;
+      if (gamesWeekRes.error) throw gamesWeekRes.error;
+      if (focusWeekRes.error) throw focusWeekRes.error;
+      if (toursMonthRes.error) throw toursMonthRes.error;
+      if (gamesMonthRes.error) throw gamesMonthRes.error;
+      if (focusMonthRes.error) throw focusMonthRes.error;
 
-          const weekBoundary = weekAgo.toISOString();
-          const monthBoundary = monthAgo.toISOString();
+      const mapRows = (rows: any[], idKey: string): BestOfRow[] =>
+        (rows ?? []).map((r) => ({
+          id: String(r[idKey]),
+          title: r.title ?? "Zonder titel",
+          avg_rating: Number(r.avg_rating ?? 0),
+          ratings_count: Number(r.ratings_count ?? 0),
+        }));
 
-          const week = data.filter(
-            (r: any) => r.created_at && r.created_at >= weekBoundary
-          );
-          const month = data.filter(
-            (r: any) => r.created_at && r.created_at >= monthBoundary
-          );
+      setWeek({
+        label: "Afgelopen week",
+        tours: mapRows(toursWeekRes.data ?? [], "tour_id"),
+        games: mapRows(gamesWeekRes.data ?? [], "game_id"),
+        focus: mapRows(focusWeekRes.data ?? [], "focus_id"),
+      });
 
-          return { all: data, week, month };
-        }
+      setMonth({
+        label: "Afgelopen maand",
+        tours: mapRows(toursMonthRes.data ?? [], "tour_id"),
+        games: mapRows(gamesMonthRes.data ?? [], "game_id"),
+        focus: mapRows(focusMonthRes.data ?? [], "focus_id"),
+      });
 
-        function aggregate(
-          rows: any[],
-          idColumn: string
-        ): { id: string; averageRating: number; ratingCount: number }[] {
-          const map = new Map<string, { sum: number; count: number }>();
-          for (const row of rows) {
-            const id = row[idColumn];
-            const rating = row.rating;
-            if (!id || rating == null) continue;
-            const current = map.get(id) || { sum: 0, count: 0 };
-            current.sum += rating;
-            current.count += 1;
-            map.set(id, current);
-          }
-          return Array.from(map.entries())
-            .map(([id, agg]) => ({
-              id,
-              averageRating: agg.sum / agg.count,
-              ratingCount: agg.count,
-            }))
-            .sort((a, b) => {
-              if (b.averageRating === a.averageRating) {
-                return b.ratingCount - a.ratingCount;
-              }
-              return b.averageRating - a.averageRating;
-            })
-            .slice(0, 5);
-        }
+      setState("loaded");
+    } catch (e: any) {
+      console.error("Fout bij laden Best of:", e);
+      setError("De Best of-overzichten konden niet worden geladen.");
+      setState("error");
+    }
+  }
 
-        // Ratings ophalen
-        const [tourRatings, gameRatings, focusRatings] = await Promise.all([
-          fetchRatings("tour_ratings", "tour_id"),
-          fetchRatings("game_ratings", "game_id"),
-          fetchRatings("focus_ratings", "focus_id"),
-        ]);
-
-        const weekToursAgg = aggregate(tourRatings.week, "tour_id");
-        const monthToursAgg = aggregate(tourRatings.month, "tour_id");
-        const weekGamesAgg = aggregate(gameRatings.week, "game_id");
-        const monthGamesAgg = aggregate(gameRatings.month, "game_id");
-        const weekFocusAgg = aggregate(focusRatings.week, "focus_id");
-        const monthFocusAgg = aggregate(focusRatings.month, "focus_id");
-
-        // IDs verzamelen voor titelopzoeking
-        const weekTourIds = weekToursAgg.map((t) => t.id);
-        const monthTourIds = monthToursAgg.map((t) => t.id);
-        const weekGameIds = weekGamesAgg.map((g) => g.id);
-        const monthGameIds = monthGamesAgg.map((g) => g.id);
-        const weekFocusIds = weekFocusAgg.map((f) => f.id);
-        const monthFocusIds = monthFocusAgg.map((f) => f.id);
-
-        const uniqueTourIds = Array.from(
-          new Set([...weekTourIds, ...monthTourIds])
-        );
-        const uniqueGameIds = Array.from(
-          new Set([...weekGameIds, ...monthGameIds])
-        );
-        const uniqueFocusIds = Array.from(
-          new Set([...weekFocusIds, ...monthFocusIds])
-        );
-
-        // Titels ophalen
-        async function fetchTitles(
-          table: string,
-          ids: string[],
-          idColumn: string
-        ): Promise<Record<string, string | null>> {
-          if (!ids.length) return {};
-          const { data, error: err } = await supabase
-            .from(table)
-            .select(`id, title`)
-            .in("id", ids);
-          if (err || !data) return {};
-          const map: Record<string, string | null> = {};
-          for (const row of data as any[]) {
-            map[row.id] = row.title ?? null;
-          }
-          return map;
-        }
-
-        const [tourTitles, gameTitles, focusTitles] = await Promise.all([
-          fetchTitles("tours", uniqueTourIds, "id"),
-          fetchTitles("games", uniqueGameIds, "id"),
-          fetchTitles("focus_items", uniqueFocusIds, "id"),
-        ]);
-
-        function mapAggToItems(
-          agg: { id: string; averageRating: number; ratingCount: number }[],
-          titles: Record<string, string | null>
-        ): BestItem[] {
-          return agg.map((a) => ({
-            id: a.id,
-            title: titles[a.id] ?? "(zonder titel)",
-            averageRating: a.averageRating,
-            ratingCount: a.ratingCount,
-          }));
-        }
-
-        setWeekData({
-          tours: mapAggToItems(weekToursAgg, tourTitles),
-          games: mapAggToItems(weekGamesAgg, gameTitles),
-          focus: mapAggToItems(weekFocusAgg, focusTitles),
-        });
-
-        setMonthData({
-          tours: mapAggToItems(monthToursAgg, tourTitles),
-          games: mapAggToItems(monthGamesAgg, gameTitles),
-          focus: mapAggToItems(monthFocusAgg, focusTitles),
-        });
-      } catch (e) {
-        console.error(e);
-        setError("De toppers van week en maand konden niet worden geladen.");
-      } finally {
-        setLoading(false);
-      }
+  function renderList(title: string, rows: BestOfRow[]) {
+    if (!rows.length) {
+      return (
+        <p className="text-xs text-slate-500">
+          Nog geen beoordelingen in deze periode.
+        </p>
+      );
     }
 
-    loadBestOf();
-  }, [supabase]);
-
-  return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-8 text-sm text-slate-200">
-      <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.16em] text-amber-300">
-          Overzicht
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-          Best of MuseaThuis
-        </h1>
-        <p className="max-w-3xl text-sm text-slate-300">
-          Op deze pagina tonen we de best beoordeelde tours, spellen en
-          focusmomenten van de afgelopen week en maand. De lijst wordt gevuld op
-          basis van gebruikersbeoordelingen; in een latere fase kunnen
-          gebruiksdata uit de eventtabellen worden toegevoegd.
-        </p>
-      </header>
-
-      {loading && (
-        <p className="text-xs text-slate-400">Toppers worden geladen…</p>
-      )}
-
-      {error && (
-        <p className="text-xs text-red-300">
-          {error}
-        </p>
-      )}
-
-      {!loading && !error && (
-        <>
-          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-            <h2 className="text-base font-semibold text-slate-50">
-              Afgelopen week
-            </h2>
-            <div className="grid gap-4 md:grid-cols-3">
-              <BestOfColumn
-                label="Tours"
-                items={weekData?.tours ?? []}
-                emptyText="Nog geen tours met beoordelingen in de afgelopen week."
-              />
-              <BestOfColumn
-                label="Spellen"
-                items={weekData?.games ?? []}
-                emptyText="Nog geen spellen met beoordelingen in de afgelopen week."
-              />
-              <BestOfColumn
-                label="Focusmomenten"
-                items={weekData?.focus ?? []}
-                emptyText="Nog geen focusmomenten met beoordelingen in de afgelopen week."
-              />
-            </div>
-          </section>
-
-          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-            <h2 className="text-base font-semibold text-slate-50">
-              Afgelopen maand
-            </h2>
-            <div className="grid gap-4 md:grid-cols-3">
-              <BestOfColumn
-                label="Tours"
-                items={monthData?.tours ?? []}
-                emptyText="Nog geen tours met beoordelingen in de afgelopen maand."
-              />
-              <BestOfColumn
-                label="Spellen"
-                items={monthData?.games ?? []}
-                emptyText="Nog geen spellen met beoordelingen in de afgelopen maand."
-              />
-              <BestOfColumn
-                label="Focusmomenten"
-                items={monthData?.focus ?? []}
-                emptyText="Nog geen focusmomenten met beoordelingen in de afgelopen maand."
-              />
-            </div>
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
-function BestOfColumn({
-  label,
-  items,
-  emptyText,
-}: {
-  label: string;
-  items: BestItem[];
-  emptyText: string;
-}) {
-  return (
-    <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-        {label}
-      </p>
-      {items.length === 0 && (
-        <p className="text-[11px] text-slate-400">
-          {emptyText}
-        </p>
-      )}
-      <ol className="space-y-2">
-        {items.map((item, index) => (
+    return (
+      <ul className="mt-2 space-y-1 text-sm">
+        {rows.map((row, index) => (
           <li
-            key={item.id}
-            className="flex items-start justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2"
+            key={row.id}
+            className="flex items-baseline justify-between gap-3 rounded-2xl bg-slate-900/70 px-3 py-2"
           >
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[11px] font-semibold text-slate-400">
-                #{index + 1}
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs font-semibold text-amber-300">
+                {index + 1}.
               </span>
-              <p className="text-xs font-medium text-slate-50">
-                {item.title || "(zonder titel)"}
-              </p>
+              <span className="text-slate-100">{row.title}</span>
             </div>
-            <div className="flex flex-col items-end gap-0.5 text-[11px] text-slate-400">
-              <span>{formatRating(item.averageRating)} / 5</span>
-              <span>{item.ratingCount}x beoordeeld</span>
+            <div className="text-[11px] text-slate-400">
+              ★ {row.avg_rating.toFixed(2)} · {row.ratings_count} stemmen
             </div>
           </li>
         ))}
-      </ol>
+      </ul>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+              Best of MuseaThuis
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
+              Hoogst gewaardeerde tours, spellen en focusmomenten
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+              Op basis van beoordelingen van gebruikers. Dit overzicht vernieuwt automatisch op basis
+              van nieuwe waarderingen.
+            </p>
+          </div>
+          <div className="text-xs text-slate-400">
+            <Link
+              href="/"
+              className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
+            >
+              Terug naar vandaag
+            </Link>
+          </div>
+        </header>
+
+        {state === "loading" && (
+          <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
+            Best of-overzichten worden geladen…
+          </div>
+        )}
+
+        {state === "error" && (
+          <div className="rounded-3xl bg-red-950/40 p-8 text-sm text-red-100">
+            {error ?? "Er ging iets mis bij het laden van de Best of-overzichten."}
+          </div>
+        )}
+
+        {state === "loaded" && (
+          <div className="space-y-6">
+            {week && (
+              <section className="rounded-3xl bg-slate-900/80 p-6">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  {week.label}
+                </h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-200">
+                      Tours (top 5)
+                    </h3>
+                    {renderList("Tours", week.tours)}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-200">
+                      Spellen (top 5)
+                    </h3>
+                    {renderList("Spellen", week.games)}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-200">
+                      Focusmomenten (top 5)
+                    </h3>
+                    {renderList("Focusmomenten", week.focus)}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {month && (
+              <section className="rounded-3xl bg-slate-900/80 p-6">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  {month.label}
+                </h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-200">
+                      Tours (top 5)
+                    </h3>
+                    {renderList("Tours", month.tours)}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-200">
+                      Spellen (top 5)
+                    </h3>
+                    {renderList("Spellen", month.games)}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-200">
+                      Focusmomenten (top 5)
+                    </h3>
+                    {renderList("Focusmomenten", month.focus)}
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
