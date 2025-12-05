@@ -3,31 +3,39 @@ import { supabaseServer } from "@/lib/supabaseClient";
 
 /**
  * Placeholder voor het starten van een Rijksmuseum-ingest.
+ * Maakt een record aan in `ingestion_jobs`.
  * Contract: accepteert optioneel een museumId.
  */
-/**
- * Start een import voor een museum via ingestion_jobs.
- */
-export async function startMuseumImport(museumId: string) {
-  const supabase = supabaseBrowser();  // LET OP: met haakjes
+export async function startRijksmuseumImport(museumId?: string) {
+  const supabase = supabaseServer();
 
   const { data, error } = await supabase
     .from("ingestion_jobs")
     .insert({
-      museum_id: museumId,
       status: "queued",
+      source_name: "rijksmuseum",
+      meta: {
+        trigger: "admin_api_placeholder",
+        museumId: museumId ?? null,
+      },
     })
     .select()
     .single();
 
   if (error) {
-    console.error("Fout bij startMuseumImport:", error);
-    throw error;
+    console.error("Fout bij startRijksmuseumImport:", error);
+    return {
+      ok: false,
+      error: error.message,
+    };
   }
 
-  return data;
+  return {
+    ok: true,
+    job: data,
+    importedCount: 0, // placeholder, later vervangen door echte aantallen
+  };
 }
-
 
 // Ook als default export beschikbaar
 export default startRijksmuseumImport;
