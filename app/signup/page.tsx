@@ -7,20 +7,22 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 import { PrimaryButton } from "@/components/common/PrimaryButton";
 import { SecondaryButton } from "@/components/common/SecondaryButton";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setInfo(null);
 
     const supabase = supabaseBrowser();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -31,16 +33,23 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/profile");
+    setInfo(
+      "Controleer uw e-mail om de registratie te bevestigen. Daarna kunt u inloggen en uw profiel aanvullen."
+    );
+    setSubmitting(false);
+
+    setTimeout(() => {
+      router.push("/login");
+    }, 3000);
   }
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6 rounded-3xl border border-slate-800 bg-slate-950/80 p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Inloggen</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Profiel aanmaken</h1>
         <p className="text-sm text-slate-300">
-          Log in met uw e-mailadres en wachtwoord om uw profiel, waarderingen en
-          voortgang te bekijken.
+          Met een gratis profiel bewaart MuseaThuis uw waarderingen, voorkeursinstellingen
+          en voortgang in de Academie.
         </p>
       </header>
 
@@ -67,11 +76,16 @@ export default function LoginPage() {
             id="password"
             type="password"
             required
+            minLength={8}
             className="w-full rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
+            autoComplete="new-password"
           />
+          <p className="text-xs text-slate-400">
+            Gebruik minimaal acht tekens. In een volgende fase voegen wij extra
+            beveiligingsopties toe.
+          </p>
         </div>
 
         {error && (
@@ -79,23 +93,27 @@ export default function LoginPage() {
             {error}
           </p>
         )}
+        {info && (
+          <p className="text-sm text-emerald-400">
+            {info}
+          </p>
+        )}
 
         <div className="flex flex-col gap-3 pt-2">
           <PrimaryButton type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Bezig met inloggen..." : "Log in"}
+            {submitting ? "Bezig met opslaan..." : "Maak profiel aan"}
           </PrimaryButton>
-          <Link href="/signup" className="w-full">
+          <Link href="/login" className="w-full">
             <SecondaryButton type="button" className="w-full">
-              Nog geen profiel? Maak een account aan
+              Heeft u al een profiel? Log dan in
             </SecondaryButton>
           </Link>
         </div>
       </form>
 
       <p className="text-xs text-slate-400">
-        Bent u uw wachtwoord vergeten? Gebruik de optie voor wachtwoordherstel in de
-        e-mail die u bij registratie heeft ontvangen. In een volgende fase voegen wij
-        een aparte herstelpagina toe.
+        Na het aanmaken van een profiel kunt u extra gegevens invullen, zoals leeftijdscategorie,
+        provincie en voorkeursthema's. Deze worden alleen op geaggregeerd niveau met musea gedeeld.
       </p>
     </div>
   );
