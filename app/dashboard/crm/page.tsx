@@ -1,28 +1,24 @@
+"use client";
+
+import Link from "next/link";
+
 export default function CrmDashboardPage() {
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">CRM dashboard</h1>
-        <a
-          href="/dashboard/logout"
-          className="text-sm text-slate-300 hover:text-white underline"
-        >
-          Uitloggen
-        </a>
-      </header>
+      <h1 className="text-2xl font-bold">CRM dashboard</h1>
       <p className="text-sm text-slate-300">
-        Kies een onderdeel om te beheren.
+        Beheer hier de inhoud van MuseaThuis: dagtours, dagprogramma en meer.
       </p>
-      <ul className="list-disc list-inside text-sm text-slate-200 space-y-1">
+      <ul className="list-disc list-inside space-y-1 text-sm">
         <li>
-          <a href="/dashboard/crm/day-program" className="underline">
+          <Link href="/dashboard/crm/day-program" className="text-sky-400 underline">
             Dagprogramma (tour, spel, focus)
-          </a>
+          </Link>
         </li>
         <li>
-          <a href="/dashboard/crm/tours" className="underline">
-            Dagtours beheren
-          </a>
+          <Link href="/dashboard/crm/tours" className="text-sky-400 underline">
+            Dagtours beheren (lijst en nieuwe tour)
+          </Link>
         </li>
       </ul>
     </div>

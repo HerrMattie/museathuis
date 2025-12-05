@@ -26,18 +26,17 @@ export default function ProfilePage() {
     const load = async () => {
       try {
         const res = await fetch("/api/profile/get", { cache: "no-store" });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error || "Profiel kon niet worden geladen.");
+        const data = await res.json();
+        if (data.error) {
+          setError("Profiel kon niet worden geladen.");
           setLoading(false);
           return;
         }
-        const data = await res.json();
         setProfile(data.profile || {});
         setLoading(false);
       } catch (e) {
         console.error(e);
-        setError("Er ging iets mis bij het ophalen van je profiel.");
+        setError("Profiel kon niet worden geladen.");
         setLoading(false);
       }
     };
@@ -62,10 +61,9 @@ export default function ProfilePage() {
         body: JSON.stringify(profile),
       });
 
-      const data = await res.json().catch(() => ({}));
-
+      const data = await res.json().catch(() => ({} as any));
       if (!res.ok || data.error) {
-        setError(data.error || "Opslaan is niet gelukt.");
+        setError("Opslaan van je profiel is niet gelukt.");
         setSaving(false);
         return;
       }
@@ -74,7 +72,7 @@ export default function ProfilePage() {
       setSaving(false);
     } catch (e) {
       console.error(e);
-      setError("Opslaan is niet gelukt.");
+      setError("Opslaan van je profiel is niet gelukt.");
       setSaving(false);
     }
   };
@@ -84,15 +82,19 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold">Jouw profiel</h1>
         <p className="text-sm text-slate-300">
-          Vul je demografische gegevens en voorkeuren in. Deze gegevens worden geanonimiseerd gebruikt voor analyses richting musea.
+          Vul je demografische gegevens en voorkeuren in. Deze gegevens worden geanonimiseerd gebruikt
+          voor analyses richting musea.
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="space-y-4 bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6"
+      >
         <div className="space-y-1">
           <label className="text-sm font-medium">Naam of alias</label>
           <input

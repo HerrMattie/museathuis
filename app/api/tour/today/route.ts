@@ -4,92 +4,98 @@ import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } }
+  {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }
 );
 
+function toDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
 export async function GET() {
-  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const todayStr = toDateOnly(today);
 
-  const { data: tour, error: tourError } = await supabase
-    .from("tours")
-    .select("*")
-    .eq("date", today)
-    .eq("status", "published")
-    .single();
+    // Gepubliceerde tour voor vandaag ophalen
+    const { data: tour, error: tourError } = await supabase
+      .from("tours")
+      .select("id, date, title, intro, is_premium, status")
+      .eq("date", todayStr)
+      .eq("status", "published")
+      .maybeSingle();
 
-  if (tourError || !tour) {
-    return NextResponse.json(
-      { error: "NO_TOUR_FOR_TODAY" },
-      { status: 404 }
-    );
-  }
+    if (tourError) {
+      console.error("Error loading tour for today", tourError);
+      return NextResponse.json({ error: "TOUR_LOAD_ERROR" }, { status: 500 });
+    }
 
-  const { data: items, error: itemsError } = await supabase
-    .from("tour_items")
-    .select("id, tour_id, artwork_id, order_index")
-    .eq("tour_id", tour.id)
-    .order("order_index", { ascending: true });
+    if (!tour) {
+      return NextResponse.json(
+        { code: "NO_TOUR_FOR_TODAY", message: "Er is nog geen gepubliceerde tour voor vandaag." },
+        { status: 200 }
+      );
+    }
 
-  if (itemsError || !items || items.length === 0) {
-    return NextResponse.json(
-      { error: "NO_ITEMS_FOR_TOUR" },
-      { status: 404 }
-    );
-  }
+    // Items + artworks via join (geen view nodig aan API-kant)
+    const { data: items, error: itemsError } = await supabase
+      .from("tour_items")
+      .select(`
+        id,
+        order_index,
+        text_short,
+        text_long,
+        audio_url,
+        tags,
+        artwork:artworks (
+          id,
+          title,
+          artist_name,
+          artist_normalized,
+          dating_text,
+          year_from,
+          year_to,
+          museum,
+          location_city,
+          location_country,
+          image_url
+        )
+      `)
+      .eq("tour_id", tour.id)
+      .order("order_index", { ascending: true });
 
-  const artworkIds = Array.from(new Set(items.map((i: any) => i.artwork_id)));
+    if (itemsError) {
+      console.error("Error loading tour items", itemsError);
+      return NextResponse.json({ error: "TOUR_ITEMS_LOAD_ERROR" }, { status: 500 });
+    }
 
-  const { data: artworks, error: artworksError } = await supabase
-    .from("artworks")
-    .select(
-      "id, title, artist_name, year_from, year_to, image_url, description_primary"
-    )
-    .in("id", artworkIds);
+    // Ratings samenvatting
+    const { data: ratingAgg, error: ratingError } = await supabase
+      .from("tour_ratings")
+      .select("rating")
+      .eq("tour_id", tour.id);
 
-  if (artworksError) {
-    return NextResponse.json(
-      { error: "ARTWORKS_ERROR" },
-      { status: 500 }
-    );
-  }
+    let averageRating: number | null = null;
+    let ratingCount = 0;
 
-  const artworksById = new Map(
-    (artworks ?? []).map((a: any) => [a.id, a])
-  );
+    if (!ratingError && ratingAgg && ratingAgg.length > 0) {
+      ratingCount = ratingAgg.length;
+      const sum = ratingAgg.reduce((acc: number, cur: any) => acc + (cur.rating ?? 0), 0);
+      averageRating = sum / ratingCount;
+    }
 
-  const itemsWithArtworks = (items ?? []).map((item: any) => ({
-    id: item.id,
-    order_index: item.order_index,
-    artwork_id: item.artwork_id,
-    artwork: artworksById.get(item.artwork_id) ?? null,
-  }));
-
-  const { data: ratings } = await supabase
-    .from("tour_ratings")
-    .select("rating")
-    .eq("tour_id", tour.id);
-
-  let avgRating: number | null = null;
-  let ratingsCount = 0;
-  if (ratings && ratings.length > 0) {
-    ratingsCount = ratings.length;
-    avgRating =
-      ratings.reduce((sum: number, r: any) => sum + r.rating, 0) /
-      ratingsCount;
-  }
-
-  return NextResponse.json({
-    tour: {
-      id: tour.id,
-      date: tour.date,
-      title: tour.title,
-      intro: tour.intro,
-      is_premium: tour.is_premium,
-      items: itemsWithArtworks,
-      rating_summary: {
-        avg_rating: avgRating,
-        ratings_count: ratingsCount,
+    return NextResponse.json({
+      tour,
+      items: items ?? [],
+      ratingSummary: {
+        averageRating,
+        ratingCount,
       },
-    },
-  });
+    });
+  } catch (e) {
+    console.error("Unexpected error in GET /api/tour/today", e);
+    return NextResponse.json({ error: "TOUR_TODAY_FAILED" }, { status: 500 });
+  }
 }

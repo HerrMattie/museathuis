@@ -4,173 +4,322 @@ import { useEffect, useState } from "react";
 
 type Artwork = {
   id: string;
-  title: string;
-  artist_name: string | null;
-  year_from: number | null;
-  year_to: number | null;
-  image_url: string | null;
-  description_primary: string | null;
+  title?: string | null;
+  artist_name?: string | null;
+  artist_normalized?: string | null;
+  dating_text?: string | null;
+  year_from?: number | null;
+  year_to?: number | null;
+  museum?: string | null;
+  location_city?: string | null;
+  location_country?: string | null;
+  image_url?: string | null;
 };
 
 type TourItem = {
   id: string;
   order_index: number;
-  artwork_id: string;
-  artwork: Artwork | null;
-};
-
-type RatingSummary = {
-  avg_rating: number | null;
-  ratings_count: number;
+  text_short?: string | null;
+  text_long?: string | null;
+  audio_url?: string | null;
+  tags?: string | null;
+  artwork: Artwork;
 };
 
 type Tour = {
   id: string;
   date: string;
   title: string;
-  intro: string | null;
-  is_premium: boolean;
-  items: TourItem[];
-  rating_summary: RatingSummary;
+  intro?: string | null;
+  is_premium?: boolean | null;
+  status?: string | null;
 };
 
-type ApiResponse = {
-  tour: Tour;
+type RatingSummary = {
+  averageRating: number | null;
+  ratingCount: number;
 };
+
+type TourTodayResponse =
+  | {
+      code: "NO_TOUR_FOR_TODAY";
+      message: string;
+    }
+  | {
+      tour: Tour;
+      items: TourItem[];
+      ratingSummary: RatingSummary;
+    };
 
 export default function TourTodayPage() {
-  const [tour, setTour] = useState<Tour | null>(null);
+  const [data, setData] = useState<TourTodayResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [rating, setRating] = useState<number | null>(null);
+  const [ratingMessage, setRatingMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [index, setIndex] = useState(0);
+  const [trackingSentFor, setTrackingSentFor] = useState<Set<number>>(new Set());
+
+  const isNoTour = (d: TourTodayResponse | null): d is { code: "NO_TOUR_FOR_TODAY"; message: string } =>
+    !!d && (d as any).code === "NO_TOUR_FOR_TODAY";
+
+  const isTourData = (d: TourTodayResponse | null): d is { tour: Tour; items: TourItem[]; ratingSummary: RatingSummary } =>
+    !!d && (d as any).tour;
 
   useEffect(() => {
-    const loadTour = async () => {
+    const load = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
         const res = await fetch("/api/tour/today", { cache: "no-store" });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error || "Er is geen dagtour beschikbaar.");
-          setLoading(false);
-          return;
-        }
-
-        const data: ApiResponse = await res.json();
-        setTour(data.tour);
-        setIndex(0);
+        const body = (await res.json()) as TourTodayResponse;
+        setData(body);
         setLoading(false);
       } catch (e) {
         console.error(e);
-        setError("Er ging iets mis bij het ophalen van de dagtour.");
+        setError("De dagtour kon niet worden geladen.");
         setLoading(false);
       }
     };
 
-    loadTour();
+    load();
   }, []);
 
+  // Tracking wanneer gebruiker naar een item navigeert
+  useEffect(() => {
+    if (!isTourData(data)) return;
+    if (data.items.length === 0) return;
+
+    if (trackingSentFor.has(currentIndex)) return;
+
+    const item = data.items[currentIndex];
+    if (!item) return;
+
+    const sendTracking = async () => {
+      try {
+        await fetch("/api/track/tour-artwork", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tour_id: data.tour.id,
+            artwork_id: item.artwork.id,
+            order_index: item.order_index,
+          }),
+        });
+        setTrackingSentFor((prev) => new Set(prev).add(currentIndex));
+      } catch (e) {
+        console.error("Tracking failed", e);
+      }
+    };
+
+    sendTracking();
+  }, [currentIndex, data, trackingSentFor]);
+
+  const handlePrev = () => {
+    if (!isTourData(data)) return;
+    setCurrentIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNext = () => {
+    if (!isTourData(data)) return;
+    setCurrentIndex((prev) => Math.min(data.items.length - 1, prev + 1));
+  };
+
+  const handleRate = async (value: number) => {
+    if (!isTourData(data)) return;
+    setRating(value);
+    setRatingMessage(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/tour/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tour_id: data.tour.id,
+          rating: value,
+        }),
+      });
+
+      const body = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || (body as any).error) {
+        setError("Je beoordeling kon niet worden opgeslagen.");
+        return;
+      }
+
+      setRatingMessage("Dank je, je beoordeling is opgeslagen.");
+    } catch (e) {
+      console.error(e);
+      setError("Je beoordeling kon niet worden opgeslagen.");
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <p>Dagtour wordt geladen...</p>
-      </div>
-    );
+    return <p>Dagelijkse tour wordt geladen...</p>;
   }
 
-  if (error || !tour) {
+  if (isNoTour(data)) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold mb-4">Dagtour</h1>
-        <p className="text-red-600">
-          {error || "Er is geen dagtour gevonden."}
+      <div className="space-y-3">
+        <h1 className="text-3xl font-bold">Dagtour</h1>
+        <p className="text-sm text-slate-300">{data.message}</p>
+        <p className="text-sm text-slate-400">
+          Je kunt in het CRM een dagprogramma genereren en publiceren. Zodra er een tour beschikbaar is,
+          verschijnt deze automatisch op deze pagina.
         </p>
       </div>
     );
   }
 
-  const currentItem = tour.items[index];
-  const artwork = currentItem.artwork;
-  const positionLabel = `${index + 1} / ${tour.items.length}`;
+  if (!isTourData(data)) {
+    return <p>Er ging iets mis bij het laden van de dagtour.</p>;
+  }
+
+  const { tour, items, ratingSummary } = data;
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-3xl font-bold">Dagtour</h1>
+        <p className="text-sm text-slate-300">
+          Voor deze tour zijn nog geen werken gekoppeld. Vul de tour in het CRM aan en publiceer opnieuw.
+        </p>
+      </div>
+    );
+  }
+
+  const current = items[currentIndex];
+  const total = items.length;
+  const artist =
+    current.artwork.artist_name ||
+    current.artwork.artist_normalized ||
+    "Onbekende kunstenaar";
+
+  const positionLabel = `Werk ${currentIndex + 1} van ${total}`;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-3xl font-bold">{tour.title}</h1>
-        {tour.intro && (
-          <p className="text-base text-gray-700">{tour.intro}</p>
+        <h1 className="text-3xl font-bold">Dagtour</h1>
+        <p className="text-lg font-semibold">{tour.title}</p>
+        {tour.intro && <p className="text-sm text-slate-300 max-w-2xl">{tour.intro}</p>}
+        {ratingSummary && ratingSummary.ratingCount > 0 && (
+          <p className="text-xs text-slate-400">
+            Gemiddelde beoordeling:{" "}
+            {ratingSummary.averageRating?.toFixed(1)} / 5 ({ratingSummary.ratingCount} beoordelingen)
+          </p>
         )}
-        <p className="text-sm text-gray-500">
-          Dagtour {tour.date} · {positionLabel}
-        </p>
       </header>
 
-      <section className="bg-white rounded-2xl shadow-md p-4 md:p-6 space-y-4">
-        <div className="w-full flex justify-center items-center bg-black rounded-xl overflow-hidden aspect-[16/9]">
-          {artwork?.image_url ? (
-            <img
-              src={artwork.image_url}
-              alt={artwork.title || "Kunstwerk"}
-              className="h-full w-auto object-contain"
-            />
-          ) : (
-            <div className="text-white text-sm">
-              Geen afbeelding beschikbaar
-            </div>
-          )}
+      <section className="grid md:grid-cols-2 gap-6 items-start">
+        <div className="space-y-3">
+          <div className="aspect-[4/3] w-full rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
+            {current.artwork.image_url ? (
+              <img
+                src={current.artwork.image_url}
+                alt={current.artwork.title ?? "Kunstwerk"}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="text-sm text-slate-500">Afbeelding niet beschikbaar</div>
+            )}
+          </div>
+          <p className="text-xs text-slate-400">{positionLabel}</p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={currentIndex === 0}
+              className="px-4 py-2 rounded-full border border-slate-600 text-sm disabled:opacity-40"
+            >
+              Vorig werk
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={currentIndex === total - 1}
+              className="px-4 py-2 rounded-full border border-slate-600 text-sm disabled:opacity-40"
+            >
+              Volgend werk
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">
-            {artwork?.title || "Onbekende titel"}
-          </h2>
+        <article className="space-y-3">
+          <header className="space-y-1">
+            <h2 className="text-xl font-semibold">
+              {current.artwork.title || "Zonder titel"}
+            </h2>
+            <p className="text-sm text-slate-300">
+              {artist}
+              {current.artwork.dating_text
+                ? `, ${current.artwork.dating_text}`
+                : current.artwork.year_from
+                ? `, ${current.artwork.year_from}${
+                    current.artwork.year_to && current.artwork.year_to !== current.artwork.year_from
+                      ? `–${current.artwork.year_to}`
+                      : ""
+                  }`
+                : ""}
+            </p>
+            {(current.artwork.museum || current.artwork.location_city || current.artwork.location_country) && (
+              <p className="text-xs text-slate-400">
+                {[current.artwork.museum, current.artwork.location_city, current.artwork.location_country]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
+          </header>
 
-          <p className="text-sm text-gray-700">
-            <span className="font-medium">Kunstenaar:</span>{" "}
-            {artwork?.artist_name || "Onbekend"}
-          </p>
-
-          <p className="text-sm text-gray-700">
-            <span className="font-medium">Datering:</span>{" "}
-            {artwork?.year_from
-              ? artwork.year_to && artwork.year_to !== artwork.year_from
-                ? `${artwork.year_from} - ${artwork.year_to}`
-                : artwork.year_from
-              : "Onbekend"}
-          </p>
-
-          {artwork?.description_primary && (
-            <p className="mt-3 text-base text-gray-800 leading-relaxed">
-              {artwork.description_primary}
+          {current.text_short && (
+            <p className="text-sm text-slate-200 whitespace-pre-line">
+              {current.text_short}
             </p>
           )}
-        </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <button
-            onClick={() => setIndex((prev) => (prev > 0 ? prev - 1 : prev))}
-            className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
-            disabled={index === 0}
-          >
-            Vorige
-          </button>
+          {current.text_long && (
+            <details className="mt-2">
+              <summary className="text-sm text-slate-300 cursor-pointer">
+                Lees uitgebreide toelichting
+              </summary>
+              <div className="mt-2 text-sm text-slate-200 whitespace-pre-line">
+                {current.text_long}
+              </div>
+            </details>
+          )}
 
-          <span className="text-sm text-gray-600">{positionLabel}</span>
-
-          <button
-            onClick={() =>
-              setIndex((prev) =>
-                prev < tour.items.length - 1 ? prev + 1 : prev
-              )
-            }
-            className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
-            disabled={index === tour.items.length - 1}
-          >
-            Volgende
-          </button>
-        </div>
+          {current.tags && (
+            <p className="text-xs text-slate-400">
+              Thema&apos;s: {current.tags}
+            </p>
+          )}
+        </article>
       </section>
+
+      {currentIndex === total - 1 && (
+        <section className="space-y-2 border-t border-slate-800 pt-4">
+          <h3 className="text-lg font-semibold">Hoe vond je deze tour?</h3>
+          <div className="flex items-center gap-2">
+            {[1, 2, 3, 4, 5].map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleRate(value)}
+                className={`w-8 h-8 rounded-full border text-sm ${
+                  rating === value
+                    ? "border-amber-400 bg-amber-500/20"
+                    : "border-slate-600"
+                }`}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+          {ratingMessage && (
+            <p className="text-xs text-emerald-400">{ratingMessage}</p>
+          )}
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </section>
+      )}
     </div>
   );
 }
