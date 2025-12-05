@@ -1,4 +1,3 @@
-// app/page.tsx
 import Link from "next/link";
 import { PrimaryButton } from "@/components/common/PrimaryButton";
 import { SecondaryButton } from "@/components/common/SecondaryButton";
@@ -10,7 +9,6 @@ import { BestOfPreview } from "@/components/home/BestOfPreview";
 export default function HomePage() {
   return (
     <div className="space-y-10">
-      {/* Hero */}
       <section className="grid gap-8 rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 px-6 py-8 sm:grid-cols-2 sm:px-8 sm:py-10">
         <div className="space-y-4">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -19,8 +17,8 @@ export default function HomePage() {
           </h1>
           <p className="text-sm text-slate-300 sm:text-base">
             MuseaThuis selecteert dagelijks tours, spellen en focusmomenten met
-            topkunst uit internationale collecties. Voor verdieping, rust en
-            spel, gewoon in de woonkamer.
+            topkunst uit internationale collecties. Voor verdieping, rust en spel,
+            gewoon in de woonkamer.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/tour/today">
@@ -34,8 +32,8 @@ export default function HomePage() {
             </Link>
           </div>
           <p className="text-xs text-slate-400">
-            Vandaag 1 tour, 1 spel en 1 focusmoment gratis beschikbaar. Met
-            Premium ontgrendel je het volledige dagprogramma en de Academie.
+            Vandaag 1 tour, 1 spel en 1 focusmoment gratis beschikbaar. Met Premium
+            ontgrendel je het volledige dagprogramma en de Academie.
           </p>
         </div>
         <div className="hidden items-center justify-center sm:flex">
@@ -49,16 +47,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Dagtegels */}
       <DayTiles />
-
-      {/* Hoe het werkt */}
       <HowItWorks />
-
-      {/* Doelgroepen */}
       <TargetGroups />
-
-      {/* Best-of preview */}
       <BestOfPreview />
     </div>
   );

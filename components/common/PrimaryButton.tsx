@@ -1,4 +1,3 @@
-// components/common/PrimaryButton.tsx
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {

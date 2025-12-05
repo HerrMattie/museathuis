@@ -1,4 +1,3 @@
-// components/home/HowItWorks.tsx
 export function HowItWorks() {
   const steps = [
     {

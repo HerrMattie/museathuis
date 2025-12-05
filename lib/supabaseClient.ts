@@ -1,21 +1,10 @@
-// components/common/PrimaryButton.tsx
-import { ButtonHTMLAttributes, ReactNode } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  children: ReactNode;
-};
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
 
-export function PrimaryButton({ children, className = "", ...rest }: Props) {
-  return (
-    <button
-      className={[
-        "inline-flex items-center justify-center rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950",
-        "hover:bg-amber-300 transition-colors",
-        className,
-      ].join(" ")}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Supabase environment variables ontbreken (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).");
 }
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

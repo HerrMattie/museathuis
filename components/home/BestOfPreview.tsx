@@ -1,4 +1,3 @@
-// components/home/BestOfPreview.tsx
 import Link from "next/link";
 import { Card } from "@/components/common/Card";
 import { Badge } from "@/components/common/Badge";

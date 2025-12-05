@@ -1,9 +1,8 @@
-// app/profile/page.tsx
 import { PrimaryButton } from "@/components/common/PrimaryButton";
 import { Badge } from "@/components/common/Badge";
 
 export default function ProfilePage() {
-  const isLoggedIn = false; // later koppelen aan Supabase Auth
+  const isLoggedIn = false;
 
   if (!isLoggedIn) {
     return (
@@ -30,7 +29,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Placeholder voor ingelogde situatie
   return (
     <div className="space-y-6">
       <header className="space-y-2">

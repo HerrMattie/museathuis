@@ -1,11 +1,14 @@
-// components/common/SecondaryButton.tsx
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
 };
 
-export function SecondaryButton({ children, className = "", ...rest }: Props) {
+export function SecondaryButton({
+  children,
+  className = "",
+  ...rest
+}: Props) {
   return (
     <button
       className={[

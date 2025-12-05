@@ -1,4 +1,3 @@
-// components/home/TargetGroups.tsx
 export function TargetGroups() {
   const groups = [
     {

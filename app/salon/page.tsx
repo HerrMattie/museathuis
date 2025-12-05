@@ -1,4 +1,3 @@
-// app/salon/page.tsx
 import { Badge } from "@/components/common/Badge";
 import { PremiumLabel } from "@/components/common/PremiumLabel";
 import { PrimaryButton } from "@/components/common/PrimaryButton";

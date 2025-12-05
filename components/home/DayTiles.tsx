@@ -1,4 +1,3 @@
-// components/home/DayTiles.tsx
 import Link from "next/link";
 import { Card } from "@/components/common/Card";
 import { Badge } from "@/components/common/Badge";
@@ -17,7 +16,7 @@ export function DayTiles() {
     {
       title: "Spellen van vandaag",
       description:
-        "Eén gratis spel en twee premiumspellen. Varieert van kijkspel tot quiz en verdiepingsvragen.",
+        "Eén gratis spel en twee premiumspellen. Van kijkspel tot quiz en verdiepingsvragen.",
       href: "/game",
       freeLabel: "1 gratis spel",
       premiumLabel: "2 premiumspellen",
@@ -71,7 +70,9 @@ export function DayTiles() {
                   </div>
                 </div>
                 <p className="text-sm text-slate-300">{tile.description}</p>
-                <div className="text-sm text-amber-300">Bekijk selectie van vandaag</div>
+                <div className="text-sm text-amber-300">
+                  Bekijk selectie van vandaag
+                </div>
               </div>
             </Card>
           </Link>

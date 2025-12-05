@@ -1,4 +1,3 @@
-// app/game/page.tsx
 import Link from "next/link";
 import { PrimaryButton } from "@/components/common/PrimaryButton";
 import { SecondaryButton } from "@/components/common/SecondaryButton";

@@ -1,10 +1,8 @@
-// app/tour/today/page.tsx
 import Link from "next/link";
 import { PrimaryButton } from "@/components/common/PrimaryButton";
 import { SecondaryButton } from "@/components/common/SecondaryButton";
 
 export default function TourTodayPage() {
-  // In latere stap verbinden met Supabase om gepubliceerde tour op te halen
   const hasTourForToday = false;
 
   if (!hasTourForToday) {
@@ -39,8 +37,5 @@ export default function TourTodayPage() {
     );
   }
 
-  // Placeholder voor toekomstige tourweergave
-  return (
-    <div>Tourweergave volgt.</div>
-  );
+  return <div>Tourweergave volgt.</div>;
 }

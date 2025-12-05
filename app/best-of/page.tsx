@@ -1,4 +1,3 @@
-// app/best-of/page.tsx
 import { Badge } from "@/components/common/Badge";
 import { PremiumLabel } from "@/components/common/PremiumLabel";
 

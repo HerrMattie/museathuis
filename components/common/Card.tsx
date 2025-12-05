@@ -1,4 +1,3 @@
-// components/common/Card.tsx
 import { ReactNode } from "react";
 
 type Props = {

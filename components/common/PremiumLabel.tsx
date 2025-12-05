@@ -1,4 +1,3 @@
-// components/common/PremiumLabel.tsx
 import { Badge } from "./Badge";
 
 export function PremiumLabel() {

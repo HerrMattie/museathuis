@@ -1,4 +1,3 @@
-// app/premium/page.tsx
 import { PrimaryButton } from "@/components/common/PrimaryButton";
 
 export default function PremiumPage() {

@@ -1,5 +1,4 @@
-// app/layout.tsx
-import "@/styles/globals.css";
+import "./globals.css";
 import type { Metadata } from "next";
 import { ReactNode } from "react";
 import { PageShell } from "@/components/layout/PageShell";
