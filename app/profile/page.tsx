@@ -62,8 +62,9 @@ export default function ProfilePage() {
         body: JSON.stringify(profile),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.error) {
         setError(data.error || "Opslaan is niet gelukt.");
         setSaving(false);
         return;
@@ -118,7 +119,6 @@ export default function ProfilePage() {
               <option value="55-64">55-64</option>
               <option value="65-74">65-74</option>
               <option value="75+">75+</option>
-
             </select>
           </div>
 

@@ -34,17 +34,55 @@ export async function POST(request: Request) {
     favorite_museums: body.favorite_museums ?? null,
   };
 
-  const { error } = await supabase
-    .from("user_profiles")
-    .upsert(payload, { onConflict: "user_id" });
+  try {
+    // Bestaat profiel al?
+    const { data: existing, error: existingError } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .eq("user_id", DEMO_USER_ID)
+      .maybeSingle();
 
-  if (error) {
-    console.error("Error updating profile", error);
+    if (existingError) {
+      console.error("Error checking existing profile", existingError);
+      return NextResponse.json(
+        { error: "PROFILE_SAVE_ERROR_CHECK" },
+        { status: 500 }
+      );
+    }
+
+    let error = null;
+
+    if (existing) {
+      // Update bestaand profiel
+      const result = await supabase
+        .from("user_profiles")
+        .update(payload)
+        .eq("user_id", DEMO_USER_ID);
+
+      error = result.error;
+    } else {
+      // Nieuw profiel aanmaken
+      const result = await supabase
+        .from("user_profiles")
+        .insert(payload);
+
+      error = result.error;
+    }
+
+    if (error) {
+      console.error("Error saving profile", error);
+      return NextResponse.json(
+        { error: "PROFILE_SAVE_ERROR" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("Unexpected profile save error", e);
     return NextResponse.json(
       { error: "PROFILE_SAVE_ERROR" },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true });
 }
