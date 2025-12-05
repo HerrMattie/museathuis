@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Artwork = {
-  id: number;
+  id: string;
   title: string;
   artist_name: string | null;
   year_from: number | null;
@@ -15,8 +15,13 @@ type Artwork = {
 type TourItem = {
   id: string;
   order_index: number;
-  artwork_id: number;
+  artwork_id: string;
   artwork: Artwork | null;
+};
+
+type RatingSummary = {
+  avg_rating: number | null;
+  ratings_count: number;
 };
 
 type Tour = {
@@ -26,6 +31,7 @@ type Tour = {
   intro: string | null;
   is_premium: boolean;
   items: TourItem[];
+  rating_summary: RatingSummary;
 };
 
 type ApiResponse = {
@@ -37,24 +43,12 @@ export default function TourTodayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
-  const [rating, setRating] = useState<number | null>(null);
-  const [ratingMessage, setRatingMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadTour = async () => {
       try {
         setLoading(true);
-
-        // Page event logging (best effort)
-        fetch("/api/track/page", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ route: "/tour/today" }),
-        }).catch(() => {});
-
-        const res = await fetch("/api/tour/today", {
-          cache: "no-store",
-        });
+        const res = await fetch("/api/tour/today", { cache: "no-store" });
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -76,58 +70,6 @@ export default function TourTodayPage() {
 
     loadTour();
   }, []);
-
-  useEffect(() => {
-    if (!tour) return;
-    const currentItem = tour.items[index];
-
-    // Content event logging (best effort, zonder seconds_viewed)
-    fetch("/api/track/content", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source: "tour",
-        artworkId: currentItem.artwork_id,
-        tourId: tour.id,
-      }),
-    }).catch(() => {});
-  }, [tour, index]);
-
-  const handlePrev = () => {
-    if (!tour) return;
-    setIndex((prev) => (prev > 0 ? prev - 1 : prev));
-  };
-
-  const handleNext = () => {
-    if (!tour) return;
-    setIndex((prev) =>
-      !tour ? prev : prev < tour.items.length - 1 ? prev + 1 : prev
-    );
-  };
-
-  const handleRate = async (value: number) => {
-    if (!tour) return;
-    setRating(value);
-    setRatingMessage(null);
-
-    try {
-      const res = await fetch("/api/tour/rate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tourId: tour.id, rating: value }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setRatingMessage(data.error || "Beoordeling opslaan mislukt.");
-      } else {
-        setRatingMessage("Bedankt voor je beoordeling.");
-      }
-    } catch (e) {
-      console.error(e);
-      setRatingMessage("Beoordeling opslaan mislukt.");
-    }
-  };
 
   if (loading) {
     return (
@@ -207,7 +149,7 @@ export default function TourTodayPage() {
 
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           <button
-            onClick={handlePrev}
+            onClick={() => setIndex((prev) => (prev > 0 ? prev - 1 : prev))}
             className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
             disabled={index === 0}
           >
@@ -217,35 +159,16 @@ export default function TourTodayPage() {
           <span className="text-sm text-gray-600">{positionLabel}</span>
 
           <button
-            onClick={handleNext}
+            onClick={() =>
+              setIndex((prev) =>
+                prev < tour.items.length - 1 ? prev + 1 : prev
+              )
+            }
             className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
             disabled={index === tour.items.length - 1}
           >
             Volgende
           </button>
-        </div>
-
-        <div className="pt-4 border-t border-gray-100 space-y-2">
-          <p className="text-sm text-gray-700">
-            Beoordeel deze dagtour:
-          </p>
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => handleRate(value)}
-                className={`w-8 h-8 rounded-full border text-sm ${
-                  rating === value ? "bg-gray-900 text-white" : "bg-white"
-                }`}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-          {ratingMessage && (
-            <p className="text-xs text-gray-600">{ratingMessage}</p>
-          )}
         </div>
       </section>
     </div>

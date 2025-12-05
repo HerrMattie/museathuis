@@ -1,77 +1,146 @@
-export const metadata = {
-  title: "Focusmomenten van vandaag",
-  description:
-    "Startpagina voor de drie focusmomenten van vandaag: één gratis en twee voor premiumleden.",
-};
+"use client";
 
-type FocusCardProps = {
+import { useEffect, useState } from "react";
+
+type Artwork = {
+  id: string;
   title: string;
-  label: string;
-  description: string;
-  isPremium: boolean;
+  artist_name: string | null;
+  year_from: number | null;
+  year_to: number | null;
+  image_url: string | null;
+  description_primary: string | null;
 };
 
-function FocusCard({ title, label, description, isPremium }: FocusCardProps) {
-  return (
-    <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-      <div className="flex gap-4">
-        <div className="hidden h-24 w-20 flex-none rounded-lg bg-slate-800 sm:block" />
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">
-              {label}
-            </p>
-            {isPremium && (
-              <span className="rounded-full border border-amber-500/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                Premium
-              </span>
-            )}
-          </div>
-          <h2 className="text-lg font-semibold text-slate-50">{title}</h2>
-          <p className="text-xs text-slate-300">{description}</p>
-        </div>
-      </div>
-      <button className="mt-4 inline-flex text-xs font-medium text-amber-300 hover:text-amber-200">
-        Start focus
-      </button>
-    </div>
-  );
-}
+type Focus = {
+  id: string;
+  date: string;
+  long_text: string | null;
+  audio_url: string | null;
+  artwork: Artwork;
+};
 
-export default function FocusPage() {
-  return (
-    <div className="space-y-6">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-50">
-          Focusmomenten van vandaag
+type ApiResponse = {
+  focus: Focus;
+};
+
+export default function FocusTodayPage() {
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadFocus = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/focus/today", { cache: "no-store" });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error || "Er is geen focusmoment beschikbaar.");
+          setLoading(false);
+          return;
+        }
+
+        const data: ApiResponse = await res.json();
+        setFocus(data.focus);
+        setLoading(false);
+      } catch (e) {
+        console.error(e);
+        setError("Er ging iets mis bij het ophalen van het focusmoment.");
+        setLoading(false);
+      }
+    };
+
+    loadFocus();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <p>Focusmoment wordt geladen...</p>
+      </div>
+    );
+  }
+
+  if (error || !focus) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-semibold mb-4">
+          Focusmoment van vandaag
         </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Een focusmoment is een rustige kijkmodus waarin één kunstwerk centraal
-          staat. Elke dag selecteert MuseaThuis drie focusmomenten: één gratis
-          en twee voor premiumleden. Kies welk werk je vandaag de meeste tijd
-          wilt geven.
+        <p className="text-red-600">
+          {error || "Er is geen focusmoment gevonden."}
+        </p>
+      </div>
+    );
+  }
+
+  const artwork = focus.artwork;
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-bold">Focusmoment van vandaag</h1>
+        <p className="text-sm text-gray-500">
+          Datum {focus.date}
         </p>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <FocusCard
-          title="Gratis focusmoment van vandaag"
-          label="Gratis"
-          description="Een zorgvuldig gekozen kunstwerk met een korte, verdiepende toelichting en audio."
-          isPremium={false}
-        />
-        <FocusCard
-          title="Premiumfocus 1"
-          label="Focus"
-          description="Een premiumfocus met een andere invalshoek, bijvoorbeeld materiaalgebruik of detailstudie."
-          isPremium={true}
-        />
-        <FocusCard
-          title="Premiumfocus 2"
-          label="Focus"
-          description="Een tweede premiumfocus, zodat je kunt kiezen welke sfeer vandaag het beste bij je past."
-          isPremium={true}
-        />
+      <section className="bg-white rounded-2xl shadow-md p-4 md:p-6 space-y-4">
+        <div className="w-full flex justify-center items-center bg-black rounded-xl overflow-hidden aspect-[16/9]">
+          {artwork.image_url ? (
+            <img
+              src={artwork.image_url}
+              alt={artwork.title || "Kunstwerk"}
+              className="h-full w-auto object-contain"
+            />
+          ) : (
+            <div className="text-white text-sm">
+              Geen afbeelding beschikbaar
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold">
+            {artwork.title || "Onbekende titel"}
+          </h2>
+
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Kunstenaar:</span>{" "}
+            {artwork.artist_name || "Onbekend"}
+          </p>
+
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Datering:</span>{" "}
+            {artwork.year_from
+              ? artwork.year_to && artwork.year_to !== artwork.year_from
+                ? `${artwork.year_from} - ${artwork.year_to}`
+                : artwork.year_from
+              : "Onbekend"}
+          </p>
+
+          {focus.long_text && (
+            <p className="mt-3 text-base text-gray-800 leading-relaxed whitespace-pre-line">
+              {focus.long_text}
+            </p>
+          )}
+
+          {artwork.description_primary && (
+            <p className="mt-3 text-sm text-gray-700 leading-relaxed">
+              {artwork.description_primary}
+            </p>
+          )}
+
+          {focus.audio_url && (
+            <div className="mt-4">
+              <audio controls src={focus.audio_url} className="w-full">
+                Je browser ondersteunt het audio-element niet.
+              </audio>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
