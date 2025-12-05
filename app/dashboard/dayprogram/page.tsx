@@ -53,6 +53,7 @@ export default function DayprogramPage() {
 
   const [schedule, setSchedule] = useState<Record<string, DayConfig>>({});
   const [savingDay, setSavingDay] = useState<string | null>(null);
+  const [savedIndicator, setSavedIndicator] = useState<Record<string, "idle" | "saved" | "error">>({});
 
   const days = getNextDays(7);
 
@@ -150,6 +151,10 @@ export default function DayprogramPage() {
         ...partial,
       },
     }));
+    setSavedIndicator((prev) => ({
+      ...prev,
+      [dayKey]: "idle",
+    }));
   }
 
   async function handleSaveDay(dayKey: string) {
@@ -157,24 +162,33 @@ export default function DayprogramPage() {
 
     setSavingDay(dayKey);
     setError(null);
+    setSavedIndicator((prev) => ({ ...prev, [dayKey]: "idle" }));
 
     try {
       const supabase = supabaseBrowser();
 
-      const { error: upsertError } = await supabase.from("dayprogram_schedule").upsert(
-        {
-          day_date: dayKey,
-          tour_id: cfg.tour_id || null,
-          game_id: cfg.game_id || null,
-          focus_id: cfg.focus_id || null,
-        },
-        { onConflict: "day_date" }
-      );
+      const { error: upsertError } = await supabase
+        .from("dayprogram_schedule")
+        .upsert(
+          {
+            day_date: dayKey,
+            tour_id: cfg.tour_id || null,
+            game_id: cfg.game_id || null,
+            focus_id: cfg.focus_id || null,
+          },
+          { onConflict: "day_date" }
+        );
 
-      if (upsertError) throw upsertError;
+      if (upsertError) {
+        console.error("Dagprogramma upsert error:", upsertError);
+        throw upsertError;
+      }
+
+      setSavedIndicator((prev) => ({ ...prev, [dayKey]: "saved" }));
     } catch (e: any) {
       console.error("Fout bij opslaan dagprogramma:", e);
       setError("Er ging iets mis bij het opslaan van een dag in het dagprogramma.");
+      setSavedIndicator((prev) => ({ ...prev, [dayKey]: "error" }));
     } finally {
       setSavingDay(null);
     }
@@ -223,6 +237,7 @@ export default function DayprogramPage() {
             {days.map((day) => {
               const cfg = schedule[day.iso] ?? { tour_id: null, game_id: null, focus_id: null };
               const isSaving = savingDay === day.iso;
+              const indicator = savedIndicator[day.iso] ?? "idle";
 
               return (
                 <div
@@ -296,14 +311,22 @@ export default function DayprogramPage() {
                     </select>
                   </label>
 
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveDay(day.iso)}
-                    disabled={isSaving}
-                    className="mt-4 inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-400 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-60"
-                  >
-                    {isSaving ? "Opslaan…" : "Dag opslaan"}
-                  </button>
+                  <div className="mt-4 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveDay(day.iso)}
+                      disabled={isSaving}
+                      className="inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-400 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-60"
+                    >
+                      {isSaving ? "Opslaan…" : "Dag opslaan"}
+                    </button>
+                    {indicator === "saved" && (
+                      <span className="text-[11px] text-emerald-300">Opgeslagen</span>
+                    )}
+                    {indicator === "error" && (
+                      <span className="text-[11px] text-red-300">Niet opgeslagen</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
