@@ -9,345 +9,306 @@ type SimpleItem = {
   title: string;
 };
 
-type DayRow = {
-  day_date: string; // YYYY-MM-DD
+type DayConfig = {
   tour_id: string | null;
   game_id: string | null;
   focus_id: string | null;
 };
 
-type DayRowWithMeta = DayRow & {
+type LoadState = "idle" | "loading" | "loaded" | "error";
+
+type DayInfo = {
   label: string;
+  iso: string;
 };
 
-type LoadingState = "idle" | "loading" | "saving";
+function getNextDays(count: number): DayInfo[] {
+  const result: DayInfo[] = [];
+  const formatter = new Intl.DateTimeFormat("nl-NL", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
 
-export default function DayprogramPage() {
-  const [days, setDays] = useState<DayRowWithMeta[]>([]);
-  const [tours, setTours] = useState<SimpleItem[]>([]);
-  const [games, setGames] = useState<SimpleItem[]>([]);
-  const [focusItems, setFocusItems] = useState<SimpleItem[]>([]);
-  const [loading, setLoading] = useState<LoadingState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    void loadAll();
-  }, []);
-
-  async function loadAll() {
-    setLoading("loading");
-    setError(null);
-    setSaveMessage(null);
-
-    try {
-      const supabase = supabaseBrowser();
-
-      const today = new Date();
-      const start = today.toISOString().slice(0, 10);
-      const endDate = new Date(today);
-      endDate.setDate(today.getDate() + 6); // vandaag + 6 dagen
-      const end = endDate.toISOString().slice(0, 10);
-
-      const [
-        { data: scheduleData, error: scheduleError },
-        { data: tourData, error: tourError },
-        { data: gameData, error: gameError },
-        { data: focusData, error: focusError },
-      ] = await Promise.all([
-        supabase
-          .from("dayprogram_schedule")
-          .select("day_date, tour_id, game_id, focus_id")
-          .gte("day_date", start)
-          .lte("day_date", end)
-          .order("day_date", { ascending: true }),
-        supabase.from("tours").select("id, title"),
-        supabase.from("games").select("id, title"),
-        supabase.from("focus_items").select("id, title"),
-      ]);
-
-      if (scheduleError) throw scheduleError;
-      if (tourError) throw tourError;
-      if (gameError) throw gameError;
-      if (focusError) throw focusError;
-
-      const existingByDate = new Map<string, DayRow>();
-      (scheduleData ?? []).forEach((row: any) => {
-        if (!row.day_date) return;
-        const iso = String(row.day_date).slice(0, 10);
-        existingByDate.set(iso, {
-          day_date: iso,
-          tour_id: row.tour_id ?? null,
-          game_id: row.game_id ?? null,
-          focus_id: row.focus_id ?? null,
-        });
-      });
-
-      const newDays: DayRowWithMeta[] = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() + i);
-        const iso = d.toISOString().slice(0, 10);
-
-        const label =
-          i === 0
-            ? "Vandaag"
-            : i === 1
-            ? "Morgen"
-            : d.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "short" });
-
-        const existing = existingByDate.get(iso);
-        newDays.push({
-          day_date: iso,
-          tour_id: existing?.tour_id ?? null,
-          game_id: existing?.game_id ?? null,
-          focus_id: existing?.focus_id ?? null,
-          label,
-        });
-      }
-
-      setDays(newDays);
-      setTours((tourData ?? []).map((t: any) => ({ id: String(t.id), title: t.title ?? "Naamloze tour" })));
-      setGames((gameData ?? []).map((g: any) => ({ id: String(g.id), title: g.title ?? "Naamloos spel" })));
-      setFocusItems((focusData ?? []).map((f: any) => ({ id: String(f.id), title: f.title ?? "Naamloos focusmoment" })));
-      setLoading("idle");
-    } catch (e: any) {
-      console.error("Fout bij laden dagprogramma:", e);
-      setError("Er ging iets mis bij het laden van het dagprogramma. Probeer het later opnieuw.");
-      setLoading("idle");
-    }
-  }
-
-  function onFieldChange(index: number, field: keyof DayRow, value: string) {
-    setDays((prev) => {
-      const copy = [...prev];
-      const row = { ...copy[index] };
-      (row as any)[field] = value || null; // lege waarde = null in database
-      copy[index] = row;
-      return copy;
+  for (let i = 0; i < count; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    result.push({
+      iso,
+      label: formatter.format(d),
     });
   }
 
-  async function saveDay(row: DayRowWithMeta) {
-    setLoading("saving");
+  return result;
+}
+
+export default function DayprogramPage() {
+  const [state, setState] = useState<LoadState>("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  const [tours, setTours] = useState<SimpleItem[]>([]);
+  const [games, setGames] = useState<SimpleItem[]>([]);
+  const [focusItems, setFocusItems] = useState<SimpleItem[]>([]);
+
+  const [schedule, setSchedule] = useState<Record<string, DayConfig>>({});
+  const [savingDay, setSavingDay] = useState<string | null>(null);
+
+  const days = getNextDays(7);
+
+  useEffect(() => {
+    void loadData();
+  }, []);
+
+  async function loadData() {
+    setState("loading");
     setError(null);
-    setSaveMessage(null);
+
+    try {
+      const supabase = supabaseBrowser();
+      const dayStart = days[0].iso;
+      const dayEnd = days[days.length - 1].iso;
+
+      const [toursRes, gamesRes, focusRes, scheduleRes] = await Promise.all([
+        supabase.from("tours").select("id, title").order("created_at", { ascending: false }),
+        supabase.from("games").select("id, title").order("created_at", { ascending: false }),
+        supabase.from("focus_items").select("id, title").order("created_at", { ascending: false }),
+        supabase
+          .from("dayprogram_schedule")
+          .select("day_date, tour_id, game_id, focus_id")
+          .gte("day_date", dayStart)
+          .lte("day_date", dayEnd),
+      ]);
+
+      if (toursRes.error) throw toursRes.error;
+      if (gamesRes.error) throw gamesRes.error;
+      if (focusRes.error) throw focusRes.error;
+      if (scheduleRes.error) throw scheduleRes.error;
+
+      setTours(
+        (toursRes.data ?? []).map((t: any) => ({
+          id: String(t.id),
+          title: t.title ?? "Naamloze tour",
+        }))
+      );
+
+      setGames(
+        (gamesRes.data ?? []).map((g: any) => ({
+          id: String(g.id),
+          title: g.title ?? "Naamloos spel",
+        }))
+      );
+
+      setFocusItems(
+        (focusRes.data ?? []).map((f: any) => ({
+          id: String(f.id),
+          title: f.title ?? "Naamloos focusmoment",
+        }))
+      );
+
+      const initialSchedule: Record<string, DayConfig> = {};
+      for (const day of days) {
+        initialSchedule[day.iso] = {
+          tour_id: null,
+          game_id: null,
+          focus_id: null,
+        };
+      }
+
+      (scheduleRes.data ?? []).forEach((row: any) => {
+        const key = row.day_date;
+        if (!initialSchedule[key]) {
+          initialSchedule[key] = {
+            tour_id: null,
+            game_id: null,
+            focus_id: null,
+          };
+        }
+        initialSchedule[key] = {
+          tour_id: row.tour_id ? String(row.tour_id) : null,
+          game_id: row.game_id ? String(row.game_id) : null,
+          focus_id: row.focus_id ? String(row.focus_id) : null,
+        };
+      });
+
+      setSchedule(initialSchedule);
+      setState("loaded");
+    } catch (e: any) {
+      console.error("Fout bij laden dagprogramma:", e);
+      setError("Het dagprogramma kon niet worden geladen.");
+      setState("error");
+    }
+  }
+
+  function updateDay(dayKey: string, partial: Partial<DayConfig>) {
+    setSchedule((prev) => ({
+      ...prev,
+      [dayKey]: {
+        tour_id: prev[dayKey]?.tour_id ?? null,
+        game_id: prev[dayKey]?.game_id ?? null,
+        focus_id: prev[dayKey]?.focus_id ?? null,
+        ...partial,
+      },
+    }));
+  }
+
+  async function handleSaveDay(dayKey: string) {
+    const cfg = schedule[dayKey] ?? { tour_id: null, game_id: null, focus_id: null };
+
+    setSavingDay(dayKey);
+    setError(null);
 
     try {
       const supabase = supabaseBrowser();
 
-      const { error: upsertError } = await supabase
-        .from("dayprogram_schedule")
-        .upsert(
-          {
-            day_date: row.day_date,
-            tour_id: row.tour_id,
-            game_id: row.game_id,
-            focus_id: row.focus_id,
-          },
-          { onConflict: "day_date" },
-        );
+      const { error: upsertError } = await supabase.from("dayprogram_schedule").upsert(
+        {
+          day_date: dayKey,
+          tour_id: cfg.tour_id || null,
+          game_id: cfg.game_id || null,
+          focus_id: cfg.focus_id || null,
+        },
+        { onConflict: "day_date" }
+      );
 
       if (upsertError) throw upsertError;
-
-      setSaveMessage(`Dagprogramma voor ${row.label.toLowerCase()} is opgeslagen.`);
-      setLoading("idle");
     } catch (e: any) {
       console.error("Fout bij opslaan dagprogramma:", e);
-      setError("Opslaan van deze dag is mislukt. Controleer de velden en probeer het opnieuw.");
-      setLoading("idle");
+      setError("Er ging iets mis bij het opslaan van een dag in het dagprogramma.");
+    } finally {
+      setSavingDay(null);
     }
   }
 
-  const isBusy = loading === "loading" || loading === "saving";
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
-      <div className="mx-auto flex max-w-6xl gap-8 px-4 py-10">
-        {/* Zijbalk */}
-        <aside className="w-64 shrink-0">
-          <div className="mb-6 text-sm font-semibold tracking-wide text-amber-400">
-            MUSEATHUIS
+      <div className="mx-auto max-w-6xl px-4 py-10">
+        <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+              Dashboard
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
+              Dagprogramma
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+              Stel per dag samen welke tour, welk spel en welk focusmoment zichtbaar zijn op de
+              voorpagina. Spellen zijn optioneel; u kunt ook alleen een tour en focusmoment plannen.
+            </p>
           </div>
-          <div className="mb-2 text-xs uppercase tracking-wide text-slate-400">
-            CRM dashboard
-          </div>
-          <nav className="space-y-1 text-sm">
+          <div className="text-xs text-slate-400">
             <Link
               href="/dashboard"
-              className="block rounded-full px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-slate-50"
+              className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
             >
-              Overzicht
+              Terug naar dashboard
             </Link>
-            <Link
-              href="/dashboard/dayprogram"
-              className="block rounded-full bg-amber-400 px-4 py-2 font-semibold text-slate-950"
-            >
-              Dagprogramma
-            </Link>
-            <Link
-              href="/dashboard/crm"
-              className="block rounded-full px-4 py-2 text-slate-300 hover:bg-slate-800 hover:text-slate-50"
-            >
-              Content &amp; CRM
-            </Link>
-            <span className="block cursor-default rounded-full px-4 py-2 text-slate-500">
-              Analytics (preview)
-            </span>
-          </nav>
-
-          <div className="mt-8 rounded-2xl bg-slate-900/80 p-4 text-xs text-slate-400">
-            <div className="mb-2 font-semibold text-slate-200">Dagprogramma</div>
-            <p className="mb-1">
-              Stel per dag een tour, het spel en het focusmoment samen. Dit overzicht is de basis voor de dagtegels op de publiekswebsite.
-            </p>
-            <p>In een volgende fase voegen we ook een kalenderweergave en bulkacties toe.</p>
           </div>
-        </aside>
+        </header>
 
-        {/* Hoofdcontent */}
-        <main className="flex-1">
-          <header className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Dagprogramma</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
-              Per dag kiest u een hoofd-tour, spel en focusmoment. Hier plant u de komende week vooruit.
-            </p>
-          </header>
+        {state === "loading" && (
+          <div className="rounded-3xl bg-slate-900/70 p-6 text-sm text-slate-300">
+            Dagprogramma wordt geladen…
+          </div>
+        )}
 
-          {(error || saveMessage) && (
-            <div className="mb-4 space-y-2">
-              {error && (
-                <div className="rounded-xl border border-red-500/50 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-                  {error}
-                </div>
-              )}
-              {saveMessage && !error && (
-                <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-100">
-                  {saveMessage}
-                </div>
-              )}
-            </div>
-          )}
+        {state === "error" && (
+          <div className="rounded-3xl bg-red-950/40 p-6 text-sm text-red-100">
+            {error ?? "Er ging iets mis bij het laden van het dagprogramma."}
+          </div>
+        )}
 
-          <section className="mb-8 rounded-3xl bg-slate-900/70 p-6 shadow-xl shadow-black/40">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-                  Vandaag en komende dagen
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Koppel hier de dagtour, het spel en het focusmoment. Zodra tours, spellen en focusmomenten gepubliceerd zijn, verschijnen ze in de selecties.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void loadAll()}
-                  disabled={isBusy}
-                  className="rounded-full border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-800 disabled:opacity-50"
+        {state === "loaded" && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {days.map((day) => {
+              const cfg = schedule[day.iso] ?? { tour_id: null, game_id: null, focus_id: null };
+              const isSaving = savingDay === day.iso;
+
+              return (
+                <div
+                  key={day.iso}
+                  className="flex flex-col rounded-3xl bg-slate-900/80 p-4 text-sm text-slate-200"
                 >
-                  Opnieuw laden
-                </button>
-              </div>
-            </div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+                      {day.label}
+                    </div>
+                    <div className="text-[11px] text-slate-500">{day.iso}</div>
+                  </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-xs text-slate-300">
-                <thead className="border-b border-slate-800 text-[11px] uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-2 py-2">Datum</th>
-                    <th className="px-2 py-2 w-64">Tour</th>
-                    <th className="px-2 py-2 w-64">Spel</th>
-                    <th className="px-2 py-2 w-64">Focusmoment</th>
-                    <th className="px-2 py-2 text-right">Actie</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/80">
-                  {days.map((row, index) => (
-                    <tr key={row.day_date}>
-                      <td className="px-2 py-3 align-top">
-                        <div className="text-xs font-semibold text-slate-100">{row.label}</div>
-                        <div className="text-[11px] text-slate-500">{row.day_date}</div>
-                      </td>
-                      <td className="px-2 py-3 align-top">
-                        <select
-                          className="w-full rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-100 outline-none focus:border-amber-400"
-                          value={row.tour_id ?? ""}
-                          onChange={(e) => onFieldChange(index, "tour_id", e.target.value)}
-                          disabled={isBusy}
-                        >
-                          <option value="">Geen tour gekozen</option>
-                          {tours.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.title}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-3 align-top">
-                        <select
-                          className="w-full rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-100 outline-none focus:border-amber-400"
-                          value={row.game_id ?? ""}
-                          onChange={(e) => onFieldChange(index, "game_id", e.target.value)}
-                          disabled={isBusy}
-                        >
-                          <option value="">Geen spel gekozen</option>
-                          {games.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.title}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-3 align-top">
-                        <select
-                          className="w-full rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-100 outline-none focus:border-amber-400"
-                          value={row.focus_id ?? ""}
-                          onChange={(e) => onFieldChange(index, "focus_id", e.target.value)}
-                          disabled={isBusy}
-                        >
-                          <option value="">Geen focusmoment gekozen</option>
-                          {focusItems.map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {f.title}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-3 align-top text-right">
-                        <button
-                          type="button"
-                          onClick={() => void saveDay(row)}
-                          disabled={isBusy}
-                          className="rounded-full bg-amber-400 px-3 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-50"
-                        >
-                          Dag opslaan
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {days.length === 0 && !error && (
-                    <tr>
-                      <td colSpan={5} className="px-2 py-6 text-center text-xs text-slate-500">
-                        Geen dagen gevonden. Controleer of de tabel <code>dayprogram_schedule</code> aanwezig is in Supabase.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                  <label className="mt-2 block text-[11px] font-medium text-slate-400">
+                    Tour
+                    <select
+                      className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100"
+                      value={cfg.tour_id ?? ""}
+                      onChange={(e) =>
+                        updateDay(day.iso, {
+                          tour_id: e.target.value || null,
+                        })
+                      }
+                    >
+                      <option value="">Geen tour</option>
+                      {tours.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-          <section className="rounded-3xl bg-slate-900/60 p-6 text-xs text-slate-400">
-            <h2 className="mb-2 text-sm font-semibold text-slate-100">Volgende stappen in het dagprogramma</h2>
-            <ul className="list-disc space-y-1 pl-5">
-              <li>Koppeling met echte tours, games en focusmomenten in Supabase verder verfijnen.</li>
-              <li>Mogelijkheid om per dag premium- en gratis-slots in te stellen voor tour, spel en focus.</li>
-              <li>Kalenderweergave en bulkacties (bijvoorbeeld een maand vooruit vullen).</li>
-              <li>Previewpaneel waarin u ziet hoe de dagtegels op de publiekswebsite eruit zien.</li>
-            </ul>
-          </section>
-        </main>
+                  <label className="mt-3 block text-[11px] font-medium text-slate-400">
+                    Spel (optioneel)
+                    <select
+                      className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100"
+                      value={cfg.game_id ?? ""}
+                      onChange={(e) =>
+                        updateDay(day.iso, {
+                          game_id: e.target.value || null,
+                        })
+                      }
+                    >
+                      <option value="">Geen spel</option>
+                      {games.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="mt-3 block text-[11px] font-medium text-slate-400">
+                    Focusmoment
+                    <select
+                      className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100"
+                      value={cfg.focus_id ?? ""}
+                      onChange={(e) =>
+                        updateDay(day.iso, {
+                          focus_id: e.target.value || null,
+                        })
+                      }
+                    >
+                      <option value="">Geen focusmoment</option>
+                      {focusItems.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveDay(day.iso)}
+                    disabled={isSaving}
+                    className="mt-4 inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-400 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-60"
+                  >
+                    {isSaving ? "Opslaan…" : "Dag opslaan"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
