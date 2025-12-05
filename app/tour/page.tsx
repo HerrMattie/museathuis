@@ -8,37 +8,39 @@ import { RatingStars } from "@/components/RatingStars";
 
 type LoadState = "idle" | "loading" | "loaded" | "empty" | "error";
 
+type Slot = {
+  id: string;
+  slotIndex: number;
+  isPremium: boolean;
+  contentId: string;
+};
+
 type TourMeta = {
   id: string;
   title: string;
-  subtitle: string | null;
+  intro: string | null;
   theme: string | null;
   level: string | null;
-  intro: string | null;
 };
 
-type Artwork = {
+type TourArtwork = {
   id: string;
   title: string;
   artist_name: string | null;
   dating_text: string | null;
   image_url: string | null;
-};
-
-type TourStop = {
-  id: string;
-  order: number;
-  title: string;
-  text: string | null;
-  artwork: Artwork | null;
+  description: string | null;
 };
 
 export default function TourTodayPage() {
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
 
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+
   const [meta, setMeta] = useState<TourMeta | null>(null);
-  const [stops, setStops] = useState<TourStop[]>([]);
+  const [items, setItems] = useState<TourArtwork[]>([]);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [ownRating, setOwnRating] = useState<number | null>(null);
@@ -46,7 +48,7 @@ export default function TourTodayPage() {
   const [ratingError, setRatingError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadTodayTour();
+    void loadTodaySlots();
   }, []);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function TourTodayPage() {
     void loadUserAndRating(meta.id);
   }, [meta?.id]);
 
-  async function loadTodayTour() {
+  async function loadTodaySlots() {
     setState("loading");
     setError(null);
 
@@ -62,26 +64,50 @@ export default function TourTodayPage() {
       const supabase = supabaseBrowser();
       const today = new Date().toISOString().slice(0, 10);
 
-      // 1. Haal tour_id uit dagprogramma
-      const { data: scheduleRows, error: scheduleError } = await supabase
-        .from("dayprogram_schedule")
-        .select("tour_id")
+      const { data, error: slotsError } = await supabase
+        .from("dayprogram_slots")
+        .select("id, slot_index, is_premium, content_id")
         .eq("day_date", today)
-        .limit(1);
+        .eq("content_type", "tour")
+        .order("slot_index", { ascending: true });
 
-      if (scheduleError) {
-        console.error("Fout dagprogram_schedule (tour):", scheduleError);
-        throw scheduleError;
+      if (slotsError) {
+        console.error("Fout dayprogram_slots (tour):", slotsError);
+        throw slotsError;
       }
 
-      const tourId = scheduleRows && scheduleRows.length > 0 ? scheduleRows[0].tour_id : null;
-
-      if (!tourId) {
+      const rows = (data ?? []).filter((row: any) => row.content_id);
+      if (rows.length === 0) {
         setState("empty");
         return;
       }
 
-      // 2. Haal tour op (flexibel schema)
+      const mapped: Slot[] = rows.map((row: any) => ({
+        id: String(row.id),
+        slotIndex: row.slot_index,
+        isPremium: !!row.is_premium,
+        contentId: String(row.content_id),
+      }));
+
+      setSlots(mapped);
+      const first = mapped[0];
+      setSelectedSlotIndex(first.slotIndex);
+      await loadTourById(first.contentId);
+    } catch (e: any) {
+      console.error("Fout bij laden tourslots:", e);
+      setError("De tour van vandaag kon niet worden geladen. Probeer het later opnieuw.");
+      setState("error");
+    }
+  }
+
+  async function loadTourById(tourId: string) {
+    setState("loading");
+    setError(null);
+    setItems([]);
+
+    try {
+      const supabase = supabaseBrowser();
+
       const { data: tourRows, error: tourError } = await supabase
         .from("tours")
         .select("*")
@@ -99,99 +125,67 @@ export default function TourTodayPage() {
         return;
       }
 
-      const metaObj: TourMeta = {
+      const tourMeta: TourMeta = {
         id: String(tour.id),
-        title: tour.title || tour.name || "Tour van vandaag",
-        subtitle: tour.subtitle || tour.tagline || null,
-        theme: tour.theme || tour.category || null,
-        level: tour.level || tour.difficulty || null,
+        title: tour.title || tour.name || "Dagelijkse tour",
         intro: tour.intro_text || tour.description || null,
+        theme: tour.theme || tour.topic || null,
+        level: tour.level || null,
       };
-      setMeta(metaObj);
+      setMeta(tourMeta);
 
-      // 3. Haal tour_items op
       const { data: itemRows, error: itemsError } = await supabase
         .from("tour_items")
         .select("*")
-        .eq("tour_id", tour.id);
+        .eq("tour_id", tourId)
+        .order("position", { ascending: true });
 
       if (itemsError) {
         console.error("Fout tour_items:", itemsError);
         throw itemsError;
       }
 
-      const items = (itemRows ?? []) as any[];
-
-      if (!items.length) {
-        setStops([]);
-        setState("loaded");
-        return;
-      }
-
-      // 4. Verzamel artworks
       const artworkIds = Array.from(
         new Set(
-          items
-            .map((it) => it.artwork_id || it.artwork || null)
-            .filter((v) => !!v)
-            .map((v) => String(v))
+          (itemRows ?? [])
+            .map((row: any) => row.artwork_id)
+            .filter((id: any) => !!id)
         )
       );
 
-      let artworksById: Record<string, Artwork> = {};
+      let artworksById: Record<string, any> = {};
       if (artworkIds.length > 0) {
-        const { data: artRows, error: artError } = await supabase
+        const { data: artworkRows, error: artworksError } = await supabase
           .from("artworks")
-          .select("id, title, artist_name, dating_text, image_url")
+          .select("*")
           .in("id", artworkIds);
 
-        if (artError) {
-          console.error("Fout artworks:", artError);
-          throw artError;
+        if (artworksError) {
+          console.error("Fout artworks:", artworksError);
+          throw artworksError;
         }
 
-        for (const art of artRows ?? []) {
-          const a = art as any;
-          artworksById[String(a.id)] = {
-            id: String(a.id),
-            title: a.title ?? "Onbenoemd kunstwerk",
-            artist_name: a.artist_name ?? null,
-            dating_text: a.dating_text ?? null,
-            image_url: a.image_url ?? null,
-          };
-        }
+        artworksById = Object.fromEntries(
+          (artworkRows ?? []).map((row: any) => [String(row.id), row])
+        );
       }
 
-      const stopsMapped: TourStop[] = items
-        .map((it) => {
-          const order =
-            typeof it.position === "number"
-              ? it.position
-              : typeof it.sequence === "number"
-              ? it.sequence
-              : typeof it.order_index === "number"
-              ? it.order_index
-              : 9999;
+      const mappedItems: TourArtwork[] = (itemRows ?? []).map((item: any, index: number) => {
+        const art = artworksById[String(item.artwork_id)] ?? null;
+        return {
+          id: art ? String(art.id) : `placeholder-${index}`,
+          title: art?.title || item.title || `Kunstwerk ${index + 1}`,
+          artist_name: art?.artist_name || null,
+          dating_text: art?.dating_text || null,
+          image_url: art?.image_url || null,
+          description: item.text || art?.description_primary || null,
+        };
+      });
 
-          const artworkId: string | null =
-            it.artwork_id || it.artwork || null;
-
-          const artwork = artworkId ? artworksById[String(artworkId)] ?? null : null;
-
-          return {
-            id: String(it.id),
-            order,
-            title: it.title || it.section_title || it.heading || "Zonder titel",
-            text: it.body || it.section_text || it.description || null,
-            artwork,
-          } as TourStop;
-        })
-        .sort((a, b) => a.order - b.order);
-
-      setStops(stopsMapped);
+      setItems(mappedItems);
       setState("loaded");
     } catch (e: any) {
-      console.error("Fout bij laden tour van vandaag:", e);
+      console.error("Fout bij laden tour:", e);
       setError("De tour van vandaag kon niet worden geladen. Probeer het later opnieuw.");
       setState("error");
     }
@@ -204,7 +198,6 @@ export default function TourTodayPage() {
 
       const supabase = supabaseBrowser();
       const { data: userResult, error: userError } = await supabase.auth.getUser();
-
       if (userError) throw userError;
 
       const user = userResult?.user ?? null;
@@ -274,42 +267,80 @@ export default function TourTodayPage() {
     }
   }
 
+  function renderSlotsSwitcher() {
+    if (slots.length <= 1) return null;
+
+    return (
+      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+        {slots.map((slot) => {
+          const isActive = slot.slotIndex === selectedSlotIndex;
+          const label =
+            slot.slotIndex === 1
+              ? "Gratis tour van vandaag"
+              : `Premium tour ${slot.slotIndex - 1}`;
+
+          return (
+            <button
+              key={slot.id}
+              type="button"
+              onClick={() => {
+                setSelectedSlotIndex(slot.slotIndex);
+                void loadTourById(slot.contentId);
+              }}
+              className={[
+                "rounded-full border px-3 py-1.5",
+                isActive
+                  ? "border-amber-400 bg-amber-400/10 text-amber-300"
+                  : "border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
-      <div className="mx-auto max-w-5xl px-4 py-10">
+      <div className="mx-auto max-w-4xl px-4 py-10">
         <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
               Tour
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
-              {meta?.title ?? "Tour van vandaag"}
+              {meta?.title ?? "Dagelijkse tour"}
             </h1>
-            {meta?.subtitle && (
-              <p className="mt-1 text-sm text-slate-300">{meta.subtitle}</p>
-            )}
             {meta?.theme && (
-              <p className="mt-1 text-xs text-slate-400">Thema: {meta.theme}</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Thema van deze tour: {meta.theme}
+              </p>
             )}
 
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <RatingStars
-                value={ownRating}
-                onChange={(value) => void handleRatingChange(value)}
-                disabled={ratingLoading}
-                label="Uw beoordeling"
-              />
-              {!userId && !ratingLoading && (
-                <span className="text-[11px] text-slate-500">
-                  Maak een gratis profiel aan om tours te beoordelen.
-                </span>
-              )}
-              {ratingError && (
-                <span className="text-[11px] text-red-300">
-                  {ratingError}
-                </span>
-              )}
-            </div>
+            {state === "loaded" && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <RatingStars
+                  value={ownRating}
+                  onChange={(value) => void handleRatingChange(value)}
+                  disabled={ratingLoading}
+                  label="Uw beoordeling"
+                />
+                {!userId && !ratingLoading && (
+                  <span className="text-[11px] text-slate-500">
+                    Maak een gratis profiel aan om tours te beoordelen.
+                  </span>
+                )}
+                {ratingError && (
+                  <span className="text-[11px] text-red-300">
+                    {ratingError}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {renderSlotsSwitcher()}
           </div>
           <div className="text-xs text-slate-400">
             <Link
@@ -336,77 +367,75 @@ export default function TourTodayPage() {
         {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
             Er is voor vandaag nog geen tour ingepland in het dagprogramma. Voeg in het CRM een tour
-            toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
+            toe aan <code>dayprogram_slots</code> (type <code>tour</code>) om deze pagina te vullen.
           </div>
         )}
 
         {state === "loaded" && (
-          <div className="space-y-6">
+          <>
             {meta?.intro && (
-              <div className="rounded-3xl bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
+              <div className="mb-6 rounded-3xl bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
                 <p className="whitespace-pre-line">{meta.intro}</p>
               </div>
             )}
 
-            {stops.map((stop, index) => (
-              <section
-                key={stop.id}
-                className="overflow-hidden rounded-3xl bg-slate-900/80 p-4 sm:p-6 lg:p-8"
-              >
-                <div className="mb-4 flex items-baseline justify-between gap-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
-                    Werk {index + 1}
-                  </div>
-                  {stop.artwork?.artist_name && (
-                    <div className="text-[11px] text-slate-400">
-                      {stop.artwork.artist_name}
-                      {stop.artwork.dating_text && <> · {stop.artwork.dating_text}</>}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-slate-950">
-                    {stop.artwork?.image_url ? (
-                      <Image
-                        src={stop.artwork.image_url}
-                        alt={stop.artwork.title}
-                        fill
-                        className="object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-xs text-slate-500">
-                        Geen afbeelding beschikbaar
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <h2 className="text-lg font-semibold text-slate-50">
-                      {stop.artwork?.title ?? stop.title}
-                    </h2>
-                    {stop.text ? (
-                      <p className="text-sm leading-relaxed text-slate-200 whitespace-pre-line">
-                        {stop.text}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-slate-400">
-                        Voor dit werk is nog geen uitgebreide tourtekst ingevuld. Voeg in het CRM
-                        een toelichting toe aan dit tour-item om die hier te tonen.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </section>
-            ))}
-
-            {stops.length === 0 && (
-              <div className="rounded-3xl bg-slate-900/80 p-6 text-sm text-slate-300">
+            {items.length === 0 && (
+              <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
                 Deze tour heeft nog geen werken gekoppeld. Voeg in het CRM tour-items toe om de tour
                 te vullen.
               </div>
             )}
-          </div>
+
+            {items.length > 0 && (
+              <ol className="space-y-6">
+                {items.map((item, index) => (
+                  <li
+                    key={item.id}
+                    className="overflow-hidden rounded-3xl bg-slate-900/80 p-4 sm:p-5"
+                  >
+                    <div className="mb-3 flex items-baseline justify-between gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+                        Kunstwerk {index + 1} van {items.length}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
+                      {item.image_url ? (
+                        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-950/60">
+                          <Image
+                            src={item.image_url}
+                            alt={item.title}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex aspect-[4/3] items-center justify-center rounded-2xl bg-slate-950/40 text-xs text-slate-500">
+                          Geen afbeelding beschikbaar
+                        </div>
+                      )}
+
+                      <div className="space-y-2 text-sm leading-relaxed text-slate-200">
+                        <h2 className="text-base font-semibold text-slate-50">
+                          {item.title}
+                        </h2>
+                        {(item.artist_name || item.dating_text) && (
+                          <p className="text-xs text-slate-400">
+                            {item.artist_name && <span>{item.artist_name}</span>}
+                            {item.artist_name && item.dating_text && <span> · </span>}
+                            {item.dating_text && <span>{item.dating_text}</span>}
+                          </p>
+                        )}
+                        {item.description && (
+                          <p className="mt-2 whitespace-pre-line">{item.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </>
         )}
       </div>
     </div>

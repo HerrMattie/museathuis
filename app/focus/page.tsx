@@ -6,35 +6,47 @@ import Image from "next/image";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { RatingStars } from "@/components/RatingStars";
 
+type LoadState = "idle" | "loading" | "loaded" | "empty" | "error";
+
+type Slot = {
+  id: string;
+  slotIndex: number;
+  isPremium: boolean;
+  contentId: string;
+};
+
 type FocusMeta = {
   id: string;
   title: string;
+  intro: string | null;
 };
 
-type FocusArtwork = {
+type Artwork = {
   id: string;
   title: string;
   artist_name: string | null;
   dating_text: string | null;
   image_url: string | null;
+  description: string | null;
 };
-
-type LoadState = "idle" | "loading" | "loaded" | "error" | "empty";
 
 export default function FocusTodayPage() {
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+
   const [meta, setMeta] = useState<FocusMeta | null>(null);
-  const [artwork, setArtwork] = useState<FocusArtwork | null>(null);
-  const [text, setText] = useState<string | null>(null);
+  const [artwork, setArtwork] = useState<Artwork | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [ownRating, setOwnRating] = useState<number | null>(null);
-  const [ratingLoading, setRatingLoading] = useState<boolean>(false);
+  const [ratingLoading, setRatingLoading] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadTodayFocus();
+    void loadTodaySlots();
   }, []);
 
   useEffect(() => {
@@ -42,7 +54,7 @@ export default function FocusTodayPage() {
     void loadUserAndRating(meta.id);
   }, [meta?.id]);
 
-  async function loadTodayFocus() {
+  async function loadTodaySlots() {
     setState("loading");
     setError(null);
 
@@ -50,26 +62,50 @@ export default function FocusTodayPage() {
       const supabase = supabaseBrowser();
       const today = new Date().toISOString().slice(0, 10);
 
-      // 1. Haal het focus_id uit het dagprogramma
-      const { data: scheduleRows, error: scheduleError } = await supabase
-        .from("dayprogram_schedule")
-        .select("focus_id")
+      const { data, error: slotsError } = await supabase
+        .from("dayprogram_slots")
+        .select("id, slot_index, is_premium, content_id")
         .eq("day_date", today)
-        .limit(1);
+        .eq("content_type", "focus")
+        .order("slot_index", { ascending: true });
 
-      if (scheduleError) {
-        console.error("Fout dagprogram_schedule:", scheduleError);
-        throw scheduleError;
+      if (slotsError) {
+        console.error("Fout dayprogram_slots (focus):", slotsError);
+        throw slotsError;
       }
 
-      const focusId = scheduleRows && scheduleRows.length > 0 ? scheduleRows[0].focus_id : null;
-
-      if (!focusId) {
+      const rows = (data ?? []).filter((row: any) => row.content_id);
+      if (rows.length === 0) {
         setState("empty");
         return;
       }
 
-      // 2. Haal het focus-item op (selecteer alle kolommen om schema-afwijkingen op te vangen)
+      const mapped: Slot[] = rows.map((row: any) => ({
+        id: String(row.id),
+        slotIndex: row.slot_index,
+        isPremium: !!row.is_premium,
+        contentId: String(row.content_id),
+      }));
+
+      setSlots(mapped);
+      const first = mapped[0];
+      setSelectedSlotIndex(first.slotIndex);
+      await loadFocusById(first.contentId);
+    } catch (e: any) {
+      console.error("Fout bij laden focusslots:", e);
+      setError("Het focusmoment van vandaag kon niet worden geladen. Probeer het later opnieuw.");
+      setState("error");
+    }
+  }
+
+  async function loadFocusById(focusId: string) {
+    setState("loading");
+    setError(null);
+    setArtwork(null);
+
+    try {
+      const supabase = supabaseBrowser();
+
       const { data: focusRows, error: focusError } = await supabase
         .from("focus_items")
         .select("*")
@@ -82,59 +118,43 @@ export default function FocusTodayPage() {
       }
 
       const focus = focusRows && focusRows.length > 0 ? (focusRows[0] as any) : null;
-
       if (!focus) {
         setState("empty");
         return;
       }
 
-      // Probeer kolomnamen flexibel te lezen
-      const focusTitle =
-        focus.title ||
-        focus.name ||
-        "Focusmoment van vandaag";
+      const focusMeta: FocusMeta = {
+        id: String(focus.id),
+        title: focus.title || "Focusmoment van vandaag",
+        intro: focus.text || focus.description || null,
+      };
+      setMeta(focusMeta);
 
-      const focusBody =
-        focus.body ||
-        focus.text ||
-        focus.description ||
-        null;
-
-      const artworkId: string | null =
-        focus.artwork_id ||
-        focus.artwork ||
-        null;
-
-      setMeta({ id: String(focus.id), title: focusTitle });
-      setText(focusBody);
-
-      // 3. Bijbehorend kunstwerk (indien aanwezig)
+      const artworkId = focus.artwork_id || focus.artwork || null;
       if (artworkId) {
-        const { data: artRows, error: artError } = await supabase
+        const { data: artworkRows, error: artworkError } = await supabase
           .from("artworks")
-          .select("id, title, artist_name, dating_text, image_url")
+          .select("*")
           .eq("id", artworkId)
           .limit(1);
 
-        if (artError) {
-          console.error("Fout artworks:", artError);
-          throw artError;
+        if (artworkError) {
+          console.error("Fout artworks:", artworkError);
+          throw artworkError;
         }
 
-        const art = artRows && artRows.length > 0 ? (artRows[0] as any) : null;
+        const art = artworkRows && artworkRows.length > 0 ? (artworkRows[0] as any) : null;
         if (art) {
-          setArtwork({
+          const mappedArtwork: Artwork = {
             id: String(art.id),
-            title: art.title ?? "Onbenoemd kunstwerk",
-            artist_name: art.artist_name ?? null,
-            dating_text: art.dating_text ?? null,
-            image_url: art.image_url ?? null,
-          });
-        } else {
-          setArtwork(null);
+            title: art.title || "Onbekend kunstwerk",
+            artist_name: art.artist_name || null,
+            dating_text: art.dating_text || null,
+            image_url: art.image_url || null,
+            description: focusMeta.intro ?? art.description_primary ?? null,
+          };
+          setArtwork(mappedArtwork);
         }
-      } else {
-        setArtwork(null);
       }
 
       setState("loaded");
@@ -152,7 +172,6 @@ export default function FocusTodayPage() {
 
       const supabase = supabaseBrowser();
       const { data: userResult, error: userError } = await supabase.auth.getUser();
-
       if (userError) throw userError;
 
       const user = userResult?.user ?? null;
@@ -178,7 +197,7 @@ export default function FocusTodayPage() {
       setOwnRating(row ? (row as any).rating : null);
       setRatingLoading(false);
     } catch (e: any) {
-      console.error("Fout bij laden beoordeling focusmoment:", e);
+      console.error("Fout bij laden beoordeling focus:", e);
       setRatingError("Uw beoordeling kon niet worden geladen.");
       setRatingLoading(false);
     }
@@ -202,26 +221,59 @@ export default function FocusTodayPage() {
         return;
       }
 
-      const { error: upsertError } = await supabase
-        .from("focus_ratings")
-        .upsert({
-          user_id: user.id,
-          focus_id: meta.id,
-          rating: value,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+      const { error: upsertError } = await supabase.from("focus_ratings").upsert({
+        user_id: user.id,
+        focus_id: meta.id,
+        rating: value,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
 
       if (upsertError) throw upsertError;
 
       setUserId(user.id);
       setOwnRating(value);
     } catch (e: any) {
-      console.error("Fout bij opslaan beoordeling focusmoment:", e);
+      console.error("Fout bij opslaan beoordeling focus:", e);
       setRatingError("Uw beoordeling kon niet worden opgeslagen.");
     } finally {
       setRatingLoading(false);
     }
+  }
+
+  function renderSlotsSwitcher() {
+    if (slots.length <= 1) return null;
+
+    return (
+      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+        {slots.map((slot) => {
+          const isActive = slot.slotIndex === selectedSlotIndex;
+          const label =
+            slot.slotIndex === 1
+              ? "Gratis focusmoment"
+              : `Premium focusmoment ${slot.slotIndex - 1}`;
+
+          return (
+            <button
+              key={slot.id}
+              type="button"
+              onClick={() => {
+                setSelectedSlotIndex(slot.slotIndex);
+                void loadFocusById(slot.contentId);
+              }}
+              className={[
+                "rounded-full border px-3 py-1.5",
+                isActive
+                  ? "border-amber-400 bg-amber-400/10 text-amber-300"
+                  : "border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
@@ -235,32 +287,35 @@ export default function FocusTodayPage() {
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
               {meta?.title ?? "Focusmoment van vandaag"}
             </h1>
-            <p className="mt-2 max-w-xl text-sm text-slate-400">
-              Neem ongeveer tien minuten om dit ene kunstwerk aandachtig te bekijken. Onder het beeld
-              leest u een begeleidende tekst; later komt hier ook audio bij.
-            </p>
 
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <RatingStars
-                value={ownRating}
-                onChange={(value) => void handleRatingChange(value)}
-                disabled={ratingLoading}
-                label="Uw beoordeling"
-              />
-              {!userId && !ratingLoading && (
-                <span className="text-[11px] text-slate-500">
-                  Maak een gratis profiel aan om focusmomenten te beoordelen.
-                </span>
-              )}
-              {ratingError && (
-                <span className="text-[11px] text-red-300">
-                  {ratingError}
-                </span>
-              )}
-            </div>
+            {state === "loaded" && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <RatingStars
+                  value={ownRating}
+                  onChange={(value) => void handleRatingChange(value)}
+                  disabled={ratingLoading}
+                  label="Uw beoordeling"
+                />
+                {!userId && !ratingLoading && (
+                  <span className="text-[11px] text-slate-500">
+                    Maak een gratis profiel aan om focusmomenten te beoordelen.
+                  </span>
+                )}
+                {ratingError && (
+                  <span className="text-[11px] text-red-300">
+                    {ratingError}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {renderSlotsSwitcher()}
           </div>
           <div className="text-xs text-slate-400">
-            <Link href="/" className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900">
+            <Link
+              href="/"
+              className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
+            >
               Terug naar vandaag
             </Link>
           </div>
@@ -280,57 +335,45 @@ export default function FocusTodayPage() {
 
         {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
-            Er is voor vandaag nog geen focusmoment ingepland in het dagprogramma. Voeg in het CRM een
-            focus-item toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
+            Er is voor vandaag nog geen focusmoment ingepland in het dagprogramma. Voeg in het CRM
+            een focusmoment toe aan <code>dayprogram_slots</code> (type <code>focus</code>) om deze
+            pagina te vullen.
           </div>
         )}
 
-        {state === "loaded" && (
-          <div className="space-y-6 rounded-3xl bg-slate-900/80 p-6 lg:p-8">
-            {artwork && (
-              <div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-3xl bg-slate-900">
-                {artwork.image_url ? (
+        {state === "loaded" && artwork && (
+          <div className="space-y-4 rounded-3xl bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
+              {artwork.image_url ? (
+                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-950/60">
                   <Image
                     src={artwork.image_url}
                     alt={artwork.title}
                     fill
-                    className="object-contain"
+                    className="object-cover"
                   />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-slate-500">
-                    Geen afbeelding beschikbaar
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              ) : (
+                <div className="flex aspect-[4/3] items-center justify-center rounded-2xl bg-slate-950/40 text-xs text-slate-500">
+                  Geen afbeelding beschikbaar
+                </div>
+              )}
 
-            <div>
-              {artwork && (
-                <>
-                  <h2 className="text-lg font-semibold text-slate-50">{artwork.title}</h2>
-                  <div className="mt-1 text-sm text-slate-300">
+              <div className="space-y-2">
+                <h2 className="text-base font-semibold text-slate-50">
+                  {artwork.title}
+                </h2>
+                {(artwork.artist_name || artwork.dating_text) && (
+                  <p className="text-xs text-slate-400">
                     {artwork.artist_name && <span>{artwork.artist_name}</span>}
                     {artwork.artist_name && artwork.dating_text && <span> · </span>}
                     {artwork.dating_text && <span>{artwork.dating_text}</span>}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="rounded-2xl bg-slate-950/70 p-4 text-sm leading-relaxed text-slate-200">
-              {text ? (
-                <p className="whitespace-pre-line">{text}</p>
-              ) : (
-                <p className="text-slate-400">
-                  Voor dit focusmoment is nog geen uitgebreide tekst ingevuld. Voeg in het CRM een
-                  toelichting toe aan dit focus-item om die hier te tonen.
-                </p>
-              )}
-            </div>
-
-            <div className="text-xs text-slate-500">
-              Tip: lees de tekst één keer rustig door en kijk daarna nog een keer zonder te lezen naar
-              het werk. Welke details vallen u nu extra op?
+                  </p>
+                )}
+                {artwork.description && (
+                  <p className="mt-2 whitespace-pre-line">{artwork.description}</p>
+                )}
+              </div>
             </div>
           </div>
         )}

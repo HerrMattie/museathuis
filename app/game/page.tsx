@@ -7,6 +7,13 @@ import { RatingStars } from "@/components/RatingStars";
 
 type LoadState = "idle" | "loading" | "loaded" | "empty" | "error";
 
+type Slot = {
+  id: string;
+  slotIndex: number;
+  isPremium: boolean;
+  contentId: string;
+};
+
 type GameMeta = {
   id: string;
   title: string;
@@ -18,6 +25,10 @@ type GameMeta = {
 export default function GameTodayPage() {
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+
   const [meta, setMeta] = useState<GameMeta | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -26,7 +37,7 @@ export default function GameTodayPage() {
   const [ratingError, setRatingError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadTodayGame();
+    void loadTodaySlots();
   }, []);
 
   useEffect(() => {
@@ -34,7 +45,7 @@ export default function GameTodayPage() {
     void loadUserAndRating(meta.id);
   }, [meta?.id]);
 
-  async function loadTodayGame() {
+  async function loadTodaySlots() {
     setState("loading");
     setError(null);
 
@@ -42,23 +53,48 @@ export default function GameTodayPage() {
       const supabase = supabaseBrowser();
       const today = new Date().toISOString().slice(0, 10);
 
-      const { data: scheduleRows, error: scheduleError } = await supabase
-        .from("dayprogram_schedule")
-        .select("game_id")
+      const { data, error: slotsError } = await supabase
+        .from("dayprogram_slots")
+        .select("id, slot_index, is_premium, content_id")
         .eq("day_date", today)
-        .limit(1);
+        .eq("content_type", "game")
+        .order("slot_index", { ascending: true });
 
-      if (scheduleError) {
-        console.error("Fout dagprogram_schedule (game):", scheduleError);
-        throw scheduleError;
+      if (slotsError) {
+        console.error("Fout dayprogram_slots (game):", slotsError);
+        throw slotsError;
       }
 
-      const gameId = scheduleRows && scheduleRows.length > 0 ? scheduleRows[0].game_id : null;
-
-      if (!gameId) {
+      const rows = (data ?? []).filter((row: any) => row.content_id);
+      if (rows.length === 0) {
         setState("empty");
         return;
       }
+
+      const mapped: Slot[] = rows.map((row: any) => ({
+        id: String(row.id),
+        slotIndex: row.slot_index,
+        isPremium: !!row.is_premium,
+        contentId: String(row.content_id),
+      }));
+
+      setSlots(mapped);
+      const first = mapped[0];
+      setSelectedSlotIndex(first.slotIndex);
+      await loadGameById(first.contentId);
+    } catch (e: any) {
+      console.error("Fout bij laden spelslots:", e);
+      setError("Het spel van vandaag kon niet worden geladen. Probeer het later opnieuw.");
+      setState("error");
+    }
+  }
+
+  async function loadGameById(gameId: string) {
+    setState("loading");
+    setError(null);
+
+    try {
+      const supabase = supabaseBrowser();
 
       const { data: gameRows, error: gameError } = await supabase
         .from("games")
@@ -77,17 +113,18 @@ export default function GameTodayPage() {
         return;
       }
 
-      setMeta({
+      const meta: GameMeta = {
         id: String(game.id),
         title: game.title || game.name || "Spel van vandaag",
         intro: game.intro_text || game.description || null,
         game_type: game.game_type || game.type || null,
         instructions: game.instructions || game.rules || null,
-      });
+      };
 
+      setMeta(meta);
       setState("loaded");
     } catch (e: any) {
-      console.error("Fout bij laden spel van vandaag:", e);
+      console.error("Fout bij laden spel:", e);
       setError("Het spel van vandaag kon niet worden geladen. Probeer het later opnieuw.");
       setState("error");
     }
@@ -100,7 +137,6 @@ export default function GameTodayPage() {
 
       const supabase = supabaseBrowser();
       const { data: userResult, error: userError } = await supabase.auth.getUser();
-
       if (userError) throw userError;
 
       const user = userResult?.user ?? null;
@@ -170,6 +206,41 @@ export default function GameTodayPage() {
     }
   }
 
+  function renderSlotsSwitcher() {
+    if (slots.length <= 1) return null;
+
+    return (
+      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+        {slots.map((slot) => {
+          const isActive = slot.slotIndex === selectedSlotIndex;
+          const label =
+            slot.slotIndex === 1
+              ? "Gratis spel van vandaag"
+              : `Premium spel ${slot.slotIndex - 1}`;
+
+          return (
+            <button
+              key={slot.id}
+              type="button"
+              onClick={() => {
+                setSelectedSlotIndex(slot.slotIndex);
+                void loadGameById(slot.contentId);
+              }}
+              className={[
+                "rounded-full border px-3 py-1.5",
+                isActive
+                  ? "border-amber-400 bg-amber-400/10 text-amber-300"
+                  : "border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
       <div className="mx-auto max-w-4xl px-4 py-10">
@@ -208,11 +279,7 @@ export default function GameTodayPage() {
               </div>
             )}
 
-            {state !== "loaded" && (
-              <div className="mt-4 text-[11px] text-slate-500">
-                Log in op uw profiel om spellen te beoordelen zodra er een spel is ingepland.
-              </div>
-            )}
+            {renderSlotsSwitcher()}
           </div>
           <div className="text-xs text-slate-400">
             <Link
@@ -239,7 +306,7 @@ export default function GameTodayPage() {
         {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
             Er is voor vandaag nog geen spel ingepland in het dagprogramma. Voeg in het CRM een spel
-            toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
+            toe aan <code>dayprogram_slots</code> (type <code>game</code>) om deze pagina te vullen.
           </div>
         )}
 
