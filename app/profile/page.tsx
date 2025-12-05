@@ -1,93 +1,71 @@
 // app/profile/page.tsx
-import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { PrimaryButton } from "@/components/common/PrimaryButton";
+import { Badge } from "@/components/common/Badge";
 
-export const dynamic = "force-dynamic";
+export default function ProfilePage() {
+  const isLoggedIn = false; // later koppelen aan Supabase Auth
 
-export default async function ProfilePage() {
-  const supabase = getSupabaseServerClient();
+  if (!isLoggedIn) {
+    return (
+      <div className="space-y-6">
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Mijn profiel</h1>
+          <p className="text-sm text-slate-300">
+            Maak een gratis profiel aan om waarderingen op te slaan, persoonlijke
+            suggesties te ontvangen en later badges te verzamelen.
+          </p>
+        </header>
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <h2 className="mb-1 text-base font-semibold">Waarom een profiel</h2>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>Bewaar welke tours, spellen en focusmomenten u heeft gedaan.</li>
+            <li>Ontvang suggesties die aansluiten op uw voorkeuren.</li>
+            <li>Verdien badges voor activiteit en verdieping.</li>
+          </ul>
+          <div className="mt-4">
+            <PrimaryButton>Log in of maak profiel aan</PrimaryButton>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
-  // Aanname: je hebt auth elders geregeld en user_id beschikbaar via RLS;
-  // voor nu halen we het eerste profiel op ter demonstratie.
-  const { data: profiles } = await supabase
-    .from("user_profiles")
-    .select("*")
-    .limit(1);
-
-  const profile = profiles?.[0];
-
-  const { data: badges } = await supabase
-    .from("user_badges")
-    .select("*, badge:badges(name, description, level)")
-    .limit(20);
-
+  // Placeholder voor ingelogde situatie
   return (
-    <main className="max-w-4xl mx-auto py-12 space-y-8">
-      <header>
-        <h1 className="text-3xl font-semibold mb-2">Jouw profiel</h1>
-        <p className="text-sm text-muted-foreground">
-          Inzicht in je gegevens, premiumstatus en badges. 
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Mijn profiel</h1>
+        <p className="text-sm text-slate-300">
+          Overzicht van uw basisgegevens, gebruik en badges verschijnt hier zodra
+          de koppeling met uw account is geactiveerd.
         </p>
       </header>
-
-      <section className="grid gap-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
-          <h2 className="text-base font-semibold">Profiel en demografie</h2>
-          {profile ? (
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>Naam of alias: {profile.display_name ?? "–"}</p>
-              <p>Leeftijdscategorie: {profile.age_category ?? "–"}</p>
-              <p>Provincie: {profile.province ?? "–"}</p>
-              <p>Land: {profile.country ?? "–"}</p>
-              <p>Museumkaart: {profile.has_museum_card ? "Ja" : "Nee"}</p>
-              <p>Niveau kunstkennis: {profile.knowledge_level ?? "–"}</p>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Er is nog geen profiel opgeslagen.
-            </p>
-          )}
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <h2 className="text-base font-semibold">Basisprofiel</h2>
+          <p className="text-xs text-slate-400">
+            De onderstaande gegevens worden gebruikt om het aanbod af te stemmen
+            en op geaggregeerd niveau met musea te delen.
+          </p>
+          <ul className="space-y-1">
+            <li>Naam of alias: volgt</li>
+            <li>Leeftijdscategorie: volgt</li>
+            <li>Provincie en land: volgt</li>
+            <li>Museumkaart: volgt</li>
+            <li>Niveau kunstkennis: volgt</li>
+          </ul>
         </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
-          <h2 className="text-base font-semibold">Premium</h2>
-          {profile?.is_premium ? (
-            <p className="text-sm text-green-400">
-              Je bent premiumlid sinds {profile.premium_since ?? "onbekend"}.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Je hebt nog geen premiumlidmaatschap. Als premiumlid krijg je
-              toegang tot alle tours, spellen en focusmomenten en de Academie.
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
-          <h2 className="text-base font-semibold">Badges</h2>
-          {badges && badges.length > 0 ? (
-            <div className="grid md:grid-cols-2 gap-3">
-              {badges.map((b: any) => (
-                <div
-                  key={b.id}
-                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm"
-                >
-                  <p className="font-medium">{b.badge?.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {b.badge?.description}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Niveau: {b.badge?.level ?? "-"} · Gehaald: {b.times_awarded ?? 1}x
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Je hebt nog geen badges verdiend.
-            </p>
-          )}
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <h2 className="text-base font-semibold">Gebruik en badges</h2>
+          <p className="text-xs text-slate-400">
+            Hier ziet u straks hoeveel tours, spellen en focusmomenten u heeft
+            gedaan en welke badges daarbij horen.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Badge>Nog geen badges</Badge>
+          </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
