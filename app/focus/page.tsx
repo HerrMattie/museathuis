@@ -28,6 +28,8 @@ export default function FocusTodayPage() {
   const [focus, setFocus] = useState<Focus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rating, setRating] = useState<number | null>(null);
+  const [ratingStatus, setRatingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const loadFocus = async () => {
@@ -55,9 +57,36 @@ export default function FocusTodayPage() {
     loadFocus();
   }, []);
 
+  const handleRating = async (value: number) => {
+    if (!focus) return;
+    setRating(value);
+    setRatingStatus("Beoordeling wordt opgeslagen...");
+
+    try {
+      const res = await fetch("/api/focus/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ focusItemId: focus.id, rating: value }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setRatingStatus(
+          body.error || "Opslaan van de beoordeling is niet gelukt."
+        );
+        return;
+      }
+
+      setRatingStatus("Beoordeling opgeslagen, dank je wel.");
+    } catch (e) {
+      console.error(e);
+      setRatingStatus("Opslaan van de beoordeling is niet gelukt.");
+    }
+  };
+
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div>
         <p>Focusmoment wordt geladen...</p>
       </div>
     );
@@ -65,7 +94,7 @@ export default function FocusTodayPage() {
 
   if (error || !focus) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div>
         <h1 className="text-2xl font-semibold mb-4">
           Focusmoment van vandaag
         </h1>
@@ -79,15 +108,13 @@ export default function FocusTodayPage() {
   const artwork = focus.artwork;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold">Focusmoment van vandaag</h1>
-        <p className="text-sm text-gray-500">
-          Datum {focus.date}
-        </p>
+        <p className="text-sm text-slate-400">Datum {focus.date}</p>
       </header>
 
-      <section className="bg-white rounded-2xl shadow-md p-4 md:p-6 space-y-4">
+      <section className="bg-slate-900 rounded-2xl border border-slate-800 p-4 md:p-6 space-y-4">
         <div className="w-full flex justify-center items-center bg-black rounded-xl overflow-hidden aspect-[16/9]">
           {artwork.image_url ? (
             <img
@@ -107,12 +134,12 @@ export default function FocusTodayPage() {
             {artwork.title || "Onbekende titel"}
           </h2>
 
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-slate-300">
             <span className="font-medium">Kunstenaar:</span>{" "}
             {artwork.artist_name || "Onbekend"}
           </p>
 
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-slate-300">
             <span className="font-medium">Datering:</span>{" "}
             {artwork.year_from
               ? artwork.year_to && artwork.year_to !== artwork.year_from
@@ -122,13 +149,13 @@ export default function FocusTodayPage() {
           </p>
 
           {focus.long_text && (
-            <p className="mt-3 text-base text-gray-800 leading-relaxed whitespace-pre-line">
+            <p className="mt-3 text-base text-slate-100 leading-relaxed whitespace-pre-line">
               {focus.long_text}
             </p>
           )}
 
           {artwork.description_primary && (
-            <p className="mt-3 text-sm text-gray-700 leading-relaxed">
+            <p className="mt-3 text-sm text-slate-300 leading-relaxed">
               {artwork.description_primary}
             </p>
           )}
@@ -141,6 +168,31 @@ export default function FocusTodayPage() {
             </div>
           )}
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <p className="text-sm text-slate-300">
+          Hoe waardeer je dit focusmoment?
+        </p>
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => handleRating(value)}
+              className={`w-9 h-9 rounded-full border text-sm ${
+                rating === value
+                  ? "bg-yellow-400 text-slate-900 border-yellow-400"
+                  : "bg-slate-900 text-slate-100 border-slate-700"
+              }`}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        {ratingStatus && (
+          <p className="text-xs text-slate-400">{ratingStatus}</p>
+        )}
       </section>
     </div>
   );

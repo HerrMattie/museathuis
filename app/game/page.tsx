@@ -33,6 +33,8 @@ export default function GameTodayPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [score, setScore] = useState<number | null>(null);
+  const [rating, setRating] = useState<number | null>(null);
+  const [ratingStatus, setRatingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const loadGame = async () => {
@@ -65,7 +67,7 @@ export default function GameTodayPage() {
     setAnswers((prev) => ({ ...prev, [itemId]: answer }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmitScore = () => {
     if (!game) return;
     let s = 0;
     game.items.forEach((item) => {
@@ -74,9 +76,36 @@ export default function GameTodayPage() {
     setScore(s);
   };
 
+  const handleRating = async (value: number) => {
+    if (!game) return;
+    setRating(value);
+    setRatingStatus("Beoordeling wordt opgeslagen...");
+
+    try {
+      const res = await fetch("/api/game/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameId: game.id, rating: value }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setRatingStatus(
+          body.error || "Opslaan van de beoordeling is niet gelukt."
+        );
+        return;
+      }
+
+      setRatingStatus("Beoordeling opgeslagen, dank je wel.");
+    } catch (e) {
+      console.error(e);
+      setRatingStatus("Opslaan van de beoordeling is niet gelukt.");
+    }
+  };
+
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div>
         <p>Spel wordt geladen...</p>
       </div>
     );
@@ -84,7 +113,7 @@ export default function GameTodayPage() {
 
   if (error || !game) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div>
         <h1 className="text-2xl font-semibold mb-4">Spellen van vandaag</h1>
         <p className="text-red-600">
           {error || "Er is geen spel gevonden."}
@@ -102,15 +131,16 @@ export default function GameTodayPage() {
   ].sort();
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold">{game.title}</h1>
         {game.intro && (
-          <p className="text-base text-gray-700">{game.intro}</p>
+          <p className="text-base text-slate-200">{game.intro}</p>
         )}
+        <p className="text-sm text-slate-400">Datum {game.date}</p>
       </header>
 
-      <section className="bg-white rounded-2xl shadow-md p-4 md:p-6 space-y-4">
+      <section className="bg-slate-900 rounded-2xl border border-slate-800 p-4 md:p-6 space-y-4">
         <p className="text-base font-medium">{item.question}</p>
 
         <div className="space-y-2">
@@ -121,8 +151,8 @@ export default function GameTodayPage() {
               onClick={() => handleAnswer(item.id, option)}
               className={`w-full text-left px-4 py-2 rounded-full border text-sm ${
                 answers[item.id] === option
-                  ? "bg-gray-900 text-white"
-                  : "bg-white"
+                  ? "bg-slate-100 text-slate-900 border-slate-100"
+                  : "bg-slate-950 text-slate-100 border-slate-700"
               }`}
             >
               {option}
@@ -130,12 +160,12 @@ export default function GameTodayPage() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-800">
           <button
             onClick={() =>
               setCurrentIndex((prev) => (prev > 0 ? prev - 1 : prev))
             }
-            className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
+            className="px-4 py-2 rounded-full text-sm border border-slate-600 disabled:opacity-40"
             disabled={currentIndex === 0}
           >
             Vorige vraag
@@ -144,30 +174,55 @@ export default function GameTodayPage() {
           <button
             onClick={() =>
               setCurrentIndex((prev) =>
-                game && prev < game.items.length - 1 ? prev + 1 : prev
+                prev < game.items.length - 1 ? prev + 1 : prev
               )
             }
-            className="px-4 py-2 rounded-full text-sm border border-gray-300 disabled:opacity-40"
-            disabled={!game || currentIndex === game.items.length - 1}
+            className="px-4 py-2 rounded-full text-sm border border-slate-600 disabled:opacity-40"
+            disabled={currentIndex === game.items.length - 1}
           >
             Volgende vraag
           </button>
         </div>
 
-        <div className="pt-4 border-t border-gray-100 space-y-2">
+        <div className="pt-4 border-t border-slate-800 space-y-2">
           <button
             type="button"
-            onClick={handleSubmit}
-            className="px-4 py-2 rounded-full border border-gray-300 text-sm"
+            onClick={handleSubmitScore}
+            className="px-4 py-2 rounded-full border border-slate-600 text-sm"
           >
             Spel afronden
           </button>
-          {score !== null && game && (
-            <p className="text-sm text-gray-700">
+          {score !== null && (
+            <p className="text-sm text-slate-200">
               Je score: {score} van {game.items.length}
             </p>
           )}
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <p className="text-sm text-slate-300">
+          Hoe vond je dit spel? Geef een beoordeling.
+        </p>
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => handleRating(value)}
+              className={`w-9 h-9 rounded-full border text-sm ${
+                rating === value
+                  ? "bg-yellow-400 text-slate-900 border-yellow-400"
+                  : "bg-slate-900 text-slate-100 border-slate-700"
+              }`}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        {ratingStatus && (
+          <p className="text-xs text-slate-400">{ratingStatus}</p>
+        )}
       </section>
     </div>
   );
