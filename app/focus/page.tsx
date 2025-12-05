@@ -50,13 +50,17 @@ export default function FocusTodayPage() {
       const supabase = supabaseBrowser();
       const today = new Date().toISOString().slice(0, 10);
 
+      // 1. Haal het focus_id uit het dagprogramma
       const { data: scheduleRows, error: scheduleError } = await supabase
         .from("dayprogram_schedule")
         .select("focus_id")
         .eq("day_date", today)
         .limit(1);
 
-      if (scheduleError) throw scheduleError;
+      if (scheduleError) {
+        console.error("Fout dagprogram_schedule:", scheduleError);
+        throw scheduleError;
+      }
 
       const focusId = scheduleRows && scheduleRows.length > 0 ? scheduleRows[0].focus_id : null;
 
@@ -65,46 +69,74 @@ export default function FocusTodayPage() {
         return;
       }
 
+      // 2. Haal het focus-item op (selecteer alle kolommen om schema-afwijkingen op te vangen)
       const { data: focusRows, error: focusError } = await supabase
         .from("focus_items")
-        .select("id, title, artwork_id, body")
+        .select("*")
         .eq("id", focusId)
         .limit(1);
 
-      if (focusError) throw focusError;
-      const focus = focusRows && focusRows.length > 0 ? focusRows[0] : null;
+      if (focusError) {
+        console.error("Fout focus_items:", focusError);
+        throw focusError;
+      }
+
+      const focus = focusRows && focusRows.length > 0 ? (focusRows[0] as any) : null;
 
       if (!focus) {
         setState("empty");
         return;
       }
 
-      let artworkData: any = null;
+      // Probeer kolomnamen flexibel te lezen
+      const focusTitle =
+        focus.title ||
+        focus.name ||
+        "Focusmoment van vandaag";
 
-      if (focus.artwork_id) {
+      const focusBody =
+        focus.body ||
+        focus.text ||
+        focus.description ||
+        null;
+
+      const artworkId: string | null =
+        focus.artwork_id ||
+        focus.artwork ||
+        null;
+
+      setMeta({ id: String(focus.id), title: focusTitle });
+      setText(focusBody);
+
+      // 3. Bijbehorend kunstwerk (indien aanwezig)
+      if (artworkId) {
         const { data: artRows, error: artError } = await supabase
           .from("artworks")
           .select("id, title, artist_name, dating_text, image_url")
-          .eq("id", focus.artwork_id)
+          .eq("id", artworkId)
           .limit(1);
 
-        if (artError) throw artError;
-        artworkData = artRows && artRows.length > 0 ? artRows[0] : null;
-      }
+        if (artError) {
+          console.error("Fout artworks:", artError);
+          throw artError;
+        }
 
-      setMeta({ id: String(focus.id), title: focus.title ?? "Focusmoment van vandaag" });
-      if (artworkData) {
-        setArtwork({
-          id: String(artworkData.id),
-          title: artworkData.title ?? "Onbenoemd kunstwerk",
-          artist_name: artworkData.artist_name ?? null,
-          dating_text: artworkData.dating_text ?? null,
-          image_url: artworkData.image_url ?? null,
-        });
+        const art = artRows && artRows.length > 0 ? (artRows[0] as any) : null;
+        if (art) {
+          setArtwork({
+            id: String(art.id),
+            title: art.title ?? "Onbenoemd kunstwerk",
+            artist_name: art.artist_name ?? null,
+            dating_text: art.dating_text ?? null,
+            image_url: art.image_url ?? null,
+          });
+        } else {
+          setArtwork(null);
+        }
       } else {
         setArtwork(null);
       }
-      setText(focus.body ?? null);
+
       setState("loaded");
     } catch (e: any) {
       console.error("Fout bij laden focusmoment:", e);
@@ -143,7 +175,7 @@ export default function FocusTodayPage() {
       if (ratingFetchError) throw ratingFetchError;
 
       const row = ratingRows && ratingRows.length > 0 ? ratingRows[0] : null;
-      setOwnRating(row ? row.rating : null);
+      setOwnRating(row ? (row as any).rating : null);
       setRatingLoading(false);
     } catch (e: any) {
       console.error("Fout bij laden beoordeling focusmoment:", e);
