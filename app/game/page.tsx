@@ -186,24 +186,33 @@ export default function GameTodayPage() {
                 Speltype: {meta.game_type}
               </p>
             )}
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <RatingStars
-                value={ownRating}
-                onChange={(value) => void handleRatingChange(value)}
-                disabled={ratingLoading}
-                label="Uw beoordeling"
-              />
-              {!userId && !ratingLoading && (
-                <span className="text-[11px] text-slate-500">
-                  Maak een gratis profiel aan om spellen te beoordelen.
-                </span>
-              )}
-              {ratingError && (
-                <span className="text-[11px] text-red-300">
-                  {ratingError}
-                </span>
-              )}
-            </div>
+
+            {state === "loaded" && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <RatingStars
+                  value={ownRating}
+                  onChange={(value) => void handleRatingChange(value)}
+                  disabled={ratingLoading}
+                  label="Uw beoordeling"
+                />
+                {!userId && !ratingLoading && (
+                  <span className="text-[11px] text-slate-500">
+                    Maak een gratis profiel aan om spellen te beoordelen.
+                  </span>
+                )}
+                {ratingError && (
+                  <span className="text-[11px] text-red-300">
+                    {ratingError}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {state !== "loaded" && (
+              <div className="mt-4 text-[11px] text-slate-500">
+                Log in op uw profiel om spellen te beoordelen zodra er een spel is ingepland.
+              </div>
+            )}
           </div>
           <div className="text-xs text-slate-400">
             <Link
