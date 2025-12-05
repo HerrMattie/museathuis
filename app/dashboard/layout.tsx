@@ -1,39 +1,20 @@
 import { ReactNode } from "react";
-import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/auth-helpers-nextjs";
+import { redirect } from "next/navigation";
 
-export default async function CrmLayout({ children }: { children: ReactNode }) {
+export default function DashboardLayout({ children }: { children: ReactNode }) {
   const cookieStore = cookies();
+  const secret = process.env.DASHBOARD_PASSWORD;
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    redirect("/login");
+  if (!secret) {
+    // Geen wachtwoord geconfigureerd: laat dashboard open.
+    return <>{children}</>;
   }
 
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("is_admin")
-    .eq("user_id", session.user.id)
-    .single();
+  const authCookie = cookieStore.get("dashboard_auth")?.value;
 
-  if (!profile?.is_admin) {
-    redirect("/");
+  if (authCookie !== secret) {
+    redirect("/dashboard/login");
   }
 
   return <>{children}</>;
