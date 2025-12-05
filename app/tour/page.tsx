@@ -96,7 +96,7 @@ export default function TourPage() {
   const [savingRating, setSavingRating] = useState(false);
   const [needsProfile, setNeedsProfile] = useState(false);
 
-  const supabase = supabaseBrowser;
+  const supabase = supabaseBrowser();
 
   useEffect(() => {
     async function loadTour() {
