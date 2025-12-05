@@ -1,508 +1,306 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-type ArtworkSummary = {
+type TourMeta = {
   id: string;
-  title: string | null;
+  title: string;
+};
+
+type TourArtwork = {
+  id: string;
+  title: string;
   artist_name: string | null;
   dating_text: string | null;
   image_url: string | null;
   location_city: string | null;
   location_country: string | null;
+  tour_text: string | null;
 };
 
-type TourItem = {
-  id: string;
-  position: number | null;
-  artwork: ArtworkSummary | null;
-};
+type LoadState = "idle" | "loading" | "loaded" | "error" | "empty";
 
-type TourMeta = {
-  id: string;
-  title: string | null;
-  primary_theme: string | null;
-  level: number | null;
-  is_premium: boolean;
-  duration_minutes: number | null;
-};
-
-type TourTodayResponse = {
-  tour: TourMeta | null;
-  items: TourItem[];
-  averageRating: number | null;
-  ratingCount: number;
-};
-
-function formatLevel(level: number | null): string {
-  if (!level) return "";
-  if (level === 1) return "Niveau 1 · kennismaking";
-  if (level === 2) return "Niveau 2 · verdieping";
-  return `Niveau ${level}`;
-}
-
-function formatDuration(durationMinutes: number | null): string {
-  if (!durationMinutes) return "";
-  return `${durationMinutes} minuten`;
-}
-
-function formatLocation(city: string | null, country: string | null): string {
-  if (!city && !country) return "";
-  if (city && country) return `${city}, ${country}`;
-  return city || country || "";
-}
-
-function StarRating({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: number | null;
-  onChange: (v: number) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-1 text-amber-300">
-      {Array.from({ length: 5 }).map((_, index) => {
-        const starValue = index + 1;
-        const filled = value !== null && starValue <= value;
-        return (
-          <button
-            key={starValue}
-            type="button"
-            className={[
-              "h-6 w-6 rounded-full border border-transparent text-sm leading-none",
-              filled ? "text-amber-300" : "text-slate-500",
-              disabled ? "cursor-not-allowed opacity-60" : "hover:text-amber-200",
-            ].join(" ")}
-            onClick={() => !disabled && onChange(starValue)}
-            aria-label={`${starValue} sterren`}
-          >
-            ★
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-export default function TourPage() {
-  const [loading, setLoading] = useState(true);
-  const [tourData, setTourData] = useState<TourTodayResponse | null>(null);
+export default function TourTodayPage() {
+  const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [userRating, setUserRating] = useState<number | null>(null);
-  const [savingRating, setSavingRating] = useState(false);
-  const [needsProfile, setNeedsProfile] = useState(false);
-
-  const supabase = supabaseBrowser();
+  const [meta, setMeta] = useState<TourMeta | null>(null);
+  const [items, setItems] = useState<TourArtwork[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
-    async function loadTour() {
-      setLoading(true);
-      setError(null);
+    void loadTodayTour();
+  }, []);
 
-      try {
-        const today = new Date().toISOString().slice(0, 10);
-
-        // 1. Zoek de dagtour in dayprogram_schedule
-        const { data: dayRow, error: dayError } = await supabase
-          .from("dayprogram_schedule")
-          .select("tour_id")
-          .eq("day_date", today)
-          .eq("is_primary_tour", true)
-          .maybeSingle();
-
-        if (dayError) {
-          console.error("Error loading dayprogram_schedule", dayError);
-          setError("De dagtour kon niet worden opgehaald.");
-          setLoading(false);
-          return;
-        }
-
-        if (!dayRow || !dayRow.tour_id) {
-          setError("Er is nog geen tour ingepland voor vandaag.");
-          setLoading(false);
-          return;
-        }
-
-        const tourId = dayRow.tour_id as string;
-
-        // 2. Haal tourmeta op
-        const { data: tour, error: tourError } = await supabase
-          .from("tours")
-          .select(
-            "id, title, primary_theme, level, is_premium, duration_minutes"
-          )
-          .eq("id", tourId)
-          .maybeSingle();
-
-        if (tourError) {
-          console.error("Error loading tour", tourError);
-          setError("De dagtour kon niet worden geladen.");
-          setLoading(false);
-          return;
-        }
-
-        if (!tour) {
-          setError("De dagtour bestaat niet meer in de database.");
-          setLoading(false);
-          return;
-        }
-
-        const tourMeta: TourMeta = {
-          id: tour.id,
-          title: tour.title,
-          primary_theme: tour.primary_theme,
-          level: tour.level,
-          is_premium: tour.is_premium ?? false,
-          duration_minutes: tour.duration_minutes,
-        };
-
-        // 3. Haal tour_items op
-        const { data: items, error: itemsError } = await supabase
-          .from("tour_items")
-          .select("id, position, artwork_id")
-          .eq("tour_id", tourId)
-          .order("position", { ascending: true });
-
-        if (itemsError) {
-          console.error("Error loading tour_items", itemsError);
-          setError("De werken in deze tour konden niet worden geladen.");
-          setLoading(false);
-          return;
-        }
-
-        const artworkIds = (items ?? [])
-          .map((it: any) => it.artwork_id)
-          .filter(Boolean);
-
-        let artworksById: Record<string, ArtworkSummary> = {};
-
-        if (artworkIds.length > 0) {
-          const { data: artworks, error: artworksError } = await supabase
-            .from("artworks")
-            .select(
-              "id, title, artist_name, dating_text, image_url, location_city, location_country"
-            )
-            .in("id", artworkIds as string[]);
-
-          if (artworksError) {
-            console.error("Error loading artworks", artworksError);
-          } else {
-            artworksById = (artworks ?? []).reduce(
-              (acc: Record<string, ArtworkSummary>, a: any) => {
-                acc[a.id] = {
-                  id: a.id,
-                  title: a.title,
-                  artist_name: a.artist_name,
-                  dating_text: a.dating_text,
-                  image_url: a.image_url,
-                  location_city: a.location_city,
-                  location_country: a.location_country,
-                };
-                return acc;
-              },
-              {}
-            );
-          }
-        }
-
-        const tourItems: TourItem[] = (items ?? []).map((it: any) => ({
-          id: it.id,
-          position: it.position,
-          artwork: it.artwork_id ? artworksById[it.artwork_id] ?? null : null,
-        }));
-
-        // 4. Ratings voor deze tour ophalen
-        const { data: ratings, error: ratingsError } = await supabase
-          .from("tour_ratings")
-          .select("rating")
-          .eq("tour_id", tourId);
-
-        if (ratingsError) {
-          console.error("Error loading tour_ratings", ratingsError);
-        }
-
-        let avg: number | null = null;
-        let count = 0;
-        if (ratings && ratings.length > 0) {
-          count = ratings.length;
-          const sum = ratings.reduce(
-            (acc: number, r: any) => acc + (r.rating ?? 0),
-            0
-          );
-          avg = sum / ratings.length;
-        }
-
-        // 5. Eigen rating ophalen (indien ingelogd)
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (user) {
-          const { data: myRating, error: myRatingError } = await supabase
-            .from("tour_ratings")
-            .select("rating")
-            .eq("tour_id", tourId)
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (!myRatingError && myRating) {
-            setUserRating(myRating.rating ?? null);
-          }
-        }
-
-        setTourData({
-          tour: tourMeta,
-          items: tourItems,
-          averageRating: avg,
-          ratingCount: count,
-        });
-      } catch (e) {
-        console.error(e);
-        setError("Er ging iets mis bij het laden van de dagtour.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadTour();
-  }, [supabase]);
-
-  const ratingSummaryText = useMemo(() => {
-    if (!tourData) return "";
-    const { averageRating, ratingCount } = tourData;
-    if (!ratingCount || !averageRating) return "Nog geen beoordelingen.";
-    const rounded = Math.round(averageRating * 10) / 10;
-    return `${rounded.toString().replace(".", ",")} op 5 (${ratingCount} beoordeling${ratingCount === 1 ? "" : "en"})`;
-  }, [tourData]);
-
-  async function handleChangeRating(newRating: number) {
-    if (!tourData?.tour) return;
+  async function loadTodayTour() {
+    setState("loading");
+    setError(null);
 
     try {
-      setSavingRating(true);
-      setNeedsProfile(false);
+      const supabase = supabaseBrowser();
+      const today = new Date().toISOString().slice(0, 10);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // 1. haal dagprogramma voor vandaag op
+      const { data: scheduleRows, error: scheduleError } = await supabase
+        .from("dayprogram_schedule")
+        .select("tour_id")
+        .eq("day_date", today)
+        .limit(1);
 
-      if (!user) {
-        setNeedsProfile(true);
+      if (scheduleError) throw scheduleError;
+
+      const tourId = scheduleRows && scheduleRows.length > 0 ? scheduleRows[0].tour_id : null;
+
+      if (!tourId) {
+        setState("empty");
         return;
       }
 
-      const { error: upsertError } = await supabase
-        .from("tour_ratings")
-        .upsert(
-          {
-            user_id: user.id,
-            tour_id: tourData.tour.id,
-            rating: newRating,
-          },
-          {
-            onConflict: "user_id,tour_id",
-          }
-        );
+      // 2. haal tourmeta op
+      const { data: tourRows, error: tourError } = await supabase
+        .from("tours")
+        .select("id, title")
+        .eq("id", tourId)
+        .limit(1);
 
-      if (upsertError) {
-        console.error("Error saving rating", upsertError);
-        setError("Je beoordeling kon niet worden opgeslagen.");
+      if (tourError) throw tourError;
+      const tour = tourRows && tourRows.length > 0 ? tourRows[0] : null;
+
+      if (!tour) {
+        setState("empty");
         return;
       }
 
-      setUserRating(newRating);
+      // 3. haal tour_items op
+      const { data: itemRows, error: itemsError } = await supabase
+        .from("tour_items")
+        .select("id, artwork_id, order_index, tour_text")
+        .eq("tour_id", tour.id)
+        .order("order_index", { ascending: true });
 
-      // Optioneel: ratingSummary opnieuw ophalen in een latere iteratie
-    } catch (e) {
-      console.error(e);
-      setError("Er ging iets mis bij het opslaan van je beoordeling.");
-    } finally {
-      setSavingRating(false);
+      if (itemsError) throw itemsError;
+
+      const artworkIds = (itemRows ?? [])
+        .map((row: any) => row.artwork_id)
+        .filter((id: any) => !!id);
+
+      if (!artworkIds.length) {
+        setMeta({ id: String(tour.id), title: tour.title ?? "Tour van vandaag" });
+        setItems([]);
+        setState("empty");
+        return;
+      }
+
+      // 4. haal artworks op
+      const { data: artworksData, error: artworksError } = await supabase
+        .from("artworks")
+        .select("id, title, artist_name, dating_text, image_url, location_city, location_country")
+        .in("id", artworkIds);
+
+      if (artworksError) throw artworksError;
+
+      const artworkById = new Map<string, any>();
+      (artworksData ?? []).forEach((a: any) => {
+        artworkById.set(String(a.id), a);
+      });
+
+      const mappedItems: TourArtwork[] = (itemRows ?? []).map((row: any) => {
+        const art = artworkById.get(String(row.artwork_id)) ?? {};
+        return {
+          id: String(row.id),
+          title: art.title ?? "Onbenoemd kunstwerk",
+          artist_name: art.artist_name ?? null,
+          dating_text: art.dating_text ?? null,
+          image_url: art.image_url ?? null,
+          location_city: art.location_city ?? null,
+          location_country: art.location_country ?? null,
+          tour_text: row.tour_text ?? null,
+        };
+      });
+
+      setMeta({ id: String(tour.id), title: tour.title ?? "Tour van vandaag" });
+      setItems(mappedItems);
+      setActiveIndex(0);
+      setState(mappedItems.length ? "loaded" : "empty");
+    } catch (e: any) {
+      console.error("Fout bij laden dagtour:", e);
+      setError("De tour van vandaag kon niet worden geladen. Probeer het later opnieuw.");
+      setState("error");
     }
   }
 
-  if (loading) {
-    return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 text-sm text-slate-200">
-        <p className="text-xs text-slate-400">Dagtour wordt geladen…</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 text-sm text-slate-200">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-          Tour van vandaag
-        </h1>
-        <p className="text-xs text-red-300">{error}</p>
-      </div>
-    );
-  }
-
-  if (!tourData || !tourData.tour) {
-    return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 text-sm text-slate-200">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-          Tour van vandaag
-        </h1>
-        <p className="text-xs text-slate-400">
-          Er is nog geen tour ingepland voor vandaag.
-        </p>
-      </div>
-    );
-  }
-
-  const { tour, items } = tourData;
+  const active = items[activeIndex];
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 text-sm text-slate-200">
-      <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.16em] text-amber-300">
-          Vandaag
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-          {tour.title || "Tour van vandaag"}
-        </h1>
-        {tour.primary_theme && (
-          <p className="text-xs font-medium text-slate-300">
-            {tour.primary_theme}
-          </p>
-        )}
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
-          {formatLevel(tour.level) && (
-            <span className="rounded-full border border-slate-700 px-3 py-1">
-              {formatLevel(tour.level)}
-            </span>
-          )}
-          {formatDuration(tour.duration_minutes) && (
-            <span className="rounded-full border border-slate-700 px-3 py-1">
-              {formatDuration(tour.duration_minutes)}
-            </span>
-          )}
-          <span className="rounded-full border border-slate-700 px-3 py-1">
-            {tour.is_premium ? "Premiumtour" : "Gratis tour"}
-          </span>
-          {ratingSummaryText && (
-            <span className="rounded-full border border-slate-700 px-3 py-1">
-              {ratingSummaryText}
-            </span>
-          )}
-        </div>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Deze pagina toont de dagtour zoals die in het dagprogramma is
-          geselecteerd. Alle werken delen één thematische rode draad; niveau 1
-          en 2 geven alleen de diepgang van de uitleg aan.
-        </p>
-      </header>
+    <div className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+              Tour
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
+              {meta?.title ?? "Tour van vandaag"}
+            </h1>
+            <p className="mt-2 max-w-xl text-sm text-slate-400">
+              Een zorgvuldige selectie van kunstwerken om vandaag rustig thuis te bekijken. Blader
+              met de pijlen en lees de toelichting onder elk werk.
+            </p>
+          </div>
+          <div className="text-xs text-slate-400">
+            <Link href="/" className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900">
+              Terug naar vandaag
+            </Link>
+          </div>
+        </header>
 
-      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <h2 className="text-base font-semibold text-slate-50">
-          Werken in deze tour
-        </h2>
-        {items.length === 0 && (
-          <p className="text-xs text-slate-400">
-            Er zijn nog geen werken gekoppeld aan deze tour.
-          </p>
+        {state === "loading" && (
+          <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
+            De tour van vandaag wordt geladen…
+          </div>
         )}
-        <ol className="space-y-4">
-          {items.map((item, index) => {
-            const artwork = item.artwork;
-            return (
-              <li
-                key={item.id}
-                className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 md:flex-row"
-              >
-                <div className="flex-shrink-0">
-                  {artwork?.image_url ? (
-                    <div className="relative h-40 w-40 overflow-hidden rounded-xl bg-slate-900">
-                      <Image
-                        src={artwork.image_url}
-                        alt={artwork.title || "Kunstwerk"}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
+
+        {state === "error" && (
+          <div className="rounded-3xl bg-red-950/40 p-8 text-sm text-red-100">
+            {error ?? "Er ging iets mis bij het laden van de tour."}
+          </div>
+        )}
+
+        {state === "empty" && state !== "loading" && (
+          <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
+            Er is voor vandaag nog geen tour ingepland in het dagprogramma. Voeg in het CRM een tour
+            toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
+          </div>
+        )}
+
+        {state === "loaded" && active && (
+          <div className="space-y-6">
+            {/* Theatermodus */}
+            <section className="rounded-3xl bg-slate-900/80 p-4 sm:p-6 lg:p-8 shadow-xl shadow-black/40">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-slate-900">
+                  {active.image_url ? (
+                    <Image
+                      src={active.image_url}
+                      alt={active.title}
+                      fill
+                      className="object-contain"
+                    />
                   ) : (
-                    <div className="flex h-40 w-40 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900 text-[11px] text-slate-500">
-                      Geen afbeelding
+                    <div className="flex h-full items-center justify-center text-xs text-slate-500">
+                      Geen afbeelding beschikbaar
                     </div>
                   )}
                 </div>
-                <div className="flex flex-1 flex-col gap-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                        Werk {index + 1}
-                      </p>
-                      <h3 className="text-sm font-semibold text-slate-50">
-                        {artwork?.title || "Titel onbekend"}
-                      </h3>
-                      <p className="text-xs text-slate-300">
-                        {artwork?.artist_name || "Onbekende kunstenaar"}
-                        {artwork?.dating_text ? ` · ${artwork.dating_text}` : ""}
-                      </p>
-                      {formatLocation(
-                        artwork?.location_city ?? null,
-                        artwork?.location_country ?? null
-                      ) && (
-                        <p className="text-[11px] text-slate-400">
-                          {formatLocation(
-                            artwork?.location_city ?? null,
-                            artwork?.location_country ?? null
-                          )}
-                        </p>
-                      )}
+                <div className="flex flex-col">
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-400">
+                    Werk {activeIndex + 1} van {items.length}
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-50">{active.title}</h2>
+                  <div className="mt-1 text-sm text-slate-300">
+                    {active.artist_name && <span>{active.artist_name}</span>}
+                    {active.artist_name && active.dating_text && <span> · </span>}
+                    {active.dating_text && <span>{active.dating_text}</span>}
+                  </div>
+                  {(active.location_city || active.location_country) && (
+                    <div className="mt-1 text-xs text-slate-500">
+                      {active.location_city && <span>{active.location_city}</span>}
+                      {active.location_city && active.location_country && <span>, </span>}
+                      {active.location_country && <span>{active.location_country}</span>}
                     </div>
-                    {item.position !== null && (
-                      <span className="rounded-full bg-slate-900 px-3 py-1 text-[11px] text-slate-400">
-                        {item.position}/{items.length}
-                      </span>
+                  )}
+
+                  <div className="mt-4 flex-1 rounded-2xl bg-slate-950/70 p-4 text-sm leading-relaxed text-slate-200">
+                    {active.tour_text ? (
+                      <p className="whitespace-pre-line">{active.tour_text}</p>
+                    ) : (
+                      <p className="text-slate-400">
+                        Voor dit werk is nog geen uitgebreide toer-tekst ingevuld. Voeg in het CRM een
+                        toelichting toe aan dit touritem om deze tekst hier te tonen.
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-slate-300">
-                    In een volgende fase komt hier de daadwerkelijke tourtekst
-                    (ongeveer drie minuten audio per werk), waarin dit werk in
-                    relatie tot het tourthema wordt besproken.
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
 
-      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <h2 className="text-base font-semibold text-slate-50">
-          Hoe waardeert u deze tour?
-        </h2>
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-1">
-            <p className="text-xs text-slate-300">
-              Geef een beoordeling van 1 tot 5 sterren. Met een gratis profiel
-              kunt u tours waarderen; deze gegevens worden anoniem gebruikt voor
-              “Best of MuseaThuis” en analyses voor musea.
-            </p>
-            {needsProfile && (
-              <p className="text-xs text-amber-300">
-                Maak eerst een gratis profiel aan of log in om een beoordeling
-                te kunnen geven.
-              </p>
-            )}
+                  <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
+                        onClick={() => setActiveIndex((i) => Math.max(0, i - 1))}
+                        disabled={activeIndex === 0}
+                      >
+                        Vorig werk
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
+                        onClick={() => setActiveIndex((i) => Math.min(items.length - 1, i + 1))}
+                        disabled={activeIndex === items.length - 1}
+                      >
+                        Volgend werk
+                      </button>
+                    </div>
+                    <div>
+                      Werk {activeIndex + 1} van {items.length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Mini-overzicht */}
+            <section className="rounded-3xl bg-slate-900/60 p-4">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                Overzicht van de tour
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {items.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveIndex(index)}
+                    className={`flex flex-col items-stretch overflow-hidden rounded-2xl border text-left text-xs transition ${
+                      index === activeIndex
+                        ? "border-amber-400 bg-slate-900"
+                        : "border-slate-800 bg-slate-900/60 hover:border-slate-600"
+                    }`}
+                  >
+                    <div className="relative h-28 w-full bg-slate-950/60">
+                      {item.image_url ? (
+                        <Image
+                          src={item.image_url}
+                          alt={item.title}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[10px] text-slate-500">
+                          Geen afbeelding
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">
+                        Werk {index + 1}
+                      </div>
+                      <div className="line-clamp-2 text-[11px] font-semibold text-slate-50">
+                        {item.title}
+                      </div>
+                      {item.artist_name && (
+                        <div className="mt-1 line-clamp-1 text-[11px] text-slate-400">
+                          {item.artist_name}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
-          <div className="flex items-center gap-3">
-            <StarRating
-              value={userRating}
-              onChange={handleChangeRating}
-              disabled={savingRating}
-            />
-          </div>
-        </div>
-      </section>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -50,18 +49,22 @@ export default function DayprogramPage() {
       endDate.setDate(today.getDate() + 6); // vandaag + 6 dagen
       const end = endDate.toISOString().slice(0, 10);
 
-      const [{ data: scheduleData, error: scheduleError }, { data: tourData, error: tourError }, { data: gameData, error: gameError }, { data: focusData, error: focusError }] =
-        await Promise.all([
-          supabase
-            .from("dayprogram_schedule")
-            .select("day_date, tour_id, game_id, focus_id")
-            .gte("day_date", start)
-            .lte("day_date", end)
-            .order("day_date", { ascending: true }),
-          supabase.from("tours").select("id, title"),
-          supabase.from("games").select("id, title"),
-          supabase.from("focus_items").select("id, title"),
-        ]);
+      const [
+        { data: scheduleData, error: scheduleError },
+        { data: tourData, error: tourError },
+        { data: gameData, error: gameError },
+        { data: focusData, error: focusError },
+      ] = await Promise.all([
+        supabase
+          .from("dayprogram_schedule")
+          .select("day_date, tour_id, game_id, focus_id")
+          .gte("day_date", start)
+          .lte("day_date", end)
+          .order("day_date", { ascending: true }),
+        supabase.from("tours").select("id, title"),
+        supabase.from("games").select("id, title"),
+        supabase.from("focus_items").select("id, title"),
+      ]);
 
       if (scheduleError) throw scheduleError;
       if (tourError) throw tourError;
@@ -71,8 +74,9 @@ export default function DayprogramPage() {
       const existingByDate = new Map<string, DayRow>();
       (scheduleData ?? []).forEach((row: any) => {
         if (!row.day_date) return;
-        existingByDate.set(row.day_date.slice(0, 10), {
-          day_date: row.day_date.slice(0, 10),
+        const iso = String(row.day_date).slice(0, 10);
+        existingByDate.set(iso, {
+          day_date: iso,
           tour_id: row.tour_id ?? null,
           game_id: row.game_id ?? null,
           focus_id: row.focus_id ?? null,
@@ -103,9 +107,9 @@ export default function DayprogramPage() {
       }
 
       setDays(newDays);
-      setTours((tourData ?? []).map((t: any) => ({ id: t.id, title: t.title ?? "Naamloze tour" })));
-      setGames((gameData ?? []).map((g: any) => ({ id: g.id, title: g.title ?? "Naamloos spel" })));
-      setFocusItems((focusData ?? []).map((f: any) => ({ id: f.id, title: f.title ?? "Naamloos focusmoment" })));
+      setTours((tourData ?? []).map((t: any) => ({ id: String(t.id), title: t.title ?? "Naamloze tour" })));
+      setGames((gameData ?? []).map((g: any) => ({ id: String(g.id), title: g.title ?? "Naamloos spel" })));
+      setFocusItems((focusData ?? []).map((f: any) => ({ id: String(f.id), title: f.title ?? "Naamloos focusmoment" })));
       setLoading("idle");
     } catch (e: any) {
       console.error("Fout bij laden dagprogramma:", e);
@@ -118,8 +122,7 @@ export default function DayprogramPage() {
     setDays((prev) => {
       const copy = [...prev];
       const row = { ...copy[index] };
-      // lege waarde = null in database
-      (row as any)[field] = value || null;
+      (row as any)[field] = value || null; // lege waarde = null in database
       copy[index] = row;
       return copy;
     });
@@ -142,9 +145,7 @@ export default function DayprogramPage() {
             game_id: row.game_id,
             focus_id: row.focus_id,
           },
-          {
-            onConflict: "day_date",
-          },
+          { onConflict: "day_date" },
         );
 
       if (upsertError) throw upsertError;
@@ -198,20 +199,16 @@ export default function DayprogramPage() {
           <div className="mt-8 rounded-2xl bg-slate-900/80 p-4 text-xs text-slate-400">
             <div className="mb-2 font-semibold text-slate-200">Dagprogramma</div>
             <p className="mb-1">
-              Stel per dag een tour, spel en focusmoment samen. Dit overzicht is de basis voor de dagtegels op de publiekswebsite.
+              Stel per dag een tour, het spel en het focusmoment samen. Dit overzicht is de basis voor de dagtegels op de publiekswebsite.
             </p>
-            <p>
-              In een volgende fase voegen we ook een kalenderweergave en bulkacties toe.
-            </p>
+            <p>In een volgende fase voegen we ook een kalenderweergave en bulkacties toe.</p>
           </div>
         </aside>
 
         {/* Hoofdcontent */}
         <main className="flex-1">
           <header className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-              Dagprogramma
-            </h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Dagprogramma</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-400">
               Per dag kiest u een hoofd-tour, spel en focusmoment. Hier plant u de komende week vooruit.
             </p>
@@ -269,12 +266,8 @@ export default function DayprogramPage() {
                   {days.map((row, index) => (
                     <tr key={row.day_date}>
                       <td className="px-2 py-3 align-top">
-                        <div className="text-xs font-semibold text-slate-100">
-                          {row.label}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          {row.day_date}
-                        </div>
+                        <div className="text-xs font-semibold text-slate-100">{row.label}</div>
+                        <div className="text-[11px] text-slate-500">{row.day_date}</div>
                       </td>
                       <td className="px-2 py-3 align-top">
                         <select
@@ -346,9 +339,7 @@ export default function DayprogramPage() {
           </section>
 
           <section className="rounded-3xl bg-slate-900/60 p-6 text-xs text-slate-400">
-            <h2 className="mb-2 text-sm font-semibold text-slate-100">
-              Volgende stappen in het dagprogramma
-            </h2>
+            <h2 className="mb-2 text-sm font-semibold text-slate-100">Volgende stappen in het dagprogramma</h2>
             <ul className="list-disc space-y-1 pl-5">
               <li>Koppeling met echte tours, games en focusmomenten in Supabase verder verfijnen.</li>
               <li>Mogelijkheid om per dag premium- en gratis-slots in te stellen voor tour, spel en focus.</li>
