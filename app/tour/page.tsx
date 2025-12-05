@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import { RatingStars } from "@/components/RatingStars";
 
 type TourMeta = {
   id: string;
@@ -30,9 +31,19 @@ export default function TourTodayPage() {
   const [items, setItems] = useState<TourArtwork[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const [userId, setUserId] = useState<string | null>(null);
+  const [ownRating, setOwnRating] = useState<number | null>(null);
+  const [ratingLoading, setRatingLoading] = useState<boolean>(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
+
   useEffect(() => {
     void loadTodayTour();
   }, []);
+
+  useEffect(() => {
+    if (!meta) return;
+    void loadUserAndRating(meta.id);
+  }, [meta?.id]);
 
   async function loadTodayTour() {
     setState("loading");
@@ -127,12 +138,91 @@ export default function TourTodayPage() {
     }
   }
 
+  async function loadUserAndRating(tourId: string) {
+    try {
+      setRatingLoading(true);
+      setRatingError(null);
+
+      const supabase = supabaseBrowser();
+      const { data: userResult, error: userError } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      const user = userResult?.user ?? null;
+      if (!user) {
+        setUserId(null);
+        setOwnRating(null);
+        setRatingLoading(false);
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data: ratingRows, error: ratingFetchError } = await supabase
+        .from("tour_ratings")
+        .select("rating")
+        .eq("user_id", user.id)
+        .eq("tour_id", tourId)
+        .limit(1);
+
+      if (ratingFetchError) throw ratingFetchError;
+
+      const row = ratingRows && ratingRows.length > 0 ? ratingRows[0] : null;
+      setOwnRating(row ? row.rating : null);
+      setRatingLoading(false);
+    } catch (e: any) {
+      console.error("Fout bij laden beoordeling tour:", e);
+      setRatingError("Uw beoordeling kon niet worden geladen.");
+      setRatingLoading(false);
+    }
+  }
+
+  async function handleRatingChange(value: number) {
+    if (!meta) return;
+
+    try {
+      setRatingLoading(true);
+      setRatingError(null);
+
+      const supabase = supabaseBrowser();
+      const { data: userResult, error: userError } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      const user = userResult?.user ?? null;
+
+      if (!user) {
+        window.location.href = "/auth/login?redirect=/tour";
+        return;
+      }
+
+      const { error: upsertError } = await supabase
+        .from("tour_ratings")
+        .upsert({
+          user_id: user.id,
+          tour_id: meta.id,
+          rating: value,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (upsertError) throw upsertError;
+
+      setUserId(user.id);
+      setOwnRating(value);
+    } catch (e: any) {
+      console.error("Fout bij opslaan beoordeling tour:", e);
+      setRatingError("Uw beoordeling kon niet worden opgeslagen.");
+    } finally {
+      setRatingLoading(false);
+    }
+  }
+
   const active = items[activeIndex];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
       <div className="mx-auto max-w-5xl px-4 py-10">
-        <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
               Tour
@@ -144,6 +234,25 @@ export default function TourTodayPage() {
               Een zorgvuldige selectie van kunstwerken om vandaag rustig thuis te bekijken. Blader
               met de pijlen en lees de toelichting onder elk werk.
             </p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <RatingStars
+                value={ownRating}
+                onChange={(value) => void handleRatingChange(value)}
+                disabled={ratingLoading}
+                label="Uw beoordeling"
+              />
+              {!userId && !ratingLoading && (
+                <span className="text-[11px] text-slate-500">
+                  Maak een gratis profiel aan om tours te beoordelen.
+                </span>
+              )}
+              {ratingError && (
+                <span className="text-[11px] text-red-300">
+                  {ratingError}
+                </span>
+              )}
+            </div>
           </div>
           <div className="text-xs text-slate-400">
             <Link href="/" className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900">

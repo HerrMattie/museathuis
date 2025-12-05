@@ -1,111 +1,61 @@
-import { PrimaryButton } from "@/components/common/PrimaryButton";
+import Link from "next/link";
 
 export default function PremiumPage() {
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">MuseaThuis Premium</h1>
-        <p className="text-sm text-slate-300">
-          Met MuseaThuis Premium krijgt u toegang tot het volledige dagprogramma,
-          de Academie en uitgebreide Salonpresentaties. Meer verdieping voor u, meer
-          inzicht voor musea.
-        </p>
-      </header>
-
-      <section className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
-        <h2 className="mb-2 text-base font-semibold">Gratis profiel versus Premium</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-xs sm:text-sm">
-            <thead>
-              <tr className="border-b border-slate-800">
-                <th className="py-2 pr-4"></th>
-                <th className="py-2 pr-4 font-semibold text-slate-200">Gratis profiel</th>
-                <th className="py-2 pr-4 font-semibold text-amber-300">Premium</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-slate-800">
-                <td className="py-2 pr-4">Dagelijkse tours</td>
-                <td className="py-2 pr-4">1 gratis tour</td>
-                <td className="py-2 pr-4">Alle tours van de dag</td>
-              </tr>
-              <tr className="border-b border-slate-800">
-                <td className="py-2 pr-4">Dagelijkse spellen</td>
-                <td className="py-2 pr-4">1 gratis spel</td>
-                <td className="py-2 pr-4">Alle spellen van de dag</td>
-              </tr>
-              <tr className="border-b border-slate-800">
-                <td className="py-2 pr-4">Focusmomenten</td>
-                <td className="py-2 pr-4">1 gratis focusmoment</td>
-                <td className="py-2 pr-4">Meerdere focusmomenten per dag</td>
-              </tr>
-              <tr className="border-b border-slate-800">
-                <td className="py-2 pr-4">Academie</td>
-                <td className="py-2 pr-4">Introductietraject</td>
-                <td className="py-2 pr-4">Alle Academie-trajecten</td>
-              </tr>
-              <tr className="border-b border-slate-800">
-                <td className="py-2 pr-4">Salonpresentaties</td>
-                <td className="py-2 pr-4">Voorproef Salon</td>
-                <td className="py-2 pr-4">Volledige Salonsets</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-4">Inzichten en badges</td>
-                <td className="py-2 pr-4">Basisoverzicht gebruik</td>
-                <td className="py-2 pr-4">Uitgebreid overzicht en badges</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <h2 className="text-base font-semibold">Wat is inbegrepen</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
-            <li>Alle tours van de dag, inclusief verdiepende routes.</li>
-            <li>Drie spellen per dag met uiteenlopende spelvormen.</li>
-            <li>Meerdere focusmomenten per dag met audio.</li>
-            <li>Volledige toegang tot de MuseaThuis Academie.</li>
-            <li>Uitgebreide Salonpresentaties voor televisie of groot scherm.</li>
-            <li>Persoonlijke suggesties op basis van profiel en gebruik.</li>
-          </ul>
-        </div>
-        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <h2 className="text-base font-semibold">Prijs en voorwaarden</h2>
-          <p className="text-sm text-slate-300">
-            MuseaThuis Premium kost{" "}
-            <span className="font-semibold text-amber-300">7,99 euro per maand</span>.
+    <div className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <header className="mb-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+            Premium
           </p>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-300">
-            <li>Maandelijks opzegbaar.</li>
-            <li>Geen opstart- of verborgen kosten.</li>
-            <li>
-              In de introductiefase hanteren wij een tijdelijk lager tarief. Dit
-              communiceren wij zodra Premium live gaat.
-            </li>
-          </ul>
-          <div>
-            <PrimaryButton className="w-full">
-              Maak een gratis profiel aan
-            </PrimaryButton>
-            <p className="mt-2 text-xs text-slate-400">
-              Het betaalproces wordt in een volgende fase toegevoegd. Op dit moment
-              kunt u alvast een gratis profiel aanmaken.
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
+            MuseaThuis Premium (pilot)
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-slate-400">
+            In deze fase testen we MuseaThuis met een kleine groep gebruikers. Premium geeft toegang tot extra tours,
+            spellen, focusmomenten en later de MuseaThuis Academie.
+          </p>
+        </header>
+
+        <section className="mb-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-3xl bg-slate-900/80 p-5">
+            <h2 className="text-sm font-semibold text-slate-100">Gratis profiel</h2>
+            <ul className="mt-3 list-disc space-y-1 pl-4 text-sm text-slate-300">
+              <li>Dagelijkse gratis tour, spel en focusmoment</li>
+              <li>Eigen profiel en voorkeuren opslaan</li>
+              <li>Kunstwerken beoordelen met sterren</li>
+            </ul>
+          </div>
+          <div className="rounded-3xl bg-amber-400/10 p-5 ring-1 ring-amber-400/40">
+            <h2 className="text-sm font-semibold text-amber-300">Premium (pilot)</h2>
+            <ul className="mt-3 list-disc space-y-1 pl-4 text-sm text-slate-200">
+              <li>Dagelijks meerdere tours en spellen</li>
+              <li>Extra focusmomenten en themalijnen</li>
+              <li>Toegang tot de MuseaThuis Academie</li>
+            </ul>
+            <p className="mt-3 text-xs text-amber-200/80">
+              Tijdens de pilot wordt premium handmatig geactiveerd. Neem contact op als u wilt deelnemen.
             </p>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
-        <h2 className="mb-1 text-base font-semibold">Data en privacy</h2>
-        <p>
-          MuseaThuis gebruikt waarderingen en gebruiksgegevens om het aanbod te
-          verbeteren en in geanonimiseerde vorm inzichten met musea te delen. Er
-          worden geen individuele profielen met derden gedeeld en gegevens worden
-          alleen op geaggregeerd niveau gerapporteerd.
-        </p>
-      </section>
+        <section className="rounded-3xl bg-slate-900/80 p-5 text-sm text-slate-300">
+          <p>
+            In een latere fase koppelen we hier een betaalmodule. Nu gebruiken we premium vooral om functies te testen
+            en feedback van ervaren museumbezoekers op te halen.
+          </p>
+          <p className="mt-3 text-xs text-slate-500">
+            Tip: maak eerst een gratis profiel aan en probeer de dagelijkse tours, spellen en focusmomenten uit. Premium
+            bouwt hierop voort.
+          </p>
+        </section>
+
+        <div className="mt-6 text-sm">
+          <Link href="/" className="rounded-full border border-slate-700 px-3 py-1.5 text-slate-200 hover:bg-slate-900">
+            Terug naar vandaag
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
