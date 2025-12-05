@@ -1,81 +1,82 @@
-import { Badge } from "@/components/common/Badge";
-import { PremiumLabel } from "@/components/common/PremiumLabel";
-import { PrimaryButton } from "@/components/common/PrimaryButton";
+"use client";
 
 export default function SalonPage() {
-  const sets = [
-    {
-      title: "Rijksmuseum-sfeer",
-      description:
-        "Klassieke Salonpresentatie met werken uit de Nederlandse zeventiende eeuw en omgeving.",
-      duration: "ca. 20 minuten",
-      works: "12 werken",
-      premium: true,
-    },
-    {
-      title: "Louvre-sfeer",
-      description:
-        "Rustige presentatie met bredere selectie, geschikt als achtergrond bij een diner of avond met familie.",
-      duration: "ca. 25 minuten",
-      works: "15 werken",
-      premium: true,
-    },
-    {
-      title: "Voorproef Salon",
-      description:
-        "Korte gratis presentatie met een selectie van verschillende musea als kennismaking.",
-      duration: "ca. 8 minuten",
-      works: "6 werken",
-      premium: false,
-    },
-  ];
-
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Salonpresentaties</h1>
-        <p className="text-sm text-slate-300">
-          Salon is de schermvullende modus van MuseaThuis. Kunstwerken volgen elkaar
-          rustig op, bijna zonder tekst. Ideaal voor televisie of groot scherm.
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 text-sm text-slate-200">
+      <header className="space-y-3">
+        <p className="text-xs uppercase tracking-[0.16em] text-amber-300">
+          Vandaag
         </p>
-        <p className="text-xs text-slate-400">
-          Een deel van de Salonpresentaties is gratis. De volledige sets zijn beschikbaar
-          voor premiumleden.
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
+          Salonpresentaties
+        </h1>
+        <p className="max-w-2xl text-sm text-slate-300">
+          De salonmodus is bedoeld voor schermvullende presentaties van kunstwerken
+          per sfeer of thema. Eén gratis set per dag, twee premiumsets voor
+          abonnees. In een volgende fase koppelen we deze pagina aan de tabellen
+          <span className="font-mono"> salon_sets</span> en
+          <span className="font-mono"> salon_set_items</span>.
         </p>
       </header>
-      <div className="grid gap-4 md:grid-cols-3">
-        {sets.map((set) => (
-          <div
-            key={set.title}
-            className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <Badge>Salon</Badge>
-              {set.premium ? <PremiumLabel /> : <Badge>Gratis voorproef</Badge>}
-            </div>
-            <div className="mb-3 h-24 rounded-xl bg-slate-800" />
-            <h2 className="text-sm font-semibold">{set.title}</h2>
-            <p className="mt-1 text-sm text-slate-300">{set.description}</p>
-            <p className="mt-2 text-xs text-slate-400">
-              {set.duration} · {set.works}
+
+      <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Gratis salon
+          </p>
+          <h2 className="text-lg font-semibold text-slate-50">
+            Voorbeeldtitel salonset
+          </h2>
+          <p className="text-xs text-slate-300">
+            Placeholder voor de gratis salon van vandaag. Straks wordt hier een
+            reeks werken uit de database getoond in fullscreen modus, met minimale
+            tekst en rustige overgangen.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-300">
+            <li>Eén sfeer of thema per set, herkenbaar benoemd.</li>
+            <li>Voor gebruik op televisie of groot scherm.</li>
+            <li>Basiskeuze komt uit het dagprogramma, maar is later ook los te starten.</li>
+          </ul>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Premium salon 1
             </p>
-            <div className="mt-4">
-              <PrimaryButton className="w-full">
-                {set.premium ? "Bekijk Premium-set (voorbeeld)" : "Start gratis voorproef"}
-              </PrimaryButton>
-            </div>
+            <h3 className="text-sm font-semibold text-slate-50">
+              Verdiepende sfeerselectie
+            </h3>
+            <p className="text-xs text-slate-300">
+              Deze kaart is gereserveerd voor een premium salonset die inhoudelijk
+              aansluit bij het dagthema of een specifiek museum.
+            </p>
           </div>
-        ))}
-      </div>
-      <section className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
-        <h2 className="text-base font-semibold">Toekomstige mogelijkheden</h2>
-        <p>
-          In een volgende fase kunt u zelf Salonpresentaties samenstellen met filters
-          voor museum, periode, thema, techniek, kleuren en duur. MuseaThuis laat dan
-          direct zien hoeveel werken aan uw filters voldoen.
-        </p>
-        <p className="text-xs text-slate-400">
-          Salon werkt goed via smart-tv of laptop met HDMI-kabel.
+          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Premium salon 2
+            </p>
+            <h3 className="text-sm font-semibold text-slate-50">
+              Alternatieve sfeer of collectie
+            </h3>
+            <p className="text-xs text-slate-300">
+              Hier verschijnt straks een tweede premiumset, bijvoorbeeld een
+              collectie rond één kunstenaar of museum, op basis van dezelfde
+              salonstructuur.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <h2 className="text-base font-semibold text-slate-50">
+          Salonmodus als vierde pijler
+        </h2>
+        <p className="text-xs text-slate-300">
+          Salonsets worden straks net als tours en focusmomenten via het
+          dagprogramma geactiveerd. In de backend werken we met vaste sets,
+          gekoppeld aan artworks, waarbij de weergave vooral draait om ritme,
+          sfeer en afwisseling.
         </p>
       </section>
     </div>
