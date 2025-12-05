@@ -1,109 +1,78 @@
-export const metadata = {
-  title: "Salon",
-  description:
-    "Maak van elk scherm een kunstwerk met rustige kunstpresentaties die passen bij de sfeer van het moment.",
-};
-
-const curatedSalons = [
-  {
-    title: "Rijksmuseum-sfeer",
-    description:
-      "Een selectie schilderijen uit het Rijksmuseum met een rustige, klassieke sfeer.",
-  },
-  {
-    title: "Louvre-sfeer",
-    description:
-      "Hoogtepunten uit het Louvre, gericht op iconische werken en verhalen.",
-  },
-  {
-    title: "Hollandse meesters",
-    description:
-      "Een reeks werken van Hollandse meesters uit verschillende collecties.",
-  },
-  {
-    title: "17e eeuw",
-    description:
-      "Een tijdreis door de 17e eeuw, met aandacht voor licht, stofuitdrukking en compositie.",
-  },
-  {
-    title: "Rustige kleuren en stilte",
-    description:
-      "Kunstwerken met zachte kleuren en een ingetogen sfeer, ideaal voor een rustige achtergrond.",
-  },
-];
+// app/salon/page.tsx
+import { Badge } from "@/components/common/Badge";
+import { PremiumLabel } from "@/components/common/PremiumLabel";
+import { PrimaryButton } from "@/components/common/PrimaryButton";
 
 export default function SalonPage() {
+  const sets = [
+    {
+      title: "Rijksmuseum-sfeer",
+      description:
+        "Een klassieke Salonpresentatie met werken uit de Nederlandse Gouden Eeuw en daar omheen.",
+      duration: "ca. 20 minuten",
+      works: "12 werken",
+      premium: true,
+    },
+    {
+      title: "Louvre-sfeer",
+      description:
+        "Een selectie met rustiger tempo, geschikt als achtergrond bij een diner of avond met familie.",
+      duration: "ca. 25 minuten",
+      works: "15 werken",
+      premium: true,
+    },
+    {
+      title: "Voorproef Salon",
+      description:
+        "Korte gratis presentatie met een selectie van verschillende musea, bedoeld als kennismaking.",
+      duration: "ca. 8 minuten",
+      works: "6 werken",
+      premium: false,
+    },
+  ];
+
   return (
-    <div className="space-y-8">
-      <header className="space-y-3">
-        <div className="inline-flex items-center rounded-full border border-amber-500/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
-          Alleen voor premiumleden
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-50">
-          Salon
-        </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Met Salon maak je van elk scherm een kunstwerk. Kies een sfeer en
-          laat een reeks kunstwerken rustig voorbij komen, met minimale
-          bediening. Geschikt voor een rustig moment, een etentje of als
-          achtergrond bij een gesprek.
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Salonpresentaties</h1>
+        <p className="text-sm text-slate-300">
+          Salon is de schermvullende modus van MuseaThuis. Kunstwerken volgen elkaar
+          rustig op, bijna zonder tekst. Ideaal voor televisie of groot scherm.
+        </p>
+        <p className="text-xs text-slate-400">
+          Een deel van de Salonpresentaties is gratis. De volledige sets zijn
+          beschikbaar voor premiumleden.
         </p>
       </header>
-
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-50">
-          Voorgestelde presentaties
-        </h2>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Elke week selecteert MuseaThuis een aantal Salon-presentaties. Deze
-          combinaties worden automatisch ververst op basis van nieuwe suggesties
-          en gebruiksdata.
-        </p>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          {curatedSalons.map((salon) => (
-            <div
-              key={salon.title}
-              className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4"
-            >
-              <div className="space-y-2">
-                <div className="mb-2 h-24 rounded-lg bg-slate-800" />
-                <h3 className="text-base font-semibold text-slate-50">
-                  {salon.title}
-                </h3>
-                <p className="text-xs text-slate-300">{salon.description}</p>
-              </div>
-              <button className="mt-4 inline-flex text-xs font-medium text-amber-300 hover:text-amber-200">
-                Start presentatie
-              </button>
+      <div className="grid gap-4 md:grid-cols-3">
+        {sets.map((set) => (
+          <div
+            key={set.title}
+            className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <Badge>Salon</Badge>
+              {set.premium ? <PremiumLabel /> : <Badge>Gratis voorproef</Badge>}
             </div>
-          ))}
-
-          <div className="flex flex-col justify-between rounded-xl border border-dashed border-slate-700 bg-slate-900/20 p-4">
-            <div className="space-y-2">
-              <div className="mb-2 h-24 rounded-lg border border-slate-700 bg-slate-900/40" />
-              <h3 className="text-base font-semibold text-slate-50">
-                Stel je eigen Salon samen
-              </h3>
-              <p className="text-xs text-slate-300">
-                Filter op sfeer, kleur, periode, land en onderwerp. MuseaThuis
-                laat zien hoeveel werken passen binnen je selectie, zodat je
-                stap voor stap toewerkt naar een passende presentatie.
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-[11px] text-slate-400">
-                <li>Sfeer: rustig, energiek, contemplatief, feestelijk</li>
-                <li>Kleur: warm, koel, hoog contrast, zachte tinten</li>
-                <li>Periode: 15e t/m 21e eeuw</li>
-                <li>Land: Nederland, Frankrijk, Italië en meer</li>
-                <li>Onderwerp: portret, landschap, stilleven, architectuur</li>
-                <li>Weergaveduur per werk: 15, 30, 60 of 120 seconden</li>
-              </ul>
+            <div className="mb-3 h-24 rounded-xl bg-slate-800" />
+            <h2 className="text-sm font-semibold">{set.title}</h2>
+            <p className="mt-1 text-sm text-slate-300">{set.description}</p>
+            <p className="mt-2 text-xs text-slate-400">
+              {set.duration} · {set.works}
+            </p>
+            <div className="mt-4">
+              <PrimaryButton className="w-full">Start presentatie</PrimaryButton>
             </div>
-            <button className="mt-4 inline-flex text-xs font-medium text-amber-300 hover:text-amber-200">
-              Start eigen Salon &rarr;
-            </button>
           </div>
-        </div>
+        ))}
+      </div>
+      <section className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+        <h2 className="text-base font-semibold">Stel je eigen Salon samen</h2>
+        <p>
+          In de volgende fase kunt u eigen Salonpresentaties samenstellen met filters
+          voor museum, periode, thema, techniek, kleuren en duur. MuseaThuis laat dan
+          direct zien hoeveel werken aan uw filters voldoen.
+        </p>
       </section>
     </div>
   );
