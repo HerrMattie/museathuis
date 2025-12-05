@@ -6,11 +6,58 @@ export default function PremiumPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">MuseaThuis Premium</h1>
         <p className="text-sm text-slate-300">
-          Met MuseaThuis Premium krijg je toegang tot het volledige dagprogramma,
-          de Academie en uitgebreide Salonpresentaties. Ontworpen voor kunstliefhebbers
-          die structureel willen verdiepen.
+          Met MuseaThuis Premium krijgt u toegang tot het volledige dagprogramma,
+          de Academie en uitgebreide Salonpresentaties. Meer verdieping voor u, meer
+          inzicht voor musea.
         </p>
       </header>
+
+      <section className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+        <h2 className="mb-2 text-base font-semibold">Gratis profiel versus Premium</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-xs sm:text-sm">
+            <thead>
+              <tr className="border-b border-slate-800">
+                <th className="py-2 pr-4"></th>
+                <th className="py-2 pr-4 font-semibold text-slate-200">Gratis profiel</th>
+                <th className="py-2 pr-4 font-semibold text-amber-300">Premium</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-slate-800">
+                <td className="py-2 pr-4">Dagelijkse tours</td>
+                <td className="py-2 pr-4">1 gratis tour</td>
+                <td className="py-2 pr-4">Alle tours van de dag</td>
+              </tr>
+              <tr className="border-b border-slate-800">
+                <td className="py-2 pr-4">Dagelijkse spellen</td>
+                <td className="py-2 pr-4">1 gratis spel</td>
+                <td className="py-2 pr-4">Alle spellen van de dag</td>
+              </tr>
+              <tr className="border-b border-slate-800">
+                <td className="py-2 pr-4">Focusmomenten</td>
+                <td className="py-2 pr-4">1 gratis focusmoment</td>
+                <td className="py-2 pr-4">Meerdere focusmomenten per dag</td>
+              </tr>
+              <tr className="border-b border-slate-800">
+                <td className="py-2 pr-4">Academie</td>
+                <td className="py-2 pr-4">Introductietraject</td>
+                <td className="py-2 pr-4">Alle Academie-trajecten</td>
+              </tr>
+              <tr className="border-b border-slate-800">
+                <td className="py-2 pr-4">Salonpresentaties</td>
+                <td className="py-2 pr-4">Voorproef Salon</td>
+                <td className="py-2 pr-4">Volledige Salonsets</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4">Inzichten en badges</td>
+                <td className="py-2 pr-4">Basisoverzicht gebruik</td>
+                <td className="py-2 pr-4">Uitgebreid overzicht en badges</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
@@ -40,7 +87,7 @@ export default function PremiumPage() {
           </ul>
           <div>
             <PrimaryButton className="w-full">
-              Maak een gratis account aan
+              Maak een gratis profiel aan
             </PrimaryButton>
             <p className="mt-2 text-xs text-slate-400">
               Het betaalproces wordt in een volgende fase toegevoegd. Op dit moment

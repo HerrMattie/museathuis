@@ -1,16 +1,21 @@
+import { Badge } from "@/components/common/Badge";
+
 export function TargetGroups() {
   const groups = [
     {
       title: "Beginnende kunstliefhebber",
+      label: "Niveau 1",
       text: "Korte tours en toegankelijke uitleg, zonder voorkennis te veronderstellen.",
     },
     {
       title: "Ervaren museumbezoeker",
-      text: "Verdiepingsfocus, thematische Academie en meer context bij bekende werken.",
+      label: "Niveau 2",
+      text: "Verdiepende focusmomenten, thematische Academie en meer context bij bekende werken.",
     },
     {
       title: "Thuiszorg en mantelzorg",
-      text: "Rustige Salonpresentaties en focusmomenten die een gesprek op gang helpen.",
+      label: "Specifieke context",
+      text: "Rustige Salonpresentaties en focusmomenten als gespreksstarter in kleinere groepen.",
     },
   ];
 
@@ -23,6 +28,9 @@ export function TargetGroups() {
             key={group.title}
             className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4"
           >
+            <div className="mb-2">
+              <Badge>{group.label}</Badge>
+            </div>
             <h3 className="text-sm font-semibold">{group.title}</h3>
             <p className="mt-1 text-sm text-slate-300">{group.text}</p>
           </div>

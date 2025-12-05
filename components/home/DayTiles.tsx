@@ -8,42 +8,44 @@ export function DayTiles() {
     {
       title: "Tours van vandaag",
       description:
-        "Drie korte museumtours met elk ongeveer acht kunstwerken. Eén tour gratis, twee voor premiumleden.",
+        "Korte museumtours met ongeveer acht kunstwerken. Eén tour gratis, twee voor premiumleden.",
       href: "/tour/today",
       freeLabel: "1 gratis tour",
-      premiumLabel: "2 premiumtours",
     },
     {
       title: "Spellen van vandaag",
       description:
-        "Eén gratis spel en twee premiumspellen. Van kijkspel tot quiz en verdiepingsvragen.",
+        "Eén gratis spel en twee premiumspellen met herkenning, quiz en verdiepingsvragen.",
       href: "/game",
       freeLabel: "1 gratis spel",
-      premiumLabel: "2 premiumspellen",
     },
     {
       title: "Focusmoment van vandaag",
       description:
-        "Tien minuten rust en verdieping bij één kunstwerk, met begeleidende tekst en straks audio.",
+        "Tien minuten rust en verdieping bij één kunstwerk, met tekst en later audio.",
       href: "/focus",
       freeLabel: "1 gratis focusmoment",
-      premiumLabel: "2 premiumfocusmomenten",
     },
     {
       title: "Salonpresentaties",
       description:
-        "Schermvullende presentaties met kunstwerken per sfeer of thema. Ideaal op televisie of groot scherm.",
+        "Schermvullende presentaties met kunstwerken per sfeer of thema, ideaal voor televisie.",
       href: "/salon",
       freeLabel: "Voorproef gratis",
-      premiumLabel: "Volledige sets premium",
     },
     {
       title: "Academie",
       description:
-        "Thematische leerlijnen over periodes, thema's en kunstenaars. Van basis tot meester-niveau.",
+        "Thematische leerlijnen over periodes, thema's en kunstenaars, van basis tot verdieping.",
       href: "/academie",
       freeLabel: "Introducties gratis",
-      premiumLabel: "Volledige leerlijnen premium",
+    },
+    {
+      title: "Best of MuseaThuis",
+      description:
+        "Overzicht van tours, spellen en focusmomenten die het beste scoren bij gebruikers.",
+      href: "/best-of",
+      freeLabel: "Voorbeeldselecties",
     },
   ];
 
@@ -54,7 +56,7 @@ export function DayTiles() {
           Vandaag bij MuseaThuis
         </h2>
         <p className="text-xs text-slate-400">
-          Dagelijkse selectie, afgestemd op kunstliefhebbers thuis.
+          Dagprogramma met tours, spellen en focusmomenten voor kunstliefhebbers thuis.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -71,7 +73,7 @@ export function DayTiles() {
                 </div>
                 <p className="text-sm text-slate-300">{tile.description}</p>
                 <div className="text-sm text-amber-300">
-                  Bekijk selectie van vandaag
+                  Bekijk de selectie van vandaag
                 </div>
               </div>
             </Card>

@@ -15,12 +15,19 @@ export default function ProfilePage() {
           </p>
         </header>
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
-          <h2 className="mb-1 text-base font-semibold">Waarom een profiel</h2>
+          <h2 className="mb-2 text-base font-semibold">Welke gegevens vragen wij</h2>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Bewaar welke tours, spellen en focusmomenten u heeft gedaan.</li>
-            <li>Ontvang suggesties die aansluiten op uw voorkeuren.</li>
-            <li>Verdien badges voor activiteit en verdieping.</li>
+            <li>Leeftijdscategorie.</li>
+            <li>Provincie en land.</li>
+            <li>Wel of geen museumkaart.</li>
+            <li>Inschatting van uw kennisniveau van kunst.</li>
+            <li>Voorkeursthema's en periodes.</li>
           </ul>
+          <p className="mt-2 text-xs text-slate-400">
+            Deze gegevens worden gebruikt om het aanbod af te stemmen en op
+            geaggregeerd niveau met musea te delen. Individuele profielen worden niet
+            gedeeld.
+          </p>
           <div className="mt-4">
             <PrimaryButton>Log in of maak profiel aan</PrimaryButton>
           </div>
@@ -51,6 +58,7 @@ export default function ProfilePage() {
             <li>Provincie en land: volgt</li>
             <li>Museumkaart: volgt</li>
             <li>Niveau kunstkennis: volgt</li>
+            <li>Voorkeursthema's: volgt</li>
           </ul>
         </div>
         <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">

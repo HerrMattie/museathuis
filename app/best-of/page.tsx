@@ -1,5 +1,31 @@
+import Link from "next/link";
 import { Badge } from "@/components/common/Badge";
 import { PremiumLabel } from "@/components/common/PremiumLabel";
+import { PrimaryButton } from "@/components/common/PrimaryButton";
+
+type BestOfCardProps = {
+  type: string;
+  title: string;
+  description: string;
+  stats: string;
+};
+
+function BestOfCard({ type, title, description, stats }: BestOfCardProps) {
+  return (
+    <div className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge>{type}</Badge>
+        <PremiumLabel />
+      </div>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 text-sm text-slate-300">{description}</p>
+      <p className="mt-2 text-xs text-slate-400">{stats}</p>
+      <div className="mt-3">
+        <PrimaryButton className="w-full">Bekijk dit onderdeel (voorbeeld)</PrimaryButton>
+      </div>
+    </div>
+  );
+}
 
 export default function BestOfPage() {
   return (
@@ -9,16 +35,19 @@ export default function BestOfPage() {
           Het beste van MuseaThuis
         </h1>
         <p className="text-sm text-slate-300">
-          Hier verschijnen straks de tours, spellen en focusmomenten met de beste
-          combinatie van waarderingen en gebruik. Per week en maand, per doelgroep.
+          Hier verschijnen straks de tours, spellen en focusmomenten die het beste scoren
+          op waardering en gebruik. Per week en maand, per doelgroep.
+        </p>
+        <p className="text-xs text-slate-400">
+          De huidige voorbeelden zijn democontent. In een volgende fase worden deze lijsten
+          gevuld op basis van echte ratings en gebruiksdata.
         </p>
       </header>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Top tours</h2>
         <p className="text-sm text-slate-300">
-          Gebaseerd op gemiddelde waardering, aantal beoordelingen en bekeken
-          minuten.
+          Gebaseerd op gemiddelde waardering, aantal beoordelingen en bekeken minuten.
         </p>
         <div className="grid gap-4 md:grid-cols-3">
           <BestOfCard
@@ -65,31 +94,19 @@ export default function BestOfPage() {
         <p>
           MuseaThuis combineert waarderingen, gebruiksdata en duur van interactie om
           te bepalen welke tours, spellen en focusmomenten het best aansluiten bij
-          de gebruikers. Deze data wordt geanonimiseerd en kan in samengevatte vorm
-          met musea gedeeld worden als doelgroepanalyse.
+          verschillende doelgroepen. Deze data wordt geanonimiseerd en alleen op
+          geaggregeerd niveau met musea gedeeld.
         </p>
       </section>
-    </div>
-  );
-}
 
-type BestOfCardProps = {
-  type: string;
-  title: string;
-  description: string;
-  stats: string;
-};
-
-function BestOfCard({ type, title, description, stats }: BestOfCardProps) {
-  return (
-    <div className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <Badge>{type}</Badge>
-        <PremiumLabel />
+      <div className="flex flex-wrap gap-3">
+        <Link href="/">
+          <PrimaryButton>Terug naar vandaag-overzicht</PrimaryButton>
+        </Link>
+        <Link href="/premium">
+          <PrimaryButton>Ontdek MuseaThuis Premium</PrimaryButton>
+        </Link>
       </div>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <p className="mt-1 text-sm text-slate-300">{description}</p>
-      <p className="mt-2 text-xs text-slate-400">{stats}</p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ export default function SalonPage() {
     {
       title: "Rijksmuseum-sfeer",
       description:
-        "Een klassieke Salonpresentatie met werken uit de Nederlandse Gouden Eeuw en daar omheen.",
+        "Klassieke Salonpresentatie met werken uit de Nederlandse zeventiende eeuw en omgeving.",
       duration: "ca. 20 minuten",
       works: "12 werken",
       premium: true,
@@ -15,7 +15,7 @@ export default function SalonPage() {
     {
       title: "Louvre-sfeer",
       description:
-        "Een selectie met rustiger tempo, geschikt als achtergrond bij een diner of avond met familie.",
+        "Rustige presentatie met bredere selectie, geschikt als achtergrond bij een diner of avond met familie.",
       duration: "ca. 25 minuten",
       works: "15 werken",
       premium: true,
@@ -23,7 +23,7 @@ export default function SalonPage() {
     {
       title: "Voorproef Salon",
       description:
-        "Korte gratis presentatie met een selectie van verschillende musea, bedoeld als kennismaking.",
+        "Korte gratis presentatie met een selectie van verschillende musea als kennismaking.",
       duration: "ca. 8 minuten",
       works: "6 werken",
       premium: false,
@@ -39,8 +39,8 @@ export default function SalonPage() {
           rustig op, bijna zonder tekst. Ideaal voor televisie of groot scherm.
         </p>
         <p className="text-xs text-slate-400">
-          Een deel van de Salonpresentaties is gratis. De volledige sets zijn
-          beschikbaar voor premiumleden.
+          Een deel van de Salonpresentaties is gratis. De volledige sets zijn beschikbaar
+          voor premiumleden.
         </p>
       </header>
       <div className="grid gap-4 md:grid-cols-3">
@@ -60,17 +60,22 @@ export default function SalonPage() {
               {set.duration} · {set.works}
             </p>
             <div className="mt-4">
-              <PrimaryButton className="w-full">Start presentatie</PrimaryButton>
+              <PrimaryButton className="w-full">
+                {set.premium ? "Bekijk Premium-set (voorbeeld)" : "Start gratis voorproef"}
+              </PrimaryButton>
             </div>
           </div>
         ))}
       </div>
       <section className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
-        <h2 className="text-base font-semibold">Stel je eigen Salon samen</h2>
+        <h2 className="text-base font-semibold">Toekomstige mogelijkheden</h2>
         <p>
-          In de volgende fase kunt u eigen Salonpresentaties samenstellen met filters
+          In een volgende fase kunt u zelf Salonpresentaties samenstellen met filters
           voor museum, periode, thema, techniek, kleuren en duur. MuseaThuis laat dan
           direct zien hoeveel werken aan uw filters voldoen.
+        </p>
+        <p className="text-xs text-slate-400">
+          Salon werkt goed via smart-tv of laptop met HDMI-kabel.
         </p>
       </section>
     </div>

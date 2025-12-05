@@ -11,6 +11,7 @@ export function BestOfPreview() {
       description:
         "Korte introductietour langs hoogtepunten uit The Met en het Art Institute of Chicago.",
       stats: "4,8 ★ · 320 keer bekeken",
+      href: "/best-of",
     },
     {
       type: "game",
@@ -18,13 +19,15 @@ export function BestOfPreview() {
       description:
         "Herken het juiste kunstwerk bij een fragment van de beschrijving. Speelduur ongeveer tien minuten.",
       stats: "4,6 ★ · 210 keer gespeeld",
+      href: "/best-of",
     },
     {
       type: "focus",
       title: "Beste focusmoment van deze week",
       description:
-        "Een rustig focusmoment bij één schilderij, met heldere uitleg en straks audio.",
+        "Rustig focusmoment bij één schilderij, met heldere uitleg en straks audio.",
       stats: "4,9 ★ · 180 keer bekeken",
+      href: "/best-of",
     },
   ];
 
@@ -42,28 +45,29 @@ export function BestOfPreview() {
         </Link>
       </div>
       <p className="text-sm text-slate-300">
-        Gebaseerd op waarderingen en gebruiksdata selecteert MuseaThuis elke
-        week en maand de beste tours, spellen en focusmomenten.
+        Gebaseerd op waarderingen en gebruiksdata selecteert MuseaThuis per week en maand de beste tours, spellen en focusmomenten.
       </p>
       <div className="grid gap-4 md:grid-cols-3">
         {items.map((item) => (
-          <Card key={item.title}>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <Badge>
-                  {item.type === "tour"
-                    ? "Tour"
-                    : item.type === "game"
-                    ? "Spel"
-                    : "Focusmoment"}
-                </Badge>
-                <PremiumLabel />
+          <Link key={item.title} href={item.href}>
+            <Card>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge>
+                    {item.type === "tour"
+                      ? "Tour"
+                      : item.type === "game"
+                      ? "Spel"
+                      : "Focusmoment"}
+                  </Badge>
+                  <PremiumLabel />
+                </div>
+                <h3 className="text-sm font-semibold">{item.title}</h3>
+                <p className="text-sm text-slate-300">{item.description}</p>
+                <p className="text-xs text-slate-400">{item.stats}</p>
               </div>
-              <h3 className="text-sm font-semibold">{item.title}</h3>
-              <p className="text-sm text-slate-300">{item.description}</p>
-              <p className="text-xs text-slate-400">{item.stats}</p>
-            </div>
-          </Card>
+            </Card>
+          </Link>
         ))}
       </div>
     </section>

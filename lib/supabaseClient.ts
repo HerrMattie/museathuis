@@ -16,7 +16,7 @@ export type PublicSupabaseClient = SupabaseClient;
 let browserClient: PublicSupabaseClient | null = null;
 
 /**
- * Client voor gebruik in components / client-side code.
+ * Client voor gebruik in components en andere client-side code.
  */
 export function supabaseBrowser(): PublicSupabaseClient {
   if (!browserClient) {
@@ -42,5 +42,5 @@ export function supabaseServer(): PublicSupabaseClient {
   });
 }
 
-// Eventuele directe client (als ergens `supabase` wordt gebruikt)
+// Directe client indien ergens `supabase` wordt gebruikt
 export const supabase: PublicSupabaseClient = supabaseBrowser();
