@@ -34,7 +34,7 @@ export function DayCard() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = supabaseBrowser();
+      const supabase = supabaseBrowser;
       const today = new Date().toISOString().slice(0, 10);
 
       const { data: tour } = await supabase
