@@ -1,6 +1,7 @@
 import "./globals.css";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { PageTracker } from "./PageTracker";
 
 export const metadata = {
   title: "MuseaThuis",
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps) {
   return (
     <html lang="nl">
       <body className="min-h-screen bg-slate-950 text-slate-50">
+        <PageTracker />
         <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
           <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-6">
             <Link href="/" className="font-semibold text-lg tracking-tight">
