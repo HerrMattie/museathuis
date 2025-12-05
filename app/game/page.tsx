@@ -101,7 +101,7 @@ export default function GameTodayPage() {
           </div>
         )}
 
-        {state === "empty" && state !== "loading" && (
+        {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
             Er is voor vandaag nog geen spel ingepland in het dagprogramma. Voeg in het CRM een
             spel toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.

@@ -137,7 +137,7 @@ export default function FocusTodayPage() {
           </div>
         )}
 
-        {state === "empty" && state !== "loading" && (
+        {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
             Er is voor vandaag nog geen focusmoment ingepland in het dagprogramma. Voeg in het CRM een
             focus-item toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.

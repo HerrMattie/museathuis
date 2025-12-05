@@ -42,7 +42,6 @@ export default function TourTodayPage() {
       const supabase = supabaseBrowser();
       const today = new Date().toISOString().slice(0, 10);
 
-      // 1. haal dagprogramma voor vandaag op
       const { data: scheduleRows, error: scheduleError } = await supabase
         .from("dayprogram_schedule")
         .select("tour_id")
@@ -58,7 +57,6 @@ export default function TourTodayPage() {
         return;
       }
 
-      // 2. haal tourmeta op
       const { data: tourRows, error: tourError } = await supabase
         .from("tours")
         .select("id, title")
@@ -73,7 +71,6 @@ export default function TourTodayPage() {
         return;
       }
 
-      // 3. haal tour_items op
       const { data: itemRows, error: itemsError } = await supabase
         .from("tour_items")
         .select("id, artwork_id, order_index, tour_text")
@@ -93,7 +90,6 @@ export default function TourTodayPage() {
         return;
       }
 
-      // 4. haal artworks op
       const { data: artworksData, error: artworksError } = await supabase
         .from("artworks")
         .select("id, title, artist_name, dating_text, image_url, location_city, location_country")
@@ -168,7 +164,7 @@ export default function TourTodayPage() {
           </div>
         )}
 
-        {state === "empty" && state !== "loading" && (
+        {state === "empty" && (
           <div className="rounded-3xl bg-slate-900/70 p-8 text-sm text-slate-300">
             Er is voor vandaag nog geen tour ingepland in het dagprogramma. Voeg in het CRM een tour
             toe aan de tabel <code>dayprogram_schedule</code> om deze pagina te vullen.
@@ -177,7 +173,6 @@ export default function TourTodayPage() {
 
         {state === "loaded" && active && (
           <div className="space-y-6">
-            {/* Theatermodus */}
             <section className="rounded-3xl bg-slate-900/80 p-4 sm:p-6 lg:p-8 shadow-xl shadow-black/40">
               <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-slate-900">
@@ -250,7 +245,6 @@ export default function TourTodayPage() {
               </div>
             </section>
 
-            {/* Mini-overzicht */}
             <section className="rounded-3xl bg-slate-900/60 p-4">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-300">
                 Overzicht van de tour
