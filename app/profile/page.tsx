@@ -116,7 +116,9 @@ export default function ProfilePage() {
               <option value="35-44">35-44</option>
               <option value="45-54">45-54</option>
               <option value="55-64">55-64</option>
-              <option value="65+">65+</option>
+              <option value="65-74">65-74</option>
+              <option value="75+">75+</option>
+
             </select>
           </div>
 
