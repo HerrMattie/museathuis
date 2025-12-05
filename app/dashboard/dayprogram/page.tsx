@@ -1,337 +1,517 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-type SimpleItem = {
+type ContentType = "tour" | "game" | "focus";
+
+interface SelectOption {
   id: string;
   title: string;
-};
+}
 
-type DayConfig = {
-  tour_id: string | null;
-  game_id: string | null;
-  focus_id: string | null;
-};
+interface SlotState {
+  slotIndex: number;
+  contentId: string | null;
+}
 
-type LoadState = "idle" | "loading" | "loaded" | "error";
+interface DayState {
+  date: string; // YYYY-MM-DD
+  label: string; // bijv. "VR 05-12"
+  slots: {
+    tour: SlotState[];
+    game: SlotState[];
+    focus: SlotState[];
+  };
+  saving: boolean;
+  dirty: boolean;
+}
 
-type DayInfo = {
-  label: string;
-  iso: string;
-};
+const SLOT_INDICES = [1, 2, 3];
 
-function getNextDays(count: number): DayInfo[] {
-  const result: DayInfo[] = [];
-  const formatter = new Intl.DateTimeFormat("nl-NL", {
+function formatDateLabel(date: Date): string {
+  return date.toLocaleDateString("nl-NL", {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
   });
+}
 
-  for (let i = 0; i < count; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    result.push({
-      iso,
-      label: formatter.format(d),
-    });
-  }
-
-  return result;
+function toDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 export default function DayprogramPage() {
-  const [state, setState] = useState<LoadState>("idle");
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [tours, setTours] = useState<SimpleItem[]>([]);
-  const [games, setGames] = useState<SimpleItem[]>([]);
-  const [focusItems, setFocusItems] = useState<SimpleItem[]>([]);
-
-  const [schedule, setSchedule] = useState<Record<string, DayConfig>>({});
-  const [savingDay, setSavingDay] = useState<string | null>(null);
-  const [savedIndicator, setSavedIndicator] = useState<Record<string, "idle" | "saved" | "error">>({});
-
-  const days = getNextDays(7);
+  const [days, setDays] = useState<DayState[]>([]);
+  const [tourOptions, setTourOptions] = useState<SelectOption[]>([]);
+  const [gameOptions, setGameOptions] = useState<SelectOption[]>([]);
+  const [focusOptions, setFocusOptions] = useState<SelectOption[]>([]);
 
   useEffect(() => {
-    void loadData();
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const supabase = supabaseBrowser;
+
+        // 1. Bepaal bereik: vandaag + 6 dagen
+        const today = new Date();
+        const dateRange: { date: Date; dateStr: string; label: string }[] = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(today);
+          d.setDate(today.getDate() + i);
+          dateRange.push({
+            date: d,
+            dateStr: toDateString(d),
+            label: formatDateLabel(d).toUpperCase(),
+          });
+        }
+        const startDate = dateRange[0].dateStr;
+        const endDate = dateRange[dateRange.length - 1].dateStr;
+
+        // 2. Haal contentopties op (tours, games, focus)
+        const [
+          toursRes,
+          gamesRes,
+          focusRes,
+          slotsRes,
+        ] = await Promise.all([
+          supabase
+            .from("tours")
+            .select("id, title")
+            .order("created_at", { ascending: false })
+            .limit(100),
+          supabase
+            .from("games")
+            .select("id, title")
+            .order("created_at", { ascending: false })
+            .limit(100),
+          supabase
+            .from("focus_items")
+            .select("id, title")
+            .order("created_at", { ascending: false })
+            .limit(100),
+          supabase
+            .from("dayprogram_slots")
+            .select("*")
+            .gte("day_date", startDate)
+            .lte("day_date", endDate),
+        ]);
+
+        if (toursRes.error) throw toursRes.error;
+        if (gamesRes.error) throw gamesRes.error;
+        if (focusRes.error) throw focusRes.error;
+        if (slotsRes.error) throw slotsRes.error;
+
+        const tours: SelectOption[] =
+          (toursRes.data ?? []).map((t: any) => ({
+            id: t.id,
+            title: t.title && t.title.trim() !== "" ? t.title : "Tour zonder titel",
+          })) ?? [];
+
+        const games: SelectOption[] =
+          (gamesRes.data ?? []).map((g: any) => ({
+            id: g.id,
+            title: g.title && g.title.trim() !== "" ? g.title : "Spel zonder titel",
+          })) ?? [];
+
+        const focus: SelectOption[] =
+          (focusRes.data ?? []).map((f: any) => ({
+            id: f.id,
+            title: f.title && f.title.trim() !== "" ? f.title : "Focusmoment zonder titel",
+          })) ?? [];
+
+        setTourOptions(tours);
+        setGameOptions(games);
+        setFocusOptions(focus);
+
+        // 3. Sloten per dag vullen
+        const slots = slotsRes.data ?? [];
+
+        const initialDays: DayState[] = dateRange.map((d) => ({
+          date: d.dateStr,
+          label: d.label,
+          slots: {
+            tour: SLOT_INDICES.map((i) => ({ slotIndex: i, contentId: null })),
+            game: SLOT_INDICES.map((i) => ({ slotIndex: i, contentId: null })),
+            focus: SLOT_INDICES.map((i) => ({ slotIndex: i, contentId: null })),
+          },
+          saving: false,
+          dirty: false,
+        }));
+
+        for (const row of slots) {
+          const dateStr: string = row.day_date;
+          const contentType: ContentType = row.content_type;
+          const slotIndex: number = row.slot_index;
+          const contentId: string = row.content_id;
+
+          const day = initialDays.find((d) => d.date === dateStr);
+          if (!day) continue;
+
+          if (!SLOT_INDICES.includes(slotIndex)) continue;
+
+          const slotArray = day.slots[contentType];
+          const idx = slotArray.findIndex((s) => s.slotIndex === slotIndex);
+          if (idx !== -1) {
+            slotArray[idx].contentId = contentId;
+          }
+        }
+
+        setDays(initialDays);
+      } catch (e: any) {
+        console.error(e);
+        setError(e.message ?? "Er ging iets mis bij het laden van het dagprogramma.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
   }, []);
 
-  async function loadData() {
-    setState("loading");
-    setError(null);
+  const getOptions = (contentType: ContentType): SelectOption[] => {
+    if (contentType === "tour") return tourOptions;
+    if (contentType === "game") return gameOptions;
+    return focusOptions;
+  };
 
-    try {
-      const supabase = supabaseBrowser();
-      const dayStart = days[0].iso;
-      const dayEnd = days[days.length - 1].iso;
-
-      const [toursRes, gamesRes, focusRes, scheduleRes] = await Promise.all([
-        supabase.from("tours").select("id, title").order("created_at", { ascending: false }),
-        supabase.from("games").select("id, title").order("created_at", { ascending: false }),
-        supabase.from("focus_items").select("id, title").order("created_at", { ascending: false }),
-        supabase
-          .from("dayprogram_schedule")
-          .select("day_date, tour_id, game_id, focus_id")
-          .gte("day_date", dayStart)
-          .lte("day_date", dayEnd),
-      ]);
-
-      if (toursRes.error) throw toursRes.error;
-      if (gamesRes.error) throw gamesRes.error;
-      if (focusRes.error) throw focusRes.error;
-      if (scheduleRes.error) throw scheduleRes.error;
-
-      setTours(
-        (toursRes.data ?? []).map((t: any) => ({
-          id: String(t.id),
-          title: t.title ?? "Naamloze tour",
-        }))
-      );
-
-      setGames(
-        (gamesRes.data ?? []).map((g: any) => ({
-          id: String(g.id),
-          title: g.title ?? "Naamloos spel",
-        }))
-      );
-
-      setFocusItems(
-        (focusRes.data ?? []).map((f: any) => ({
-          id: String(f.id),
-          title: f.title ?? "Naamloos focusmoment",
-        }))
-      );
-
-      const initialSchedule: Record<string, DayConfig> = {};
-      for (const day of days) {
-        initialSchedule[day.iso] = {
-          tour_id: null,
-          game_id: null,
-          focus_id: null,
-        };
-      }
-
-      (scheduleRes.data ?? []).forEach((row: any) => {
-        const key = row.day_date;
-        if (!initialSchedule[key]) {
-          initialSchedule[key] = {
-            tour_id: null,
-            game_id: null,
-            focus_id: null,
+  const handleSelectChange = (
+    dayDate: string,
+    contentType: ContentType,
+    slotIndex: number,
+    value: string
+  ) => {
+    setDays((prev) =>
+      prev.map((day) => {
+        if (day.date !== dayDate) return day;
+        const slots = { ...day.slots };
+        const arr = [...slots[contentType]];
+        const idx = arr.findIndex((s) => s.slotIndex === slotIndex);
+        if (idx !== -1) {
+          arr[idx] = {
+            ...arr[idx],
+            contentId: value === "" ? null : value,
           };
         }
-        initialSchedule[key] = {
-          tour_id: row.tour_id ? String(row.tour_id) : null,
-          game_id: row.game_id ? String(row.game_id) : null,
-          focus_id: row.focus_id ? String(row.focus_id) : null,
+        slots[contentType] = arr as any;
+        return {
+          ...day,
+          slots,
+          dirty: true,
         };
-      });
+      })
+    );
+  };
 
-      setSchedule(initialSchedule);
-      setState("loaded");
-    } catch (e: any) {
-      console.error("Fout bij laden dagprogramma:", e);
-      setError("Het dagprogramma kon niet worden geladen.");
-      setState("error");
+  const handleGenerate = (
+    dayDate: string,
+    contentType: ContentType,
+    slotIndex: number
+  ) => {
+    const opts = getOptions(contentType);
+    if (!opts.length) {
+      alert("Er is nog geen inhoud beschikbaar om te koppelen.");
+      return;
     }
-  }
+    const random = opts[Math.floor(Math.random() * opts.length)];
+    handleSelectChange(dayDate, contentType, slotIndex, random.id);
+  };
 
-  function updateDay(dayKey: string, partial: Partial<DayConfig>) {
-    setSchedule((prev) => ({
-      ...prev,
-      [dayKey]: {
-        tour_id: prev[dayKey]?.tour_id ?? null,
-        game_id: prev[dayKey]?.game_id ?? null,
-        focus_id: prev[dayKey]?.focus_id ?? null,
-        ...partial,
-      },
-    }));
-    setSavedIndicator((prev) => ({
-      ...prev,
-      [dayKey]: "idle",
-    }));
-  }
+  const handleClear = (
+    dayDate: string,
+    contentType: ContentType,
+    slotIndex: number
+  ) => {
+    handleSelectChange(dayDate, contentType, slotIndex, "");
+  };
 
-  async function handleSaveDay(dayKey: string) {
-    const cfg = schedule[dayKey] ?? { tour_id: null, game_id: null, focus_id: null };
-
-    setSavingDay(dayKey);
-    setError(null);
-    setSavedIndicator((prev) => ({ ...prev, [dayKey]: "idle" }));
-
+  const handleSaveDay = async (dayDate: string) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.date === dayDate ? { ...d, saving: true, dirty: false } : d
+      )
+    );
     try {
-      const supabase = supabaseBrowser();
+      const supabase = supabaseBrowser;
+      const day = days.find((d) => d.date === dayDate);
+      if (!day) return;
 
-      const { error: upsertError } = await supabase
-        .from("dayprogram_schedule")
-        .upsert(
-          {
-            day_date: dayKey,
-            tour_id: cfg.tour_id || null,
-            game_id: cfg.game_id || null,
-            focus_id: cfg.focus_id || null,
-          },
-          { onConflict: "day_date" }
-        );
+      // Voor elk contentType: bestaande regels verwijderen en nieuwe invoegen
+      for (const contentType of ["tour", "game", "focus"] as ContentType[]) {
+        const slotArray = day.slots[contentType];
 
-      if (upsertError) {
-        console.error("Dagprogramma upsert error:", upsertError);
-        throw upsertError;
+        // Eerst alles voor deze dag + contentType verwijderen
+        const { error: delError } = await supabase
+          .from("dayprogram_slots")
+          .delete()
+          .eq("day_date", dayDate)
+          .eq("content_type", contentType);
+        if (delError) throw delError;
+
+        // Dan alleen ingevulde slots opnieuw schrijven
+        const rowsToInsert = slotArray
+          .filter((s) => s.contentId)
+          .map((s) => ({
+            day_date: dayDate,
+            content_type: contentType,
+            slot_index: s.slotIndex,
+            content_id: s.contentId,
+            is_premium: s.slotIndex > 1,
+            status: "published",
+          }));
+
+        if (rowsToInsert.length > 0) {
+          const { error: insError } = await supabase
+            .from("dayprogram_slots")
+            .insert(rowsToInsert);
+          if (insError) throw insError;
+        }
       }
-
-      setSavedIndicator((prev) => ({ ...prev, [dayKey]: "saved" }));
     } catch (e: any) {
-      console.error("Fout bij opslaan dagprogramma:", e);
-      setError("Er ging iets mis bij het opslaan van een dag in het dagprogramma.");
-      setSavedIndicator((prev) => ({ ...prev, [dayKey]: "error" }));
-    } finally {
-      setSavingDay(null);
+      console.error(e);
+      setError(e.message ?? "Opslaan van het dagprogramma is mislukt.");
+      // in geval van fout: markeer dag weer als dirty zodat gebruiker het weet
+      setDays((prev) =>
+        prev.map((d) =>
+          d.date === dayDate ? { ...d, dirty: true, saving: false } : d
+        )
+      );
+      return;
     }
+
+    setDays((prev) =>
+      prev.map((d) =>
+        d.date === dayDate ? { ...d, saving: false, dirty: false } : d
+      )
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="px-8 py-10">
+        <h1 className="text-2xl font-semibold text-slate-50 mb-4">
+          Dagprogramma
+        </h1>
+        <p className="text-slate-300 text-sm">Dagprogramma wordt geladen...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-8 py-10">
+        <h1 className="text-2xl font-semibold text-slate-50 mb-4">
+          Dagprogramma
+        </h1>
+        <p className="text-sm text-red-300 mb-4">{error}</p>
+        <p className="text-slate-300 text-sm">
+          Vernieuw de pagina of controleer de databaseverbinding in Supabase.
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
-              Dashboard
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-50">
-              Dagprogramma
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
-              Stel per dag samen welke tour, welk spel en welk focusmoment zichtbaar zijn op de
-              voorpagina. Spellen zijn optioneel; u kunt ook alleen een tour en focusmoment plannen.
-            </p>
-          </div>
-          <div className="text-xs text-slate-400">
-            <Link
-              href="/dashboard"
-              className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-900"
-            >
-              Terug naar dashboard
-            </Link>
-          </div>
-        </header>
+    <div className="px-8 py-10 space-y-8">
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-50 mb-2">
+          Dagprogramma
+        </h1>
+        <p className="text-sm text-slate-300 max-w-2xl">
+          Stel per dag samen welke tour, welk spel en welk focusmoment beschikbaar zijn. 
+          Per type kunt u maximaal drie slots gebruiken: één gratis (slot 1) en twee premiumsloten (slot 2 en 3).
+        </p>
+      </header>
 
-        {state === "loading" && (
-          <div className="rounded-3xl bg-slate-900/70 p-6 text-sm text-slate-300">
-            Dagprogramma wordt geladen…
-          </div>
-        )}
-
-        {state === "error" && (
-          <div className="rounded-3xl bg-red-950/40 p-6 text-sm text-red-100">
-            {error ?? "Er ging iets mis bij het laden van het dagprogramma."}
-          </div>
-        )}
-
-        {state === "loaded" && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {days.map((day) => {
-              const cfg = schedule[day.iso] ?? { tour_id: null, game_id: null, focus_id: null };
-              const isSaving = savingDay === day.iso;
-              const indicator = savedIndicator[day.iso] ?? "idle";
-
-              return (
-                <div
-                  key={day.iso}
-                  className="flex flex-col rounded-3xl bg-slate-900/80 p-4 text-sm text-slate-200"
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
-                      {day.label}
-                    </div>
-                    <div className="text-[11px] text-slate-500">{day.iso}</div>
-                  </div>
-
-                  <label className="mt-2 block text-[11px] font-medium text-slate-400">
-                    Tour
-                    <select
-                      className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100"
-                      value={cfg.tour_id ?? ""}
-                      onChange={(e) =>
-                        updateDay(day.iso, {
-                          tour_id: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value="">Geen tour</option>
-                      {tours.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="mt-3 block text-[11px] font-medium text-slate-400">
-                    Spel (optioneel)
-                    <select
-                      className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100"
-                      value={cfg.game_id ?? ""}
-                      onChange={(e) =>
-                        updateDay(day.iso, {
-                          game_id: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value="">Geen spel</option>
-                      {games.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="mt-3 block text-[11px] font-medium text-slate-400">
-                    Focusmoment
-                    <select
-                      className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950/70 px-2 py-1.5 text-xs text-slate-100"
-                      value={cfg.focus_id ?? ""}
-                      onChange={(e) =>
-                        updateDay(day.iso, {
-                          focus_id: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value="">Geen focusmoment</option>
-                      {focusItems.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveDay(day.iso)}
-                      disabled={isSaving}
-                      className="inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-400 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-60"
-                    >
-                      {isSaving ? "Opslaan…" : "Dag opslaan"}
-                    </button>
-                    {indicator === "saved" && (
-                      <span className="text-[11px] text-emerald-300">Opgeslagen</span>
-                    )}
-                    {indicator === "error" && (
-                      <span className="text-[11px] text-red-300">Niet opgeslagen</span>
-                    )}
-                  </div>
+      <div className="grid gap-6">
+        {days.map((day) => (
+          <section
+            key={day.date}
+            className="rounded-3xl bg-slate-900/70 border border-slate-800 p-6 space-y-4"
+          >
+            <div className="flex items-baseline justify-between gap-4">
+              <div>
+                <div className="text-xs font-semibold tracking-[0.2em] text-amber-400 uppercase">
+                  Dagprogramma
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <div className="flex items-baseline gap-3">
+                  <h2 className="text-lg font-semibold text-slate-50">
+                    {day.label}
+                  </h2>
+                  <span className="text-xs text-slate-400">
+                    {day.date}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                {day.dirty && (
+                  <span className="text-amber-300">Niet opgeslagen</span>
+                )}
+                <button
+                  onClick={() => handleSaveDay(day.date)}
+                  disabled={day.saving}
+                  className="inline-flex items-center rounded-full bg-amber-400 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-300 disabled:opacity-60 disabled:hover:bg-amber-400"
+                >
+                  {day.saving ? "Opslaan..." : "Dag opslaan"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <DayProgramColumn
+                title="Tour"
+                description="Kies tot drie tours: één gratis en twee premium."
+                day={day}
+                contentType="tour"
+                options={tourOptions}
+                onSelectChange={handleSelectChange}
+                onGenerate={handleGenerate}
+                onClear={handleClear}
+              />
+              <DayProgramColumn
+                title="Spel"
+                description="Kies tot drie spellen. Spellen zijn optioneel."
+                day={day}
+                contentType="game"
+                options={gameOptions}
+                onSelectChange={handleSelectChange}
+                onGenerate={handleGenerate}
+                onClear={handleClear}
+              />
+              <DayProgramColumn
+                title="Focusmoment"
+                description="Kies tot drie focusmomenten per dag."
+                day={day}
+                contentType="focus"
+                options={focusOptions}
+                onSelectChange={handleSelectChange}
+                onGenerate={handleGenerate}
+                onClear={handleClear}
+              />
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface ColumnProps {
+  title: string;
+  description: string;
+  day: DayState;
+  contentType: ContentType;
+  options: SelectOption[];
+  onSelectChange: (
+    dayDate: string,
+    contentType: ContentType,
+    slotIndex: number,
+    value: string
+  ) => void;
+  onGenerate: (
+    dayDate: string,
+    contentType: ContentType,
+    slotIndex: number
+  ) => void;
+  onClear: (
+    dayDate: string,
+    contentType: ContentType,
+    slotIndex: number
+  ) => void;
+}
+
+function DayProgramColumn(props: ColumnProps) {
+  const {
+    title,
+    description,
+    day,
+    contentType,
+    options,
+    onSelectChange,
+    onGenerate,
+    onClear,
+  } = props;
+
+  const labelForSlot = (slotIndex: number) => {
+    if (slotIndex === 1) return "Gratis slot";
+    return `Premium slot ${slotIndex - 1}`;
+  };
+
+  return (
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-100">{title}</h3>
+        <p className="text-xs text-slate-400 mt-1">{description}</p>
+      </div>
+
+      <div className="space-y-3">
+        {SLOT_INDICES.map((slotIndex) => {
+          const slotArray = day.slots[contentType];
+          const slot = slotArray.find((s) => s.slotIndex === slotIndex);
+          const value = slot?.contentId ?? "";
+
+          return (
+            <div
+              key={slotIndex}
+              className="rounded-xl bg-slate-950/60 border border-slate-800/80 p-3 space-y-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-200">
+                  {labelForSlot(slotIndex)}
+                </span>
+                {slotIndex === 1 ? (
+                  <span className="text-[10px] text-emerald-300 bg-emerald-900/40 rounded-full px-2 py-0.5">
+                    Gratis
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-300 bg-amber-900/40 rounded-full px-2 py-0.5">
+                    Premium
+                  </span>
+                )}
+              </div>
+
+              <select
+                value={value}
+                onChange={(e) =>
+                  onSelectChange(day.date, contentType, slotIndex, e.target.value)
+                }
+                className="w-full rounded-full bg-slate-900 border border-slate-700 px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400/70"
+              >
+                <option value="">Geen inhoud gekoppeld</option>
+                {options.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.title}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onGenerate(day.date, contentType, slotIndex)}
+                  className="inline-flex items-center rounded-full border border-amber-400/70 px-3 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-400/10"
+                >
+                  Genereer voorstel
+                </button>
+                {value && (
+                  <button
+                    type="button"
+                    onClick={() => onClear(day.date, contentType, slotIndex)}
+                    className="inline-flex items-center rounded-full border border-slate-600 px-3 py-1 text-[11px] font-medium text-slate-300 hover:bg-slate-800"
+                  >
+                    Verwijder
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
