@@ -10,8 +10,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-// Client-side / browserclient met anonieme key
+// Browser/client-side Supabase instance met anonieme key
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Alias voor bestaande code die supabaseBrowser verwacht (bijv. DayCard.tsx)
+export const supabaseBrowser = supabase;
 
 // Server-side client voor API-routes en backend-taken (service role key)
 export function supabaseServer() {
