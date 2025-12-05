@@ -1,55 +1,96 @@
 // app/best-of/page.tsx
-import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { Badge } from "@/components/common/Badge";
+import { PremiumLabel } from "@/components/common/PremiumLabel";
 
-export const dynamic = "force-dynamic";
-
-export default async function BestOfPage() {
-  const supabase = getSupabaseServerClient();
-
-  const { data } = await supabase
-    .from("v_best_of_museathuis")
-    .select("*")
-    .order("avg_rating", { ascending: false })
-    .limit(30);
-
+export default function BestOfPage() {
   return (
-    <main className="max-w-5xl mx-auto py-12 space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold mb-2">Het beste van MuseaThuis</h1>
-        <p className="text-sm text-muted-foreground">
-          Tours, spellen en focusmomenten met de hoogste waarderingen.
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Het beste van MuseaThuis
+        </h1>
+        <p className="text-sm text-slate-300">
+          Hier verschijnen straks de tours, spellen en focusmomenten met de beste
+          combinatie van waarderingen en gebruik. Per week en maand, per doelgroep.
         </p>
       </header>
 
-      <section className="grid md:grid-cols-2 gap-4">
-        {data?.map((item) => (
-          <div
-            key={`${item.content_type}-${item.content_id}`}
-            className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2"
-          >
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              {item.content_type === "tour"
-                ? "Tour"
-                : item.content_type === "game"
-                ? "Spel"
-                : "Focusmoment"}
-            </p>
-            <h2 className="text-base font-medium">{item.title}</h2>
-            {item.theme && (
-              <p className="text-xs text-muted-foreground">
-                Thema: {item.theme}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Gemiddelde waardering:{" "}
-              <span className="font-semibold">
-                {item.avg_rating ? item.avg_rating.toFixed(1) : "–"}
-              </span>{" "}
-              ({item.rating_count ?? 0} beoordelingen)
-            </p>
-          </div>
-        ))}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Top tours</h2>
+        <p className="text-sm text-slate-300">
+          Gebaseerd op gemiddelde waardering, aantal beoordelingen en bekeken
+          minuten.
+        </p>
+        <div className="grid gap-4 md:grid-cols-3">
+          <BestOfCard
+            type="Tour"
+            title="Weekselectie: Introductie Gouden Eeuw"
+            description="Korte tour langs drie kernwerken, geschikt voor beginnende kunstliefhebbers."
+            stats="4,8 ★ · 320 beoordelingen · 1.200 weergaven"
+          />
+          <BestOfCard
+            type="Tour"
+            title="Weekselectie: Portret en identiteit"
+            description="Tour met vijf portretten die laten zien hoe identiteit in beeld wordt gebracht."
+            stats="4,7 ★ · 210 beoordelingen · 980 weergaven"
+          />
+        </div>
       </section>
-    </main>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Top spellen</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <BestOfCard
+            type="Spel"
+            title="Herken het detail"
+            description="Kies het juiste kunstwerk bij een ingezoomd detail. Speelduur ongeveer tien minuten."
+            stats="4,6 ★ · 260 beoordelingen · 1.500 spellen"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Top focusmomenten</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <BestOfCard
+            type="Focusmoment"
+            title="Stilleven met glaswerk"
+            description="Rustig focusmoment bij een schilderij waarin licht, glas en reflecties centraal staan."
+            stats="4,9 ★ · 180 beoordelingen · 900 weergaven"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-300">
+        <h2 className="mb-1 text-base font-semibold">Hoe selecteren wij het beste</h2>
+        <p>
+          MuseaThuis combineert waarderingen, gebruiksdata en duur van interactie om
+          te bepalen welke tours, spellen en focusmomenten het best aansluiten bij
+          de gebruikers. Deze data wordt geanonimiseerd en kan in samengevatte vorm
+          met musea gedeeld worden als doelgroepanalyse.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+type BestOfCardProps = {
+  type: string;
+  title: string;
+  description: string;
+  stats: string;
+};
+
+function BestOfCard({ type, title, description, stats }: BestOfCardProps) {
+  return (
+    <div className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="mb-2 flex items-center gap-2">
+        <Badge>{type}</Badge>
+        <PremiumLabel />
+      </div>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 text-sm text-slate-300">{description}</p>
+      <p className="mt-2 text-xs text-slate-400">{stats}</p>
+    </div>
   );
 }
