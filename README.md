@@ -1,6 +1,6 @@
 # MuseaThuis Full Release Skeleton
 
-Dit is een basisproject voor MuseaThuis optie E.
+Dit is een basisproject voor MuseaThuis optie E. 
 
 ## Installatie
 
