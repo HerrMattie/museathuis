@@ -15,6 +15,11 @@ export default function CrmDashboardPage() {
       </p>
       <ul className="list-disc list-inside text-sm text-slate-200 space-y-1">
         <li>
+          <a href="/dashboard/crm/day-program" className="underline">
+            Dagprogramma (tour, spel, focus)
+          </a>
+        </li>
+        <li>
           <a href="/dashboard/crm/tours" className="underline">
             Dagtours beheren
           </a>
