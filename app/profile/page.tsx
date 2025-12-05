@@ -1,235 +1,93 @@
-"use client";
+// app/profile/page.tsx
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
 
-type Profile = {
-  display_name?: string | null;
-  age_group?: string | null;
-  gender?: string | null;
-  province?: string | null;
-  country?: string | null;
-  has_museum_card?: boolean | null;
-  education_level?: string | null;
-  art_interest_level?: string | null;
-  favorite_periods?: string | null;
-  favorite_museums?: string | null;
-};
+export default async function ProfilePage() {
+  const supabase = getSupabaseServerClient();
 
-export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Aanname: je hebt auth elders geregeld en user_id beschikbaar via RLS;
+  // voor nu halen we het eerste profiel op ter demonstratie.
+  const { data: profiles } = await supabase
+    .from("user_profiles")
+    .select("*")
+    .limit(1);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/profile/get", { cache: "no-store" });
-        const data = await res.json();
-        if (data.error) {
-          setError("Profiel kon niet worden geladen.");
-          setLoading(false);
-          return;
-        }
-        setProfile(data.profile || {});
-        setLoading(false);
-      } catch (e) {
-        console.error(e);
-        setError("Profiel kon niet worden geladen.");
-        setLoading(false);
-      }
-    };
+  const profile = profiles?.[0];
 
-    load();
-  }, []);
-
-  const updateField = (field: keyof Profile, value: any) => {
-    setProfile((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setMessage(null);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/profile/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok || data.error) {
-        setError("Opslaan van je profiel is niet gelukt.");
-        setSaving(false);
-        return;
-      }
-
-      setMessage("Je profiel is opgeslagen.");
-      setSaving(false);
-    } catch (e) {
-      console.error(e);
-      setError("Opslaan van je profiel is niet gelukt.");
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return <p>Profiel wordt geladen...</p>;
-  }
+  const { data: badges } = await supabase
+    .from("user_badges")
+    .select("*, badge:badges(name, description, level)")
+    .limit(20);
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">Jouw profiel</h1>
-        <p className="text-sm text-slate-300">
-          Vul je demografische gegevens en voorkeuren in. Deze gegevens worden geanonimiseerd gebruikt
-          voor analyses richting musea.
+    <main className="max-w-4xl mx-auto py-12 space-y-8">
+      <header>
+        <h1 className="text-3xl font-semibold mb-2">Jouw profiel</h1>
+        <p className="text-sm text-muted-foreground">
+          Inzicht in je gegevens, premiumstatus en badges. 
         </p>
       </header>
 
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4 bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6"
-      >
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Naam of alias</label>
-          <input
-            type="text"
-            value={profile.display_name ?? ""}
-            onChange={(e) => updateField("display_name", e.target.value)}
-            className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-          />
+      <section className="grid gap-4">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
+          <h2 className="text-base font-semibold">Profiel en demografie</h2>
+          {profile ? (
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Naam of alias: {profile.display_name ?? "–"}</p>
+              <p>Leeftijdscategorie: {profile.age_category ?? "–"}</p>
+              <p>Provincie: {profile.province ?? "–"}</p>
+              <p>Land: {profile.country ?? "–"}</p>
+              <p>Museumkaart: {profile.has_museum_card ? "Ja" : "Nee"}</p>
+              <p>Niveau kunstkennis: {profile.knowledge_level ?? "–"}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Er is nog geen profiel opgeslagen.
+            </p>
+          )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Leeftijdscategorie</label>
-            <select
-              value={profile.age_group ?? ""}
-              onChange={(e) => updateField("age_group", e.target.value || null)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-            >
-              <option value="">Selecteer...</option>
-              <option value="18-24">18-24</option>
-              <option value="25-34">25-34</option>
-              <option value="35-44">35-44</option>
-              <option value="45-54">45-54</option>
-              <option value="55-64">55-64</option>
-              <option value="65-74">65-74</option>
-              <option value="75+">75+</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Geslacht</label>
-            <select
-              value={profile.gender ?? ""}
-              onChange={(e) => updateField("gender", e.target.value || null)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-            >
-              <option value="">Selecteer...</option>
-              <option value="vrouw">Vrouw</option>
-              <option value="man">Man</option>
-              <option value="anders / zeg ik liever niet">Anders / zeg ik liever niet</option>
-            </select>
-          </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
+          <h2 className="text-base font-semibold">Premium</h2>
+          {profile?.is_premium ? (
+            <p className="text-sm text-green-400">
+              Je bent premiumlid sinds {profile.premium_since ?? "onbekend"}.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Je hebt nog geen premiumlidmaatschap. Als premiumlid krijg je
+              toegang tot alle tours, spellen en focusmomenten en de Academie.
+            </p>
+          )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Provincie</label>
-            <input
-              type="text"
-              value={profile.province ?? ""}
-              onChange={(e) => updateField("province", e.target.value)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Land</label>
-            <input
-              type="text"
-              value={profile.country ?? ""}
-              onChange={(e) => updateField("country", e.target.value)}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-            />
-          </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
+          <h2 className="text-base font-semibold">Badges</h2>
+          {badges && badges.length > 0 ? (
+            <div className="grid md:grid-cols-2 gap-3">
+              {badges.map((b: any) => (
+                <div
+                  key={b.id}
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm"
+                >
+                  <p className="font-medium">{b.badge?.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {b.badge?.description}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Niveau: {b.badge?.level ?? "-"} · Gehaald: {b.times_awarded ?? 1}x
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Je hebt nog geen badges verdiend.
+            </p>
+          )}
         </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Museumkaart</label>
-          <div className="flex gap-4 text-sm">
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="radio"
-                checked={profile.has_museum_card === true}
-                onChange={() => updateField("has_museum_card", true)}
-              />
-              <span>Ja</span>
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="radio"
-                checked={profile.has_museum_card === false}
-                onChange={() => updateField("has_museum_card", false)}
-              />
-              <span>Nee</span>
-            </label>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Niveau kunstkennis</label>
-          <select
-            value={profile.art_interest_level ?? ""}
-            onChange={(e) => updateField("art_interest_level", e.target.value || null)}
-            className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-          >
-            <option value="">Selecteer...</option>
-            <option value="instapper">Instapper</option>
-            <option value="liefhebber">Liefhebber</option>
-            <option value="vergevorderd">Vergevorderd</option>
-            <option value="professional">Professional</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Favoriete periodes / thema's</label>
-          <textarea
-            value={profile.favorite_periods ?? ""}
-            onChange={(e) => updateField("favorite_periods", e.target.value)}
-            className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-            rows={2}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Favoriete musea</label>
-          <textarea
-            value={profile.favorite_museums ?? ""}
-            onChange={(e) => updateField("favorite_museums", e.target.value)}
-            className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-sm"
-            rows={2}
-          />
-        </div>
-
-        <div className="pt-2 flex items-center gap-4">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-4 py-2 rounded-full border border-slate-600 text-sm disabled:opacity-50"
-          >
-            {saving ? "Opslaan..." : "Profiel opslaan"}
-          </button>
-          {message && <p className="text-xs text-emerald-400">{message}</p>}
-          {error && <p className="text-xs text-red-500">{error}</p>}
-        </div>
-      </form>
-    </div>
+      </section>
+    </main>
   );
 }
