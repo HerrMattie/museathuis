@@ -1,18 +1,55 @@
-export default function TourPage() {
+// app/tour/page.tsx
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
+
+export const dynamic = "force-dynamic";
+
+export default async function TourOverviewPage() {
+  const supabase = getSupabaseServerClient();
+
+  const { data: tours } = await supabase
+    .from("tours")
+    .select("id, tour_date, title, theme, is_premium, status")
+    .order("tour_date", { ascending: false })
+    .limit(30);
+
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-semibold">Dagelijkse Tour</h2>
-      <p className="text-slate-300 max-w-2xl">
-        Hier komt de volledige tourervaring: introductietekst, de drie werken
-        met afbeelding, metadata en 3-minuten audio per werk. Dit scherm wordt
-        straks gevuld vanuit de tabel <code>tours</code> en{" "}
-        <code>tour_items</code>.
-      </p>
-      <p className="text-slate-400 text-sm">
-        Voor nu is dit een statische placeholder zodat de structuur schoon en
-        stabiel is. De Supabase-koppeling kun je later stap voor stap
-        toevoegen.
-      </p>
-    </div>
+    <main className="max-w-5xl mx-auto py-12 space-y-6">
+      <header>
+        <h1 className="text-3xl font-semibold mb-2">Tours</h1>
+        <p className="text-sm text-muted-foreground">
+          Overzicht van recente dagtours. Gepubliceerde tours zijn ook
+          terug te kijken.
+        </p>
+      </header>
+
+      <section className="grid gap-4">
+        {tours?.map((tour) => (
+          <a
+            key={tour.id}
+            href="/tour/today?date="
+            className="block rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 hover:border-slate-600"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {tour.tour_date} · {tour.status}
+                </p>
+                <p className="text-base font-medium">{tour.title}</p>
+                {tour.theme && (
+                  <p className="text-xs text-muted-foreground">
+                    Thema: {tour.theme}
+                  </p>
+                )}
+              </div>
+              {tour.is_premium && (
+                <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border border-yellow-500/40 text-yellow-400">
+                  Premium
+                </span>
+              )}
+            </div>
+          </a>
+        ))}
+      </section>
+    </main>
   );
 }
