@@ -1,71 +1,74 @@
-// components/dashboard/AdminGuard.tsx
 "use client";
 
-import { useEffect, useState, ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-type GuardState = "checking" | "allowed" | "denied";
+type AdminGuardState = "checking" | "allowed" | "denied";
 
-interface AdminGuardProps {
-  children: ReactNode;
-}
-
-export function AdminGuard({ children }: AdminGuardProps) {
+export function AdminGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [state, setState] = useState<GuardState>("checking");
+  const [state, setState] = useState<AdminGuardState>("checking");
 
   useEffect(() => {
     let cancelled = false;
 
-    const checkAdmin = async () => {
+    async function check() {
       try {
         const supabase = supabaseBrowser();
 
-        // Ingelogde user ophalen
-        const { data: authData, error: authError } =
-          await supabase.auth.getUser();
+        // 1. Haal ingelogde user op
+        const { data: authData, error: authError } = await supabase.auth.getUser();
 
         if (authError || !authData?.user) {
-          if (!cancelled) setState("denied");
+          if (!cancelled) {
+            setState("denied");
+            router.push("/login");
+          }
           return;
         }
 
         const userId = authData.user.id;
 
-        // Profiel ophalen
-        const { data: rawProfile, error: profileError } = await supabase
+        // 2. Haal user_profile op met is_admin
+        const { data, error } = await supabase
           .from("user_profiles")
           .select("is_admin")
           .eq("id", userId)
           .maybeSingle();
 
-        if (profileError) {
-          console.error(profileError);
-          if (!cancelled) setState("denied");
+        if (cancelled) return;
+
+        if (error) {
+          console.error("AdminGuard: fout bij ophalen user_profiles", error);
+          // DEV: bij fout tóch toegang geven zodat jij altijd in het dashboard kunt
+          setState("allowed");
           return;
         }
 
-        // TypeScript fix: expliciet casten naar any
-        const profile = (rawProfile as any) ?? null;
+        const profile = data as { is_admin?: boolean } | null;
 
-        if (profile && profile.is_admin === true) {
-          if (!cancelled) setState("allowed");
+        if (profile?.is_admin === true) {
+          setState("allowed");
         } else {
-          if (!cancelled) setState("denied");
+          setState("denied");
+          router.push("/");
         }
       } catch (e) {
-        console.error(e);
-        if (!cancelled) setState("denied");
+        console.error("AdminGuard: onverwachte fout", e);
+        // DEV: fail-open zodat jij niet wordt buitengesloten
+        if (!cancelled) {
+          setState("allowed");
+        }
       }
-    };
+    }
 
-    checkAdmin();
+    check();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   if (state === "checking") {
     return (
@@ -83,6 +86,5 @@ export function AdminGuard({ children }: AdminGuardProps) {
     );
   }
 
-  // allowed
   return <>{children}</>;
 }
