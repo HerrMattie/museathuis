@@ -48,6 +48,7 @@ export async function POST(req: Request) {
   const dayDate: string | undefined = body?.dayDate;
   const contentType: ContentType | undefined = body?.contentType;
   const mode: Mode = body?.mode === "alternative" ? "alternative" : "proposal";
+  const userId: string | undefined = body?.userId; // optioneel, kan later via auth helpers
 
   if (!dayDate || !contentType) {
     return NextResponse.json(
@@ -60,10 +61,7 @@ export async function POST(req: Request) {
   const tableName = getTableName(contentType);
 
   // 1. Haal kandidaten op
-  const candidatesRes = await supabase
-    .from(tableName)
-    .select("id")
-    .limit(100);
+  const candidatesRes = await supabase.from(tableName).select("id").limit(100);
 
   if (candidatesRes.error) {
     console.error("Error fetching candidates", candidatesRes.error);
@@ -90,6 +88,22 @@ export async function POST(req: Request) {
   const shuffled = shuffle(candidateIds);
   const selected = shuffled.slice(0, 3);
 
+  // 2. Haal bestaande slots op voor logging
+  const existingRes = await supabase
+    .from("dayprogram_slots")
+    .select("slot_index, content_id")
+    .eq("day_date", dayDate)
+    .eq("content_type", contentType);
+
+  if (existingRes.error) {
+    console.error("Error fetching existing dayprogram_slots", existingRes.error);
+  }
+
+  const existingBySlot: Record<number, string | null> = {};
+  (existingRes.data ?? []).forEach((row: any) => {
+    existingBySlot[row.slot_index] = row.content_id;
+  });
+
   const rows = [1, 2, 3].map((slotIndex) => ({
     day_date: dayDate,
     content_type: contentType,
@@ -111,6 +125,26 @@ export async function POST(req: Request) {
       { error: "Fout bij opslaan van dagprogramma" },
       { status: 500 }
     );
+  }
+
+  // 3. Log wijzigingen in dayprogram_events
+  const eventsPayload = rows.map((row) => ({
+    day_date: row.day_date,
+    content_type: row.content_type,
+    slot_index: row.slot_index,
+    old_content_id: existingBySlot[row.slot_index] ?? null,
+    new_content_id: row.content_id,
+    user_id: userId ?? null,
+    action: mode === "alternative" ? "generate_alternative" : "generate_proposal",
+    metadata: {},
+  }));
+
+  const logRes = await supabase
+    .from("dayprogram_events")
+    .insert(eventsPayload);
+
+  if (logRes.error) {
+    console.error("Error logging dayprogram_events", logRes.error);
   }
 
   return NextResponse.json(
