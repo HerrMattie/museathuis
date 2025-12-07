@@ -1,3 +1,4 @@
+// app/api/dayprogram/generate/route.ts
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabaseClient";
 
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
   const supabase = getSupabaseServer();
   const tableName = getTableName(contentType);
 
+  // 1. Haal kandidaten op
   const candidatesRes = await supabase.from(tableName).select("id").limit(100);
 
   if (candidatesRes.error) {
@@ -80,6 +82,7 @@ export async function POST(req: Request) {
   const shuffled = shuffle(candidateIds);
   const selected = shuffled.slice(0, 3);
 
+  // 2. Bestaande slots voor logging
   const existingRes = await supabase
     .from("dayprogram_slots")
     .select("slot_index, content_id")
@@ -95,7 +98,8 @@ export async function POST(req: Request) {
     existingBySlot[row.slot_index] = row.content_id;
   });
 
-  const rows = [1, 2, 3].map((slotIndex) => ({
+  // 3. Nieuwe rows voorbereiden
+  const rows: any[] = [1, 2, 3].map((slotIndex) => ({
     day_date: dayDate,
     content_type: contentType,
     slot_index: slotIndex,
@@ -103,9 +107,10 @@ export async function POST(req: Request) {
     is_premium: slotIndex > 1,
   }));
 
+  // 4. Upsert met expliciete any-cast ivm Supabase types
   const upsertRes = await supabase
     .from("dayprogram_slots")
-    .upsert(rows, {
+    .upsert(rows as any, {
       onConflict: "day_date,content_type,slot_index",
     })
     .select("*");
@@ -118,6 +123,7 @@ export async function POST(req: Request) {
     );
   }
 
+  // 5. Logging in dayprogram_events
   const eventsPayload = rows.map((row) => ({
     day_date: row.day_date,
     content_type: row.content_type,
@@ -131,7 +137,7 @@ export async function POST(req: Request) {
 
   const logRes = await supabase
     .from("dayprogram_events")
-    .insert(eventsPayload);
+    .insert(eventsPayload as any);
 
   if (logRes.error) {
     console.error("Error logging dayprogram_events", logRes.error);
