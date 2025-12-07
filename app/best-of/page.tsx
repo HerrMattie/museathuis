@@ -1,4 +1,4 @@
-import { supabaseServer } from "@/lib/supabaseServer";
+import { createClient } from "@supabase/supabase-js";
 
 type BestOfRow = {
   tour_id?: string;
@@ -9,8 +9,23 @@ type BestOfRow = {
   rating_count: number;
 };
 
+function getSupabaseServer() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error(
+      "Supabase environment variables ontbreken voor Best-of pagina"
+    );
+  }
+
+  return createClient(url, key);
+}
+
 async function getBestOfData() {
-  const supabase = await supabaseServer();
+  const supabase = getSupabaseServer();
 
   const [
     toursWeek,
