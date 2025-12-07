@@ -1,33 +1,28 @@
 // lib/ai/tourGenerator.ts
 import { supabaseServer } from "@/lib/supabaseClient";
 
-export async function generateDailyTour(date: string) {
-  const targetDate = date || new Date().toISOString().slice(0, 10);
+export async function generateTourForDate(targetDate: string) {
   const supabase = supabaseServer();
 
-  const { data, error } = await supabase
-    .from("tours")
-    .insert({
-      title: `Placeholder tour voor ${targetDate}`,
-      intro:
-        "Dit is een placeholder-tour uit de AI-engine. Vervang deze functie later door de echte tourgenerator.",
-      status: "draft",
-      is_premium: false,
-      scheduled_for: targetDate
-    })
-    .select()
+  const { data, error } = await (supabase
+    .from("tours") as any)
+    .insert(
+      {
+        title: `Placeholder tour voor ${targetDate}`,
+        intro_text:
+          "Dit is een tijdelijke MuseaThuis-tour voor deze datum. In een volgende fase wordt deze automatisch gevuld met AI-gegenereerde inhoud.",
+        status: "draft",
+        is_premium: true,
+        scheduled_for: targetDate,
+      } as any
+    )
+    .select("id, title, intro_text, scheduled_for")
     .single();
 
   if (error) {
-    console.error("Fout bij aanmaken placeholder tour:", error);
-    return { ok: false, error: error.message, date: targetDate };
+    console.error(error);
+    throw new Error(error.message);
   }
 
-  return {
-    ok: true,
-    date: targetDate,
-    tour: data
-  };
+  return data;
 }
-
-export default generateDailyTour;
