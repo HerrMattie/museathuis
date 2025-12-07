@@ -45,7 +45,7 @@ export async function POST() {
       return null;
     }
 
-    const ids = items.map((i) => i.id) as string[];
+    const ids = (items as any[]).map((i) => i.id as string);
 
     const { data: ratings } = await supabase
       .from("content_ratings")
