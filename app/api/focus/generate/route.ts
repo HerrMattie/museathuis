@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
+// Simpele placeholder-API: maakt een concept focus-sessie aan.
+// Later kun je hier de echte AI-generatie aan koppelen.
 export async function POST() {
-  // TypeScript-types omzeilen, functioneel hetzelfde
   const supabase = supabaseServer() as any;
 
   const { data, error } = await supabase
@@ -14,15 +15,23 @@ export async function POST() {
         status: "draft",
         is_premium: false,
       } as any
-    );
-
-    .select()
+    )
+    .select("*")
     .single();
 
   if (error) {
-    console.error(error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    console.error("Error creating focus session", error);
+    return NextResponse.json(
+      { error: "Fout bij aanmaken van focus-sessie" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ ok: true, focus: data });
+  return NextResponse.json(
+    {
+      ok: true,
+      focusSession: data,
+    },
+    { status: 200 }
+  );
 }
