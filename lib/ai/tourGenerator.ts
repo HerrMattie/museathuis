@@ -1,6 +1,9 @@
 // lib/ai/tourGenerator.ts
 import { supabaseServer } from "@/lib/supabaseClient";
 
+/**
+ * Genereer een placeholder-tour voor een specifieke datum.
+ */
 export async function generateTourForDate(targetDate: string) {
   const supabase = supabaseServer();
 
@@ -25,4 +28,16 @@ export async function generateTourForDate(targetDate: string) {
   }
 
   return data;
+}
+
+/**
+ * Backwards compatible helper die door API-routes wordt gebruikt.
+ * Als er geen datum wordt meegegeven, pakken we 'vandaag'.
+ */
+export async function generateDailyTour(targetDate?: string) {
+  const date =
+    targetDate ??
+    new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  return generateTourForDate(date);
 }
