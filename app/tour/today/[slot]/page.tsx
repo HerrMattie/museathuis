@@ -159,18 +159,24 @@ export default function TourTodayDetailPage() {
           console.error("Fout bij ophalen tour_items:", itemsError);
         }
 
+   
         const mappedArtworks: Artwork[] =
-          (items as any[] | null)?.map((item: any) => {
-            const a = item.artworks ?? null;
-            if (!a) return null;
-            return {
-              id: a.id as string,
-              title: a.title ?? null,
-              artist_name: a.artist_name ?? null,
-              dating_text: a.dating_text ?? null,
-              image_url: a.image_url ?? null,
-            } as Artwork;
-          }).filter(Boolean) ?? [];
+          ((items as any[] | null) ?? [])
+            .map((item: any) => {
+              const a = item.artworks ?? null;
+              if (!a) return null;
+
+              return {
+                id: a.id as string,
+                title: (a.title ?? null) as string | null,
+                artist_name: (a.artist_name ?? null) as string | null,
+                dating_text: (a.dating_text ?? null) as string | null,
+                image_url: (a.image_url ?? null) as string | null,
+              } as Artwork;
+            })
+            .filter((a): a is Artwork => a !== null);
+
+        setArtworks(mappedArtworks);
 
         if (!cancelled) {
           setArtworks(mappedArtworks);
