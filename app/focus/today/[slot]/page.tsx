@@ -56,7 +56,8 @@ export default function FocusTodayDetailPage() {
         const supabase = supabaseBrowser();
         const today = getToday();
 
-        const { data: slot, error: slotError } = await supabase
+        // Dayprogram-slot ophalen
+        const { data: rawSlot, error: slotError } = await supabase
           .from("dayprogram_slots")
           .select("slot_index, content_id")
           .eq("day_date", today)
@@ -65,6 +66,10 @@ export default function FocusTodayDetailPage() {
           .maybeSingle();
 
         if (slotError) throw slotError;
+
+        // TypeScript fix: rawSlot expliciet als any behandelen
+        const slot = (rawSlot as any) ?? null;
+
         if (!slot || !slot.content_id) {
           throw new Error(
             "Er is voor vandaag geen focusmoment gekoppeld aan dit slot."
@@ -74,13 +79,16 @@ export default function FocusTodayDetailPage() {
         const itemId = slot.content_id as string;
         setSlotData({ slotIndex, itemId });
 
-        const { data: focusItem, error: focusError } = await supabase
+        // Gekoppelde focus_item ophalen
+        const { data: focusItemRaw, error: focusError } = await supabase
           .from("focus_items")
           .select("id, title, artwork_id")
           .eq("id", itemId)
           .maybeSingle();
 
         if (focusError) throw focusError;
+        const focusItem = (focusItemRaw as any) ?? null;
+
         if (!focusItem) {
           throw new Error("Het gekoppelde focusmoment kon niet worden gevonden.");
         }
@@ -91,13 +99,16 @@ export default function FocusTodayDetailPage() {
             : "Focusmoment zonder titel"
         );
 
-        const { data: artwork, error: artworkError } = await supabase
+        // Kunstwerk ophalen
+        const { data: artworkRaw, error: artworkError } = await supabase
           .from("artworks")
           .select("id, title, artist_name, dating_text, image_url")
           .eq("id", focusItem.artwork_id)
           .maybeSingle();
 
         if (artworkError) throw artworkError;
+
+        const artwork = (artworkRaw as any) ?? null;
 
         if (artwork) {
           setArtworks([artwork as Artwork]);
