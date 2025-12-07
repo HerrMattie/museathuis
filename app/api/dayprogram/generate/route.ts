@@ -39,6 +39,7 @@ export async function POST(req: Request) {
 
     const supabase = supabaseServer();
 
+    // Bestaande slots voor deze dag + type
     const { data: slots, error: slotsError } = await (supabase as any)
       .from("dayprogram_slots")
       .select("day_date, content_type, slot_index, content_id, is_premium")
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
 
     const tableInfo = TABLES[contentType as ContentType];
 
+    // Kandidaten ophalen (we filteren bannedIds in JS om type/SQL gedoe te vermijden)
     const { data: candidates, error: candidatesError } = await (supabase as any)
       .from(tableInfo.table)
       .select("id, title")
@@ -86,7 +88,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const allCandidates = (candidates ?? []) as { id: string; title?: string | null }[];
+    const allCandidates = (candidates ?? []) as {
+      id: string;
+      title?: string | null;
+    }[];
+
     const available = allCandidates.filter((c) => !bannedIds.has(c.id));
 
     if (available.length === 0) {
@@ -99,6 +105,7 @@ export async function POST(req: Request) {
     const rows: any[] = [];
 
     if (strategy === "fill") {
+      // Vul ontbrekende slots 1..maxPerType
       for (let i = 1; i <= maxPerType; i++) {
         const existingSlot = existing.find((s) => s.slot_index === i);
         if (existingSlot && existingSlot.content_id) continue;
