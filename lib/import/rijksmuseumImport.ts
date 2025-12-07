@@ -9,18 +9,20 @@ import { supabaseServer } from "@/lib/supabaseClient";
 export async function startRijksmuseumImport(museumId?: string) {
   const supabase = supabaseServer();
 
-  const { data, error } = await supabase
-    .from("ingestion_jobs")
-    .insert({
+const { data, error } = await (supabase
+  .from("ingestion_jobs") as any)
+  .insert(
+    {
       status: "queued",
       source_name: "rijksmuseum",
       meta: {
-        trigger: "admin_api_placeholder",
+        trigger: "dashboard", // of de waarde die je nu al gebruikt
         museumId: museumId ?? null,
       },
-    })
-    .select()
-    .single();
+    } as any
+  )
+  .select("*")
+  .single();
 
   if (error) {
     console.error("Fout bij startRijksmuseumImport:", error);
