@@ -1,156 +1,181 @@
-// app/api/dayprogram/generate/route.ts
 import { NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabaseClient";
+import { supabaseServer } from "@/lib/supabaseClient";
 
 type ContentType = "tour" | "focus" | "game";
-type Mode = "proposal" | "alternative";
+type Strategy = "fill" | "replace";
 
-function getTableName(contentType: ContentType): string {
-  if (contentType === "tour") return "tours";
-  if (contentType === "focus") return "focus_items";
-  return "games";
+interface GenerateRequest {
+  dayDate: string;
+  contentType: ContentType;
+  strategy: Strategy;
+  slotIndex?: number;
+  maxPerType?: number;
 }
 
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-async function parseRequest(req: Request) {
-  const contentType = req.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const body = await req.json();
-    return {
-      dayDate: body?.dayDate as string | undefined,
-      contentType: body?.contentType as ContentType | undefined,
-      mode: (body?.mode as Mode | undefined) ?? "proposal",
-      userId: body?.userId as string | undefined,
-    };
-  }
-
-  const form = await req.formData();
-  return {
-    dayDate: (form.get("dayDate") as string) ?? undefined,
-    contentType: (form.get("contentType") as ContentType) ?? undefined,
-    mode: ((form.get("mode") as Mode) ?? "proposal") as Mode,
-    userId: (form.get("userId") as string) ?? undefined,
-  };
-}
+const TABLES: Record<ContentType, { table: string }> = {
+  tour: { table: "tours" },
+  focus: { table: "focus_items" },
+  game: { table: "games" },
+};
 
 export async function POST(req: Request) {
-  const { dayDate, contentType, mode, userId } = await parseRequest(req);
+  try {
+    const body = (await req.json()) as GenerateRequest;
+    const { dayDate, contentType, strategy, slotIndex, maxPerType = 3 } = body;
 
-  if (!dayDate || !contentType) {
-    return NextResponse.json(
-      { error: "dayDate en contentType zijn verplicht" },
-      { status: 400 }
+    if (!dayDate || !contentType || !strategy) {
+      return NextResponse.json(
+        { error: "dayDate, contentType en strategy zijn verplicht." },
+        { status: 400 }
+      );
+    }
+
+    if (!["tour", "focus", "game"].includes(contentType)) {
+      return NextResponse.json(
+        { error: "Ongeldige contentType." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = supabaseServer();
+
+    const { data: slots, error: slotsError } = await (supabase as any)
+      .from("dayprogram_slots")
+      .select("day_date, content_type, slot_index, content_id, is_premium")
+      .eq("day_date", dayDate)
+      .eq("content_type", contentType)
+      .order("slot_index", { ascending: true });
+
+    if (slotsError) {
+      console.error(slotsError);
+      return NextResponse.json(
+        { error: "Fout bij ophalen dagprogramma.", details: slotsError.message },
+        { status: 500 }
+      );
+    }
+
+    const existing = (slots ?? []) as {
+      day_date: string;
+      content_type: string;
+      slot_index: number;
+      content_id: string | null;
+      is_premium: boolean | null;
+    }[];
+
+    const bannedIds = new Set(
+      existing
+        .map((s) => s.content_id)
+        .filter((id): id is string => !!id)
     );
-  }
 
-  const supabase = getSupabaseServer();
-  const tableName = getTableName(contentType);
+    const tableInfo = TABLES[contentType as ContentType];
 
-  // 1. Haal kandidaten op
-  const candidatesRes = await supabase.from(tableName).select("id").limit(100);
+    const { data: candidates, error: candidatesError } = await (supabase as any)
+      .from(tableInfo.table)
+      .select("id, title")
+      .limit(200);
 
-  if (candidatesRes.error) {
-    console.error("Error fetching candidates", candidatesRes.error);
-    return NextResponse.json(
-      { error: "Fout bij ophalen van content kandidaten" },
-      { status: 500 }
-    );
-  }
+    if (candidatesError) {
+      console.error(candidatesError);
+      return NextResponse.json(
+        {
+          error: "Fout bij ophalen beschikbare content.",
+          details: candidatesError.message,
+        },
+        { status: 500 }
+      );
+    }
 
-  const candidateIds = (candidatesRes.data ?? [])
-    .map((row: any) => row.id)
-    .filter((id: any) => id != null);
+    const allCandidates = (candidates ?? []) as { id: string; title?: string | null }[];
+    const available = allCandidates.filter((c) => !bannedIds.has(c.id));
 
-  if (candidateIds.length < 3) {
+    if (available.length === 0) {
+      return NextResponse.json(
+        { error: "Geen beschikbare content gevonden om in te plannen." },
+        { status: 400 }
+      );
+    }
+
+    const rows: any[] = [];
+
+    if (strategy === "fill") {
+      for (let i = 1; i <= maxPerType; i++) {
+        const existingSlot = existing.find((s) => s.slot_index === i);
+        if (existingSlot && existingSlot.content_id) continue;
+
+        const next = available.shift();
+        if (!next) break;
+
+        rows.push({
+          day_date: dayDate,
+          content_type: contentType,
+          slot_index: i,
+          content_id: next.id,
+          is_premium: i !== 1,
+        });
+      }
+    } else if (strategy === "replace") {
+      if (!slotIndex) {
+        return NextResponse.json(
+          { error: "slotIndex is verplicht bij strategy 'replace'." },
+          { status: 400 }
+        );
+      }
+
+      const next = available[0];
+      if (!next) {
+        return NextResponse.json(
+          { error: "Geen alternatief item beschikbaar om in te plannen." },
+          { status: 400 }
+        );
+      }
+
+      rows.push({
+        day_date: dayDate,
+        content_type: contentType,
+        slot_index: slotIndex,
+        content_id: next.id,
+        is_premium: slotIndex !== 1,
+      });
+    }
+
+    if (rows.length === 0) {
+      return NextResponse.json(
+        { message: "Geen wijzigingen nodig voor dit dagprogramma." },
+        { status: 200 }
+      );
+    }
+
+    const { data: upserted, error: upsertError } = await (supabase as any)
+      .from("dayprogram_slots")
+      .upsert(rows, {
+        onConflict: "day_date,content_type,slot_index",
+      })
+      .select("*");
+
+    if (upsertError) {
+      console.error(upsertError);
+      return NextResponse.json(
+        { error: "Fout bij opslaan dagprogramma.", details: upsertError.message },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
-        error:
-          "Er zijn minder dan 3 beschikbare items voor dit type. Voeg meer content toe.",
+        success: true,
+        updated: upserted ?? [],
       },
-      { status: 400 }
+      { status: 200 }
     );
-  }
-
-  const shuffled = shuffle(candidateIds);
-  const selected = shuffled.slice(0, 3);
-
-  // 2. Bestaande slots voor logging
-  const existingRes = await supabase
-    .from("dayprogram_slots")
-    .select("slot_index, content_id")
-    .eq("day_date", dayDate)
-    .eq("content_type", contentType);
-
-  if (existingRes.error) {
-    console.error("Error fetching existing dayprogram_slots", existingRes.error);
-  }
-
-  const existingBySlot: Record<number, string | null> = {};
-  (existingRes.data ?? []).forEach((row: any) => {
-    existingBySlot[row.slot_index] = row.content_id;
-  });
-
-  // 3. Nieuwe rows voorbereiden
-  const rows: any[] = [1, 2, 3].map((slotIndex) => ({
-    day_date: dayDate,
-    content_type: contentType,
-    slot_index: slotIndex,
-    content_id: selected[slotIndex - 1],
-    is_premium: slotIndex > 1,
-  }));
-
-  // 4. Upsert met expliciete any-cast ivm Supabase types
-  const upsertRes = await supabase
-    .from("dayprogram_slots")
-    .upsert(rows as any, {
-      onConflict: "day_date,content_type,slot_index",
-    })
-    .select("*");
-
-  if (upsertRes.error) {
-    console.error("Error upserting dayprogram_slots", upsertRes.error);
+  } catch (e: any) {
+    console.error(e);
     return NextResponse.json(
-      { error: "Fout bij opslaan van dagprogramma" },
+      {
+        error: "Onverwachte fout bij genereren dagprogramma.",
+        details: e?.message,
+      },
       { status: 500 }
     );
   }
-
-  // 5. Logging in dayprogram_events
-  const eventsPayload = rows.map((row) => ({
-    day_date: row.day_date,
-    content_type: row.content_type,
-    slot_index: row.slot_index,
-    old_content_id: existingBySlot[row.slot_index] ?? null,
-    new_content_id: row.content_id,
-    user_id: userId ?? null,
-    action: mode === "alternative" ? "generate_alternative" : "generate_proposal",
-    metadata: {},
-  }));
-
-  const logRes = await supabase
-    .from("dayprogram_events")
-    .insert(eventsPayload as any);
-
-  if (logRes.error) {
-    console.error("Error logging dayprogram_events", logRes.error);
-  }
-
-  return NextResponse.json(
-    {
-      ok: true,
-      mode,
-      dayDate,
-      contentType,
-      slots: upsertRes.data,
-    },
-    { status: 200 }
-  );
 }
