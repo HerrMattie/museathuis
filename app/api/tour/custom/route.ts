@@ -1,3 +1,4 @@
+// app/api/tour/custom/route.ts
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
@@ -11,9 +12,18 @@ type CustomTourRequest = {
   userId?: string; // later uit sessie halen
 };
 
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 export async function POST(req: Request) {
   const body = (await req.json()) as CustomTourRequest;
-  const supabase = supabaseServer();
+  const supabase = supabaseServer() as any;
 
   const {
     title,
@@ -65,16 +75,11 @@ export async function POST(req: Request) {
     );
   }
 
- // Boven je tourTitle-regel, voeg deze helper toe:
-const selectedItems = (selected as any[]) ?? [];
-const firstItem = selectedItems[0] as any;
+  // Kies een subset van maxWorks werken (willekeurig)
+  const shuffled = shuffle(artworks as any[]);
+  const selected = shuffled.slice(0, maxWorks);
 
-const tourTitle =
-  title ||
-  (firstItem?.museum
-    ? `Tour langs ${firstItem.museum}`
-    : "Persoonlijke MuseaThuis-tour");
-
+  const tourTitle = title || "Persoonlijke MuseaThuis-tour";
 
   const introText =
     "Deze tour is automatisch samengesteld op basis van jouw filters in de MuseaThuis-database. " +
@@ -82,14 +87,16 @@ const tourTitle =
 
   const { data: tour, error: tourError } = await supabase
     .from("tours")
-    .insert({
-      title: tourTitle,
-      intro_text: introText,
-      is_premium: true,
-      is_personal: true,
-      created_by_user_id: userId,
-    })
-    .select()
+    .insert(
+      {
+        title: tourTitle,
+        intro_text: introText,
+        is_premium: true,
+        is_personal: true,
+        created_by_user_id: userId,
+      } as any
+    )
+    .select("*")
     .single();
 
   if (tourError || !tour) {
@@ -100,7 +107,7 @@ const tourTitle =
     );
   }
 
-  const artworkIds = selected.map((a) => a.id);
+  const artworkIds = (selected as any[]).map((a) => a.id as string);
 
   const { data: texts, error: textsError } = await supabase
     .from("artwork_texts")
@@ -121,7 +128,7 @@ const tourTitle =
     }
   }
 
-  const tourItems = selected.map((artwork, index) => ({
+  const tourItems = (selected as any[]).map((artwork, index) => ({
     tour_id: tour.id,
     position: index + 1,
     artwork_id: artwork.id,
@@ -130,7 +137,7 @@ const tourTitle =
 
   const { error: itemsError } = await supabase
     .from("tour_items")
-    .insert(tourItems);
+    .insert(tourItems as any[]);
 
   if (itemsError) {
     console.error(itemsError);
