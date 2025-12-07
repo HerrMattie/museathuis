@@ -1,24 +1,37 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
+// Simpele placeholder-API: maakt een concept tour aan.
+// Later koppel je hier de echte AI-tourgeneratie aan.
 export async function POST() {
-  const supabase = supabaseServer();
+  const supabase = supabaseServer() as any;
 
   const { data, error } = await supabase
     .from("tours")
-    .insert({
-      title: "Placeholder tour",
-      intro: "Deze tour is een placeholder die aangeeft dat de tour-engine is aangesloten.",
-      status: "draft",
-      is_premium: false
-    })
-    .select()
+    .insert(
+      {
+        title: "Placeholder tour",
+        intro: "TODO: implement tour generation",
+        status: "draft",
+        is_premium: false,
+      } as any
+    )
+    .select("*")
     .single();
 
   if (error) {
-    console.error(error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    console.error("Error creating tour", error);
+    return NextResponse.json(
+      { error: "Fout bij aanmaken van tour" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ ok: true, tour: data });
+  return NextResponse.json(
+    {
+      ok: true,
+      tour: data,
+    },
+    { status: 200 }
+  );
 }
