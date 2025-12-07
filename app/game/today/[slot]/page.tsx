@@ -1,3 +1,4 @@
+// app/game/today/[slot]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -6,6 +7,12 @@ import { useParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { useItemRating } from "@/lib/useItemRating";
 import { RatingStars } from "@/components/RatingStars";
+
+type Game = {
+  id: string;
+  title: string | null;
+  description: string | null;
+};
 
 interface SlotData {
   slotIndex: number;
@@ -34,7 +41,7 @@ export default function GameTodayDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [slotData, setSlotData] = useState<SlotData | null>(null);
-  const [itemTitle, setItemTitle] = useState<string>("Spel zonder titel");
+  const [game, setGame] = useState<Game | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -45,7 +52,8 @@ export default function GameTodayDetailPage() {
         const supabase = supabaseBrowser();
         const today = getToday();
 
-        const { data: slot, error: slotError } = await supabase
+        // Dayprogram-slot ophalen
+        const { data: rawSlot, error: slotError } = await supabase
           .from("dayprogram_slots")
           .select("slot_index, content_id")
           .eq("day_date", today)
@@ -54,6 +62,10 @@ export default function GameTodayDetailPage() {
           .maybeSingle();
 
         if (slotError) throw slotError;
+
+        // TypeScript fix: expliciet casten
+        const slot = (rawSlot as any) ?? null;
+
         if (!slot || !slot.content_id) {
           throw new Error("Er is voor vandaag geen spel gekoppeld aan dit slot.");
         }
@@ -61,27 +73,35 @@ export default function GameTodayDetailPage() {
         const itemId = slot.content_id as string;
         setSlotData({ slotIndex, itemId });
 
-        const { data: game, error: gameError } = await supabase
+        // Game ophalen
+        const { data: gameRaw, error: gameError } = await supabase
           .from("games")
-          .select("id, title")
+          .select("*")
           .eq("id", itemId)
           .maybeSingle();
 
         if (gameError) throw gameError;
-        if (!game) {
+
+        const gameRow = (gameRaw as any) ?? null;
+
+        if (!gameRow) {
           throw new Error("Het gekoppelde spel kon niet worden gevonden.");
         }
 
-        setItemTitle(
-          game.title && game.title.trim() !== ""
-            ? game.title
-            : "Spel zonder titel"
-        );
+        setGame({
+          id: gameRow.id,
+          title: gameRow.title ?? "Spel zonder titel",
+          description:
+            gameRow.description ??
+            "In een volgende fase komt hier de volledige spelervaring van MuseaThuis.",
+        });
 
         setLoading(false);
       } catch (e: any) {
         console.error(e);
-        setError(e.message ?? "Het spel van vandaag kon niet worden geladen.");
+        setError(
+          e.message ?? "Het spel van vandaag kon niet worden geladen."
+        );
         setLoading(false);
       }
     };
@@ -107,13 +127,13 @@ export default function GameTodayDetailPage() {
   return (
     <div className="px-6 py-10 max-w-6xl mx-auto space-y-6">
       <header className="space-y-3">
-        <div className="text-xs font-semibold tracking-[0.2em] text-amber-400 uppercase">
+        <div className="text-xs font-semibold tracking-[0.2em] text-emerald-400 uppercase">
           SPEL
         </div>
         <div className="flex flex-col md:flex-row md:items-baseline md:justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">
-              Spel: {itemTitle}
+              Spel: {game?.title ?? "Spel zonder titel"}
             </h1>
             <p className="text-xs text-slate-400 mt-1">{headingLabel}</p>
           </div>
@@ -157,18 +177,17 @@ export default function GameTodayDetailPage() {
       )}
 
       {!loading && !error && (
-        <section className="rounded-3xl bg-slate-900/70 border border-slate-800 p-6 md:p-8 space-y-4">
+        <section className="rounded-3xl bg-slate-900/70 border border-slate-800 overflow-hidden p-6 md:p-8 space-y-3">
           <h2 className="text-lg font-semibold text-slate-50">
-            Interactief spel
+            {game?.title ?? "Spel zonder titel"}
           </h2>
           <p className="text-sm text-slate-300">
-            Hier komt de interactieve spelervaring: quizvragen, raadspelletjes
-            of andere speelse vormen van verdieping rondom kunstwerken.
+            {game?.description ??
+              "In een volgende fase komt hier de volledige spelervaring van MuseaThuis."}
           </p>
-          <p className="text-sm text-slate-300">
-            De game-structuur (games en game_items) is al aanwezig. In een
-            volgende fase koppelen we deze pagina aan een concreet speltype,
-            met score en feedback.
+          <p className="text-xs text-slate-400">
+            Dit is een voorlopige spelweergave. Later wordt deze pagina uitgebreid met
+            interactieve spelelementen, tellers en voortgang.
           </p>
         </section>
       )}
