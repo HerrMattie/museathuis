@@ -1,14 +1,7 @@
 // components/RatingStars.tsx
 
-// Let op: deze component is bewust tolerant in de props,
-// zodat hij blijft werken met verschillende eerdere aanroepen.
-// Hij kijkt naar:
-// - waarde:    value | rating | currentRating
-// - handler:   onChange | onRate | setRating
-// - readOnly:  readOnly | disabled
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default function RatingStars(props: any) {
+export function RatingStars(props: any) {
   const current: number =
     props.value ?? props.rating ?? props.currentRating ?? 0;
 
@@ -46,7 +39,6 @@ export default function RatingStars(props: any) {
               readOnly ? "" : "transition-colors",
             ].join(" ")}
           >
-            {/* Gebruik een gevulde ster; kleur bepaalt actief / inactief */}
             <span>★</span>
           </button>
         );
@@ -54,3 +46,6 @@ export default function RatingStars(props: any) {
     </div>
   );
 }
+
+// Zorg dat zowel named als default export beschikbaar is
+export default RatingStars;
