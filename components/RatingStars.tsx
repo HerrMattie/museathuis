@@ -1,48 +1,56 @@
-"use client";
+// components/RatingStars.tsx
 
-import React from "react";
+// Let op: deze component is bewust tolerant in de props,
+// zodat hij blijft werken met verschillende eerdere aanroepen.
+// Hij kijkt naar:
+// - waarde:    value | rating | currentRating
+// - handler:   onChange | onRate | setRating
+// - readOnly:  readOnly | disabled
 
-type RatingValue = 1 | 2 | 3 | 4 | 5;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function RatingStars(props: any) {
+  const current: number =
+    props.value ?? props.rating ?? props.currentRating ?? 0;
 
-interface RatingStarsProps {
-  value: RatingValue | null;
-  onChange?: (value: RatingValue) => void;
-  disabled?: boolean;
-}
+  const readOnly: boolean = Boolean(props.readOnly ?? props.disabled);
 
-export function RatingStars({ value, onChange, disabled }: RatingStarsProps) {
-  const handleClick = (v: RatingValue) => {
-    if (disabled || !onChange) return;
-    onChange(v);
+  const handleClick = (next: number) => {
+    if (readOnly) return;
+
+    const handler =
+      props.onChange ?? props.onRate ?? props.setRating ?? null;
+    if (!handler) return;
+
+    handler(next);
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="text-xs text-slate-200">Uw beoordeling</div>
-      {[1, 2, 3, 4, 5].map((v) => {
-        const active = value === v;
+    <div className="inline-flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const isActive = current >= n;
+
         return (
           <button
-            key={v}
+            key={n}
             type="button"
-            onClick={() => handleClick(v as RatingValue)}
+            onClick={() => handleClick(n)}
+            disabled={readOnly}
+            aria-label={`${n} ster${n > 1 ? "ren" : ""}`}
             className={[
-              "h-8 w-8 rounded-full text-xs font-semibold border transition-colors",
-              active
-                ? "bg-amber-400 border-amber-300 text-slate-900"
-                : "bg-slate-900 border-slate-600 text-slate-200 hover:bg-slate-800",
-              disabled
-                ? "opacity-50 cursor-not-allowed hover:bg-slate-900"
-                : "",
+              "flex h-8 w-8 items-center justify-center rounded-full",
+              "text-lg leading-none",
+              readOnly ? "cursor-default" : "cursor-pointer",
+              isActive
+                ? "text-amber-400"
+                : "text-slate-500 hover:text-amber-300",
+              readOnly ? "" : "transition-colors",
             ].join(" ")}
           >
-            {v}
+            {/* Gebruik een gevulde ster; kleur bepaalt actief / inactief */}
+            <span>★</span>
           </button>
         );
       })}
-      {value && (
-        <span className="text-xs text-slate-400">( {value}/5 )</span>
-      )}
     </div>
   );
 }
