@@ -1,136 +1,126 @@
-"use client";
+import { getSupabaseServer } from "@/lib/supabaseClient";
 
-import Link from "next/link";
+async function getKpis() {
+  const supabase = getSupabaseServer();
 
-const statCards = [
-  {
-    label: "Tours gepubliceerd",
-    value: "–",
-    hint: "In een volgende fase koppelen we dit aan Supabase.",
-  },
-  {
-    label: "Spellen gepubliceerd",
-    value: "–",
-    hint: "Voor nu een placeholder; logica volgt na eerste speltype.",
-  },
-  {
-    label: "Focusmomenten actief",
-    value: "–",
-    hint: "Wordt gevuld zodra focusmomenten zijn ingepland.",
-  },
-  {
-    label: "Salonsets beschikbaar",
-    value: "–",
-    hint: "Later gekoppeld aan salon_sets en salon_set_items.",
-  },
-];
+  const [users, tourRatings, gameRatings, focusRatings] = await Promise.all([
+    supabase.from("user_profiles").select("id", { count: "exact", head: true }),
+    supabase
+      .from("tour_ratings")
+      .select("id,rating", { count: "exact", head: true }),
+    supabase
+      .from("game_ratings")
+      .select("id,rating", { count: "exact", head: true }),
+    supabase
+      .from("focus_ratings")
+      .select("id,rating", { count: "exact", head: true }),
+  ]);
 
-export default function DashboardHomePage() {
+  return {
+    userCount: users.count ?? 0,
+    tourRatingCount: tourRatings.count ?? 0,
+    gameRatingCount: gameRatings.count ?? 0,
+    focusRatingCount: focusRatings.count ?? 0,
+  };
+}
+
+export const metadata = {
+  title: "MuseaThuis dashboard",
+};
+
+export default async function DashboardPage() {
+  const kpis = await getKpis();
+
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-          Dagelijks beheer MuseaThuis
-        </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Overzicht van het dagprogramma, de inhoudelijke pijlers en de
-          belangrijkste datapunten. Deze omgeving is bedoeld voor redactie en
-          beheer, niet voor eindgebruikers.
+    <main className="min-h-screen px-4 py-8 md:px-8 lg:px-16">
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold mb-1">Dashboard</h1>
+        <p className="text-sm text-zinc-400">
+          Overzicht van kerncijfers en snelkoppelingen voor beheer van
+          MuseaThuis.
         </p>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((card) => (
-          <div
-            key={card.label}
-            className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200"
-          >
-            <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                {card.label}
-              </p>
-              <p className="mt-3 text-2xl font-semibold text-amber-300">
-                {card.value}
-              </p>
-            </div>
-            <p className="mt-3 text-xs text-slate-400">{card.hint}</p>
-          </div>
-        ))}
+      <section className="mb-8 grid gap-4 md:grid-cols-4">
+        <KpiCard
+          label="Gebruikersprofielen"
+          value={kpis.userCount}
+          description="Totaal aantal aangemaakte profielen."
+        />
+        <KpiCard
+          label="Tour ratings"
+          value={kpis.tourRatingCount}
+          description="Aantal beoordelingen op tours."
+        />
+        <KpiCard
+          label="Game ratings"
+          value={kpis.gameRatingCount}
+          description="Aantal beoordelingen op games."
+        />
+        <KpiCard
+          label="Focus ratings"
+          value={kpis.focusRatingCount}
+          description="Aantal beoordelingen op focusmomenten."
+        />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-slate-50">
-              Dagprogramma van vandaag
-            </h2>
-            <Link
-              href="/dashboard/dayprogram"
-              className="text-xs font-semibold text-amber-300 hover:text-amber-200"
-            >
-              Bekijk dagprogramma
-            </Link>
-          </div>
-          <p className="text-xs text-slate-400">
-            Hier ziet u per dag welke tour, welk spel en welk focusmoment live
-            staan. In een volgende stap koppelen we dit rechtstreeks aan de
-            dagtegels op de homepage.
-          </p>
-          <ul className="mt-2 space-y-1 text-xs text-slate-300">
-            <li>• Hoofdtour van vandaag</li>
-            <li>• Spel van vandaag</li>
-            <li>• Focusmoment van vandaag</li>
-          </ul>
-        </div>
-
-        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-slate-50">
-              Inhoudelijke pijlers
-            </h2>
-            <Link
-              href="/dashboard/crm"
-              className="text-xs font-semibold text-amber-300 hover:text-amber-200"
-            >
-              Naar content & CRM
-            </Link>
-          </div>
-          <p className="text-xs text-slate-400">
-            Tours, spellen, focusmomenten, salonpresentaties en academietrajecten
-            worden hier als vijf pijlers beheerd. De basisstructuur staat, de
-            verdiepende velden breiden we stap voor stap uit.
-          </p>
-          <ul className="mt-2 space-y-1 text-xs text-slate-300">
-            <li>• Tours: dagselecties, archief en AI-voorstellen.</li>
-            <li>• Spellen: vraagtypes, moeilijkheid en koppeling aan tours.</li>
-            <li>• Focus: tien minuten verdieping bij één kunstwerk.</li>
-            <li>• Salon: beeldvullende presentaties per sfeer.</li>
-            <li>• Academie: thematische leerlijnen en voortgang.</li>
-          </ul>
-        </div>
+      <section className="grid gap-4 md:grid-cols-3">
+        <QuickLink
+          title="Dagprogramma"
+          href="/dashboard/dayprogram"
+          description="Plan de tours, focusmomenten en games per dag en genereer voorstellen."
+        />
+        <QuickLink
+          title="Best of"
+          href="/best-of"
+          description="Bekijk welke content het hoogst gewaardeerd wordt door gebruikers."
+        />
+        <QuickLink
+          title="Contentbeheer"
+          href="/dashboard/crm"
+          description="Ga naar het CRM om tours, games en focusmomenten te beheren."
+        />
       </section>
+    </main>
+  );
+}
 
-      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200">
-        <h2 className="text-base font-semibold text-slate-50">
-          Dataplatform en analytics (vooruitblik)
-        </h2>
-        <p className="text-xs text-slate-400">
-          De analytics-module wordt in een volgende fase gevuld met top-tours,
-          meest bekeken kunstwerken en doelgroepanalyse. De structuur van
-          content_events en page_events is hier al op voorbereid.
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-200">
-            Top 10 tours op basis van ratings
-          </span>
-          <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-200">
-            Meest bekeken artworks per periode
-          </span>
-          <span className="rounded-full border border-slate-700 px-3 py-1 text-slate-200">
-            Gebruik per doelgroepsegment
-          </span>
-        </div>
-      </section>
+function KpiCard({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: number;
+  description: string;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="text-xs text-zinc-500 mb-1 uppercase tracking-wide">
+        {label}
+      </div>
+      <div className="text-2xl font-semibold mb-1">{value}</div>
+      <div className="text-xs text-zinc-500">{description}</div>
     </div>
+  );
+}
+
+function QuickLink({
+  title,
+  href,
+  description,
+}: {
+  title: string;
+  href: string;
+  description: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="block rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 hover:bg-zinc-900"
+    >
+      <div className="text-sm font-semibold mb-1">{title}</div>
+      <div className="text-xs text-zinc-500">{description}</div>
+    </a>
   );
 }

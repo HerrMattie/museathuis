@@ -1,23 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from "@/lib/supabaseClient";
 
 type ContentType = "tour" | "focus" | "game";
 type Mode = "proposal" | "alternative";
-
-function getSupabaseServer() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Supabase environment variables ontbreken voor dayprogram generate API"
-    );
-  }
-
-  return createClient(url, key);
-}
 
 function getTableName(contentType: ContentType): string {
   if (contentType === "tour") return "tours";
@@ -34,21 +19,29 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
-export async function POST(req: Request) {
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Ongeldige JSON payload" },
-      { status: 400 }
-    );
+async function parseRequest(req: Request) {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const body = await req.json();
+    return {
+      dayDate: body?.dayDate as string | undefined,
+      contentType: body?.contentType as ContentType | undefined,
+      mode: (body?.mode as Mode | undefined) ?? "proposal",
+      userId: body?.userId as string | undefined,
+    };
   }
 
-  const dayDate: string | undefined = body?.dayDate;
-  const contentType: ContentType | undefined = body?.contentType;
-  const mode: Mode = body?.mode === "alternative" ? "alternative" : "proposal";
-  const userId: string | undefined = body?.userId; // optioneel, kan later via auth helpers
+  const form = await req.formData();
+  return {
+    dayDate: (form.get("dayDate") as string) ?? undefined,
+    contentType: (form.get("contentType") as ContentType) ?? undefined,
+    mode: ((form.get("mode") as Mode) ?? "proposal") as Mode,
+    userId: (form.get("userId") as string) ?? undefined,
+  };
+}
+
+export async function POST(req: Request) {
+  const { dayDate, contentType, mode, userId } = await parseRequest(req);
 
   if (!dayDate || !contentType) {
     return NextResponse.json(
@@ -60,7 +53,6 @@ export async function POST(req: Request) {
   const supabase = getSupabaseServer();
   const tableName = getTableName(contentType);
 
-  // 1. Haal kandidaten op
   const candidatesRes = await supabase.from(tableName).select("id").limit(100);
 
   if (candidatesRes.error) {
@@ -88,7 +80,6 @@ export async function POST(req: Request) {
   const shuffled = shuffle(candidateIds);
   const selected = shuffled.slice(0, 3);
 
-  // 2. Haal bestaande slots op voor logging
   const existingRes = await supabase
     .from("dayprogram_slots")
     .select("slot_index, content_id")
@@ -127,7 +118,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // 3. Log wijzigingen in dayprogram_events
   const eventsPayload = rows.map((row) => ({
     day_date: row.day_date,
     content_type: row.content_type,

@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from "@/lib/supabaseClient";
 
 type BestOfRow = {
   tour_id?: string;
@@ -8,21 +8,6 @@ type BestOfRow = {
   avg_rating: number;
   rating_count: number;
 };
-
-function getSupabaseServer() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Supabase environment variables ontbreken voor Best-of pagina"
-    );
-  }
-
-  return createClient(url, key);
-}
 
 async function getBestOfData() {
   const supabase = getSupabaseServer();
@@ -42,24 +27,6 @@ async function getBestOfData() {
     supabase.from("best_of_focus_week").select("*"),
     supabase.from("best_of_focus_month").select("*"),
   ]);
-
-  if (
-    toursWeek.error ||
-    toursMonth.error ||
-    gamesWeek.error ||
-    gamesMonth.error ||
-    focusWeek.error ||
-    focusMonth.error
-  ) {
-    console.error("Best-of load error", {
-      toursWeek: toursWeek.error,
-      toursMonth: toursMonth.error,
-      gamesWeek: gamesWeek.error,
-      gamesMonth: gamesMonth.error,
-      focusWeek: focusWeek.error,
-      focusMonth: focusMonth.error,
-    });
-  }
 
   return {
     toursWeek: (toursWeek.data ?? []) as BestOfRow[],
@@ -108,8 +75,8 @@ export default async function BestOfPage() {
       {!hasAnyData ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-zinc-400">
           Er zijn nog onvoldoende beoordelingen om een Best of overzicht te
-          tonen. Probeer het later nog eens, of nodig gebruikers uit om meer
-          te beoordelen.
+          tonen. Nodig gebruikers uit om meer te beoordelen of vul eerst zelf
+          wat testdata in.
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
