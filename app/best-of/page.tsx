@@ -1,199 +1,91 @@
-import { getSupabaseServer } from "@/lib/supabaseClient";
+import Link from "next/link";
+import { supabaseServer } from "@/lib/supabaseClient";
 
-type BestOfRow = {
-  tour_id?: string;
-  game_id?: string;
-  focus_item_id?: string;
-  title: string;
-  avg_rating: number;
+type FocusBestRow = {
+  focus_item_id: string;
+  title: string | null;
+  artwork_id: string | null;
+  avg_rating: number | null;
   rating_count: number;
 };
 
-async function getBestOfData() {
-  const supabase = getSupabaseServer();
+async function getBestFocus(): Promise<FocusBestRow[]> {
+  const supabase = supabaseServer();
 
-  const [
-    toursWeek,
-    toursMonth,
-    gamesWeek,
-    gamesMonth,
-    focusWeek,
-    focusMonth,
-  ] = await Promise.all([
-    supabase.from("best_of_tours_week").select("*"),
-    supabase.from("best_of_tours_month").select("*"),
-    supabase.from("best_of_games_week").select("*"),
-    supabase.from("best_of_games_month").select("*"),
-    supabase.from("best_of_focus_week").select("*"),
-    supabase.from("best_of_focus_month").select("*"),
-  ]);
+  const { data, error } = await (supabase
+    .from("focus_best_of_week") as any)
+    .select("*")
+    .order("avg_rating", { ascending: false })
+    .order("rating_count", { ascending: false })
+    .limit(5);
 
-  return {
-    toursWeek: (toursWeek.data ?? []) as BestOfRow[],
-    toursMonth: (toursMonth.data ?? []) as BestOfRow[],
-    gamesWeek: (gamesWeek.data ?? []) as BestOfRow[],
-    gamesMonth: (gamesMonth.data ?? []) as BestOfRow[],
-    focusWeek: (focusWeek.data ?? []) as BestOfRow[],
-    focusMonth: (focusMonth.data ?? []) as BestOfRow[],
-  };
+  if (error) {
+    console.error("Fout bij laden best-of-focus:", error);
+    return [];
+  }
+
+  return (data as any[]) ?? [];
 }
 
-export const metadata = {
-  title: "Best of MuseaThuis",
-};
-
 export default async function BestOfPage() {
-  const {
-    toursWeek,
-    toursMonth,
-    gamesWeek,
-    gamesMonth,
-    focusWeek,
-    focusMonth,
-  } = await getBestOfData();
-
-  const hasAnyData =
-    toursWeek.length +
-      toursMonth.length +
-      gamesWeek.length +
-      gamesMonth.length +
-      focusWeek.length +
-      focusMonth.length >
-    0;
+  const focus = await getBestFocus();
 
   return (
-    <main className="min-h-screen px-4 py-8 md:px-8 lg:px-16">
-      <header className="mb-8">
-        <h1 className="text-3xl font-semibold mb-2">Best of MuseaThuis</h1>
-        <p className="text-sm text-zinc-400 max-w-2xl">
-          Overzicht van de hoogst gewaardeerde tours, games en focusmomenten op
-          basis van beoordelingen in de huidige week en maand. Alleen items met
-          voldoende stemmen worden getoond.
+    <main className="px-6 py-10 max-w-4xl mx-auto space-y-8">
+      <header className="space-y-3">
+        <div className="text-xs font-semibold tracking-[0.3em] text-amber-400 uppercase">
+          Best of MuseaThuis
+        </div>
+        <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">
+          Hoogst gewaardeerde focusmomenten van deze week
+        </h1>
+        <p className="text-sm text-slate-300 max-w-2xl">
+          Op basis van beoordelingen van gebruikers tonen we hier de best
+          gewaardeerde focusmomenten van de afgelopen zeven dagen.
         </p>
       </header>
 
-      {!hasAnyData ? (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-zinc-400">
-          Er zijn nog onvoldoende beoordelingen om een Best of overzicht te
-          tonen. Nodig gebruikers uit om meer te beoordelen of vul eerst zelf
-          wat testdata in.
-        </div>
+      {focus.length === 0 ? (
+        <p className="text-sm text-slate-300">
+          Er zijn nog geen beoordelingen genoeg om een toplijst te tonen. Zodra
+          gebruikers focusmomenten beoordelen, verschijnen de toppers hier.
+        </p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <CategoryColumn
-            title="Tours"
-            week={toursWeek}
-            month={toursMonth}
-            label="tour"
-          />
-          <CategoryColumn
-            title="Games"
-            week={gamesWeek}
-            month={gamesMonth}
-            label="game"
-          />
-          <CategoryColumn
-            title="Focusmomenten"
-            week={focusWeek}
-            month={focusMonth}
-            label="focus"
-          />
-        </div>
+        <section className="space-y-4">
+          <ul className="space-y-2">
+            {focus.map((item, index) => (
+              <li
+                key={item.focus_item_id}
+                className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-400 w-6 text-right">
+                    #{index + 1}
+                  </span>
+                  <div>
+                    <div className="text-sm font-medium text-slate-100">
+                      {item.title || "Focusmoment zonder titel"}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      Gemiddelde beoordeling:{" "}
+                      <span className="font-semibold">
+                        {item.avg_rating?.toFixed(2) ?? "-"}
+                      </span>{" "}
+                      · {item.rating_count} beoordelingen
+                    </div>
+                  </div>
+                </div>
+                <Link
+                  href="/focus"
+                  className="text-[11px] font-medium text-amber-300 hover:text-amber-200"
+                >
+                  Bekijk focusmomenten
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
-  );
-}
-
-function CategoryColumn({
-  title,
-  week,
-  month,
-  label,
-}: {
-  title: string;
-  week: BestOfRow[];
-  month: BestOfRow[];
-  label: "tour" | "game" | "focus";
-}) {
-  return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <div className="space-y-4">
-        <BestOfList
-          title="Deze week"
-          items={week}
-          emptyText={`Nog geen ${title.toLowerCase()} met voldoende beoordelingen deze week.`}
-          label={label}
-          period="week"
-        />
-        <BestOfList
-          title="Deze maand"
-          items={month}
-          emptyText={`Nog geen ${title.toLowerCase()} met voldoende beoordelingen deze maand.`}
-          label={label}
-          period="month"
-        />
-      </div>
-    </section>
-  );
-}
-
-function BestOfList({
-  title,
-  items,
-  emptyText,
-  label,
-  period,
-}: {
-  title: string;
-  items: BestOfRow[];
-  emptyText: string;
-  label: "tour" | "game" | "focus";
-  period: "week" | "month";
-}) {
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-medium">{title}</h3>
-        <span className="rounded-full bg-zinc-800 px-2 py-1 text-[10px] uppercase tracking-wide text-zinc-400">
-          {period}
-        </span>
-      </div>
-
-      {items.length === 0 ? (
-        <p className="text-xs text-zinc-500">{emptyText}</p>
-      ) : (
-        <ol className="space-y-2 text-sm">
-          {items.map((item, index) => (
-            <li
-              key={
-                item.tour_id || item.game_id || item.focus_item_id || index
-              }
-              className="flex items-center justify-between rounded-lg bg-zinc-900/80 px-3 py-2"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-xs text-zinc-300">
-                  {index + 1}
-                </span>
-                <div className="flex flex-col">
-                  <span className="font-medium text-zinc-100">
-                    {item.title}
-                  </span>
-                  <span className="text-[11px] text-zinc-500">
-                    Gemiddelde beoordeling{" "}
-                    <strong>{item.avg_rating.toFixed(2)}</strong> op basis van{" "}
-                    <strong>{item.rating_count}</strong>{" "}
-                    {item.rating_count === 1 ? "stem" : "stemmen"}.
-                  </span>
-                </div>
-              </div>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                {label}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
   );
 }

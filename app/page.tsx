@@ -1,161 +1,231 @@
-import { getSupabaseServer } from "@/lib/supabaseClient";
+import Link from "next/link";
+import { supabaseServer } from "@/lib/supabaseClient";
 
-type DayprogramSlot = {
+type DayprogramRow = {
   day_date: string;
   content_type: "tour" | "focus" | "game";
   slot_index: number;
-  is_premium: boolean;
   content_id: string | null;
+  is_premium: boolean | null;
+  content_title: string | null;
 };
 
-export const metadata = {
-  title: "MuseaThuis vandaag",
-};
+async function getTodayProgram(): Promise<{
+  tours: DayprogramRow[];
+  focus: DayprogramRow[];
+  games: DayprogramRow[];
+}> {
+  const supabase = supabaseServer();
+  const today = new Date().toISOString().slice(0, 10);
 
-async function getTodayData() {
-  const supabase = getSupabaseServer();
-  const today = new Date();
-  const dayDate = today.toISOString().slice(0, 10);
-
-  const { data: slotsRaw } = await supabase
-    .from("dayprogram_slots")
+  const { data, error } = await (supabase
+    .from("dayprogram_overview") as any)
     .select("*")
-    .eq("day_date", dayDate);
+    .eq("day_date", today)
+    .order("slot_index", { ascending: true });
 
-  const slots = (slotsRaw ?? []) as DayprogramSlot[];
+  if (error) {
+    console.error("Fout bij laden dagprogramma:", error);
+    return { tours: [], focus: [], games: [] };
+  }
 
+  const rows = (data as any[]) ?? [];
   return {
-    dayDate,
-    slots,
+    tours: rows.filter((r) => r.content_type === "tour"),
+    focus: rows.filter((r) => r.content_type === "focus"),
+    games: rows.filter((r) => r.content_type === "game"),
   };
 }
 
-export default async function HomePage() {
-  const { dayDate, slots } = await getTodayData();
+function slotLabel(slotIndex: number, contentType: "tour" | "focus" | "game") {
+  const base =
+    contentType === "tour"
+      ? "tour"
+      : contentType === "focus"
+      ? "focusmoment"
+      : "game";
 
-  const byType: Record<"tour" | "focus" | "game", DayprogramSlot[]> = {
-    tour: [],
-    focus: [],
-    game: [],
-  };
+  if (slotIndex === 1) return `Slot 1 · Gratis ${base}`;
+  if (slotIndex === 2) return "Slot 2 · Premium";
+  if (slotIndex === 3) return "Slot 3 · Premium";
+  return `Slot ${slotIndex}`;
+}
 
-  slots.forEach((s) => {
-    if (s.content_type in byType) {
-      byType[s.content_type].push(s);
-    }
-  });
+function slotHref(contentType: "tour" | "focus" | "game", slotIndex: number) {
+  if (contentType === "tour") return `/tour/today/${slotIndex}`;
+  if (contentType === "focus") return `/focus/today/${slotIndex}`;
+  return `/game/today/${slotIndex}`;
+}
 
-  ["tour", "focus", "game"].forEach((t) => {
-    byType[t as "tour" | "focus" | "game"].sort(
-      (a, b) => a.slot_index - b.slot_index
+function renderSlot(
+  rows: DayprogramRow[],
+  contentType: "tour" | "focus" | "game",
+  slotIndex: number
+) {
+  const slot = rows.find((r) => r.slot_index === slotIndex);
+
+  const title =
+    slot && slot.content_id
+      ? slot.content_title || "Geplande content"
+      : "Nog geen content gepland";
+
+  const href =
+    slot && slot.content_id ? slotHref(contentType, slotIndex) : null;
+
+  const label = slotLabel(slotIndex, contentType);
+
+  const inner = (
+    <div className="flex flex-col gap-1">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+        {label}
+      </div>
+      <div className="text-sm font-medium text-slate-100 truncate">
+        {title}
+      </div>
+    </div>
+  );
+
+  if (!href) {
+    return (
+      <div
+        key={slotIndex}
+        className="rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3"
+      >
+        {inner}
+      </div>
     );
-  });
+  }
 
   return (
-    <main className="min-h-screen px-4 py-8 md:px-8 lg:px-16">
-      <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-6 py-6 md:px-8">
-        <h1 className="text-3xl font-semibold mb-2">MuseaThuis</h1>
-        <p className="text-sm text-zinc-300 max-w-2xl">
-          Dagelijkse tours, spellen en focusmomenten voor kunstliefhebbers
-          thuis. Log in om je ervaring op te slaan, aanbevelingen te krijgen en
-          premiumcontent te ontgrendelen.
+    <Link
+      key={slotIndex}
+      href={href}
+      className="rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 hover:border-amber-400/70 hover:bg-slate-900 transition"
+    >
+      {inner}
+    </Link>
+  );
+}
+
+export default async function HomePage() {
+  const { tours, focus, games } = await getTodayProgram();
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <main className="px-6 py-10 max-w-6xl mx-auto space-y-10">
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/70 px-6 py-8 md:px-10 md:py-10 space-y-4">
+        <div className="text-xs font-semibold tracking-[0.3em] text-amber-400 uppercase">
+          MuseaThuis
+        </div>
+        <h1 className="text-2xl md:text-3xl font-semibold text-slate-50">
+          Dagelijkse tours, spellen en focusmomenten voor kunstliefhebbers thuis.
+        </h1>
+        <p className="text-sm md:text-base text-slate-300 max-w-2xl">
+          Maak een gratis profiel aan, ontdek elke dag nieuwe kunstwerken en
+          ontgrendel premiumtours en -spellen met een abonnement.
         </p>
-        <div className="mt-4 flex flex-wrap gap-3 text-xs">
-          <a
+        <div className="flex flex-wrap gap-3">
+          <Link
             href="/signup"
-            className="rounded-lg bg-zinc-100 px-4 py-2 font-medium text-zinc-900"
+            className="inline-flex items-center rounded-full bg-amber-400 px-5 py-2 text-sm font-medium text-slate-900 hover:bg-amber-300"
           >
             Maak een gratis account
-          </a>
-          <a
+          </Link>
+          <Link
             href="/login"
-            className="rounded-lg border border-zinc-600 px-4 py-2"
+            className="inline-flex items-center rounded-full border border-slate-600 px-5 py-2 text-sm font-medium text-slate-100 hover:bg-slate-800"
           >
             Inloggen
-          </a>
+          </Link>
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-2">
-          Vandaag voor jou • {dayDate}
-        </h2>
-        <p className="text-sm text-zinc-400 mb-4">
-          Drie slots per type: de eerste is gratis, twee zijn premium voor
-          abonnees.
-        </p>
+      <section className="space-y-4">
+        <div className="flex flex-col md:flex-row md:items-baseline md:justify-between gap-2">
+          <div>
+            <h2 className="text-lg md:text-xl font-semibold text-slate-50">
+              Vandaag voor jou · {today}
+            </h2>
+            <p className="text-xs text-slate-400">
+              Drie slots per type: de eerste is gratis, twee zijn premium voor abonnees.
+            </p>
+          </div>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          {(["tour", "focus", "game"] as const).map((type) => (
-            <div
-              key={type}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4"
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold">
-                  {type === "tour"
-                    ? "Tours"
-                    : type === "focus"
-                    ? "Focusmomenten"
-                    : "Games"}
-                </h3>
-                <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+          <article className="rounded-3xl border border-slate-800 bg-slate-900/70 p-4 md:p-5 space-y-3">
+            <header className="flex items-baseline justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100">Tours</h3>
+                <p className="text-[11px] text-slate-400 uppercase tracking-[0.16em]">
                   Vandaag
-                </span>
+                </p>
               </div>
-              <div className="space-y-3 text-sm">
-                {[1, 2, 3].map((slotIndex) => {
-                  const slot = byType[type].find(
-                    (s) => s.slot_index === slotIndex
-                  );
-                  const isPremium = slotIndex > 1;
-                  const href =
-                    type === "tour"
-                      ? `/tour/today/${slotIndex}`
-                      : type === "focus"
-                      ? `/focus/today/${slotIndex}`
-                      : `/game/today/${slotIndex}`;
-                  return (
-                    <a
-                      key={slotIndex}
-                      href={href}
-                      className="flex items-center justify-between rounded-lg bg-zinc-900 px-3 py-2 hover:bg-zinc-800"
-                    >
-                      <div>
-                        <div className="text-xs text-zinc-500 mb-0.5">
-                          Slot {slotIndex}{" "}
-                          {isPremium ? "• Premium" : "• Gratis"}
-                        </div>
-                        <div className="font-medium text-zinc-100">
-                          {slot?.content_id
-                            ? "Geplande content"
-                            : "Nog geen content gepland"}
-                        </div>
-                      </div>
-                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                        {type}
-                      </span>
-                    </a>
-                  );
-                })}
-              </div>
+              <span className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                TOUR
+              </span>
+            </header>
+            <div className="space-y-2">
+              {[1, 2, 3].map((slotIndex) =>
+                renderSlot(tours, "tour", slotIndex)
+              )}
             </div>
-          ))}
+          </article>
+
+          <article className="rounded-3xl border border-slate-800 bg-slate-900/70 p-4 md:p-5 space-y-3">
+            <header className="flex items-baseline justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100">
+                  Focusmomenten
+                </h3>
+                <p className="text-[11px] text-slate-400 uppercase tracking-[0.16em]">
+                  Vandaag
+                </p>
+              </div>
+              <span className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                FOCUS
+              </span>
+            </header>
+            <div className="space-y-2">
+              {[1, 2, 3].map((slotIndex) =>
+                renderSlot(focus, "focus", slotIndex)
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-3xl border border-slate-800 bg-slate-900/70 p-4 md:p-5 space-y-3">
+            <header className="flex items-baseline justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100">Games</h3>
+                <p className="text-[11px] text-slate-400 uppercase tracking-[0.16em]">
+                  Vandaag
+                </p>
+              </div>
+              <span className="text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                GAME
+              </span>
+            </header>
+            <div className="space-y-2">
+              {[1, 2, 3].map((slotIndex) =>
+                renderSlot(games, "game", slotIndex)
+              )}
+            </div>
+          </article>
         </div>
       </section>
 
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Ontdek de toppers</h2>
-        <p className="text-sm text-zinc-400 mb-3">
-          Bekijk welke tours, games en focusmomenten het hoogst gewaardeerd
-          worden door andere gebruikers.
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-50">Ontdek de toppers</h2>
+        <p className="text-sm text-slate-300 max-w-xl">
+          Bekijk welke tours, games en focusmomenten het hoogst gewaardeerd worden
+          door andere gebruikers.
         </p>
-        <a
+        <Link
           href="/best-of"
-          className="inline-flex items-center rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+          className="inline-flex items-center rounded-full border border-slate-600 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-slate-800"
         >
           Naar Best of MuseaThuis
-        </a>
+        </Link>
       </section>
     </main>
   );
