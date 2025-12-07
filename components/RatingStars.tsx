@@ -1,45 +1,47 @@
 "use client";
 
-type RatingStarsProps = {
-  value: number | null;
-  onChange?: (value: number) => void;
-  disabled?: boolean;
-  label?: string;
-};
+import React from "react";
 
-export function RatingStars({ value, onChange, disabled, label }: RatingStarsProps) {
-  const current = typeof value === "number" ? value : 0;
+type RatingValue = 1 | 2 | 3 | 4 | 5;
+
+interface RatingStarsProps {
+  value: RatingValue | null;
+  onChange?: (value: RatingValue) => void;
+  disabled?: boolean;
+}
+
+export function RatingStars({ value, onChange, disabled }: RatingStarsProps) {
+  const handleClick = (v: RatingValue) => {
+    if (disabled || !onChange) return;
+    onChange(v);
+  };
 
   return (
     <div className="flex items-center gap-2">
-      {label && (
-        <span className="text-[11px] font-medium text-slate-300">
-          {label}
-        </span>
-      )}
-      <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map((star) => {
-          const filled = star <= current;
-          return (
-            <button
-              key={star}
-              type="button"
-              disabled={disabled || !onChange}
-              onClick={() => onChange && onChange(star)}
-              className={[
-                "h-6 w-6 rounded-full text-xs",
-                filled ? "bg-amber-400 text-slate-950" : "bg-slate-800 text-slate-400",
-                disabled || !onChange ? "cursor-default opacity-60" : "hover:bg-amber-300 hover:text-slate-950"
-              ].join(" ")}
-              aria-label={`Geef ${star} sterren`}
-            >
-              {star}
-            </button>
-          );
-        })}
-      </div>
-      {typeof value === "number" && (
-        <span className="text-[11px] text-slate-400">({value}/5)</span>
+      <div className="text-xs text-slate-200">Uw beoordeling</div>
+      {[1, 2, 3, 4, 5].map((v) => {
+        const active = value === v;
+        return (
+          <button
+            key={v}
+            type="button"
+            onClick={() => handleClick(v as RatingValue)}
+            className={[
+              "h-8 w-8 rounded-full text-xs font-semibold border transition-colors",
+              active
+                ? "bg-amber-400 border-amber-300 text-slate-900"
+                : "bg-slate-900 border-slate-600 text-slate-200 hover:bg-slate-800",
+              disabled
+                ? "opacity-50 cursor-not-allowed hover:bg-slate-900"
+                : "",
+            ].join(" ")}
+          >
+            {v}
+          </button>
+        );
+      })}
+      {value && (
+        <span className="text-xs text-slate-400">( {value}/5 )</span>
       )}
     </div>
   );
