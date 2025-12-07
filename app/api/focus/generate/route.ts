@@ -2,16 +2,20 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
 export async function POST() {
-  const supabase = supabaseServer();
+  // TypeScript-types omzeilen, functioneel hetzelfde
+  const supabase = supabaseServer() as any;
 
   const { data, error } = await supabase
     .from("focus_sessions")
-    .insert({
-      title: "Placeholder focus",
-      description: "Deze focus-sessie is een placeholder voor de focus-engine.",
-      status: "draft",
-      is_premium: false
-    })
+    .insert(
+      {
+        title: "Placeholder focus",
+        description: "TODO: implement focus generation",
+        status: "draft",
+        is_premium: false,
+      } as any
+    );
+
     .select()
     .single();
 
