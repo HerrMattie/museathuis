@@ -1,46 +1,36 @@
 // lib/import/startMuseumImport.ts
 import { supabaseBrowser } from "@/lib/supabaseClient";
-import { fetchRijksmuseumCollection } from "@/lib/import/sources/rijksmuseumCollection";
-import { fetchRijksmuseumOAI } from "@/lib/import/sources/rijksmuseumOAI";
-import { mergeAndFilterArtworks } from "@/lib/import/mergeFilter";
-import enrichArtwork from "@/lib/import/enrich/enrichArtwork";
-
-// Voorkomt "unused import" problemen; logica bouw je later in.
-void fetchRijksmuseumCollection;
-void fetchRijksmuseumOAI;
-void mergeAndFilterArtworks;
-void enrichArtwork;
 
 /**
- * Placeholder museumimport.
- * Contract: wordt aangeroepen met een museumId (string) en registreert een ingest-job.
- * De echte fetch/merge/enrich logica kun je later toevoegen.
+ * Start een nieuwe importjob voor een museumbron.
+ * Wordt typischerwijs vanaf het dashboard aangeroepen.
  */
-export async function startMuseumImport(museumId: string) {
+export async function startMuseumImport(
+  museumId: string,
+  sourceName: string = "rijksmuseum",
+  trigger: string = "dashboard"
+) {
   const supabase = supabaseBrowser();
 
-  const { data, error } = await supabase
-    .from("ingestion_jobs")
-    .insert({
-      status: "queued",
-      source_name: "museum_import",
-      meta: {
-        trigger: "admin_api_placeholder",
-        museumId
-      }
-    })
-    .select()
+  const { data, error } = await (supabase
+    .from("ingestion_jobs") as any)
+    .insert(
+      {
+        status: "queued",
+        source_name: sourceName,
+        meta: {
+          trigger,
+          museumId,
+        },
+      } as any
+    )
+    .select("*")
     .single();
 
   if (error) {
-    console.error("Fout bij startMuseumImport:", error);
-    return { ok: false, error: error.message };
+    console.error("Fout bij aanmaken ingestion_job (startMuseumImport):", error);
+    throw new Error(error.message);
   }
 
-  return {
-    ok: true,
-    job: data
-  };
+  return data;
 }
-
-export default startMuseumImport;
