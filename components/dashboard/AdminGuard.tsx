@@ -1,100 +1,88 @@
+// components/dashboard/AdminGuard.tsx
 "use client";
 
 import { useEffect, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
-import { PrimaryButton } from "@/components/common/PrimaryButton";
 
-type AdminState = "loading" | "allowed" | "denied";
+type GuardState = "checking" | "allowed" | "denied";
 
 interface AdminGuardProps {
   children: ReactNode;
 }
 
-/**
- * Eenvoudige guard voor alle /dashboard pagina's.
- * - Haalt de huidige gebruiker op via Supabase Auth.
- * - Leest uit user_profiles of de gebruiker admin is.
- * - Toont anders een nette "Geen toegang" melding.
- */
 export function AdminGuard({ children }: AdminGuardProps) {
   const router = useRouter();
-  const [state, setState] = useState<AdminState>("loading");
+  const [state, setState] = useState<GuardState>("checking");
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkAdmin = async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
 
-        if (!user) {
-          setState("denied");
+        // Ingelogde user ophalen
+        const { data: authData, error: authError } =
+          await supabase.auth.getUser();
+
+        if (authError || !authData?.user) {
+          if (!cancelled) setState("denied");
           return;
         }
 
-        const { data, error } = await supabase
+        const userId = authData.user.id;
+
+        // Profiel ophalen
+        const { data: rawProfile, error: profileError } = await supabase
           .from("user_profiles")
           .select("is_admin")
-          .eq("user_id", user.id)
+          .eq("id", userId)
           .maybeSingle();
 
-        if (error) {
-          console.error("Fout bij ophalen user_profiles", error);
-          setState("denied");
+        if (profileError) {
+          console.error(profileError);
+          if (!cancelled) setState("denied");
           return;
         }
 
-        if (data && data.is_admin === true) {
-          setState("allowed");
+        // TypeScript fix: expliciet casten naar any
+        const profile = (rawProfile as any) ?? null;
+
+        if (profile && profile.is_admin === true) {
+          if (!cancelled) setState("allowed");
         } else {
-          setState("denied");
+          if (!cancelled) setState("denied");
         }
       } catch (e) {
-        console.error("Onverwachte fout in AdminGuard", e);
-        setState("denied");
+        console.error(e);
+        if (!cancelled) setState("denied");
       }
     };
 
     checkAdmin();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (state === "loading") {
+  if (state === "checking") {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-2 text-sm text-slate-300">
-        <p>Dashboard wordt geladen…</p>
+      <div className="px-6 py-10 text-sm text-slate-300">
+        Toegang tot het dashboard wordt gecontroleerd…
       </div>
     );
   }
 
   if (state === "denied") {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center text-sm text-slate-300">
-        <div className="max-w-md space-y-2">
-          <h1 className="text-lg font-semibold text-slate-50">
-            Geen toegang tot het MuseaThuis-dashboard
-          </h1>
-          <p>
-            U heeft geen beheerdersrechten voor deze omgeving. Log in met een
-            beheeraccount of neem contact op met de beheerder van MuseaThuis.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <PrimaryButton onClick={() => router.push("/login")}>
-            Naar inloggen
-          </PrimaryButton>
-          <button
-            type="button"
-            onClick={() => router.push("/")}
-            className="rounded-full border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500 hover:bg-slate-900"
-          >
-            Terug naar startpagina
-          </button>
-        </div>
+      <div className="px-6 py-10 text-sm text-slate-300">
+        Je hebt geen toegang tot het MuseaThuis-dashboard.
       </div>
     );
   }
 
+  // allowed
   return <>{children}</>;
 }
