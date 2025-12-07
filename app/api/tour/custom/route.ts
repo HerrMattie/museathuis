@@ -65,13 +65,16 @@ export async function POST(req: Request) {
     );
   }
 
-  const selected = artworks.slice(0, maxWorks);
+ // Boven je tourTitle-regel, voeg deze helper toe:
+const selectedItems = (selected as any[]) ?? [];
+const firstItem = selectedItems[0] as any;
 
-  const tourTitle =
-    title ||
-    (selected[0]?.museum
-      ? `Tour langs ${selected[0].museum}`
-      : "Persoonlijke MuseaThuis-tour");
+const tourTitle =
+  title ||
+  (firstItem?.museum
+    ? `Tour langs ${firstItem.museum}`
+    : "Persoonlijke MuseaThuis-tour");
+
 
   const introText =
     "Deze tour is automatisch samengesteld op basis van jouw filters in de MuseaThuis-database. " +
