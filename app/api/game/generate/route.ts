@@ -1,25 +1,38 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
+// Simpele placeholder-API: maakt een concept game aan.
+// Later kun je hier de echte game-generatie aan koppelen.
 export async function POST() {
-  const supabase = supabaseServer();
+  const supabase = supabaseServer() as any;
 
   const { data, error } = await supabase
     .from("games")
-    .insert({
-      title: "Placeholder game",
-      description: "Deze game is een placeholder voor de game-engine.",
-      status: "draft",
-      game_type: "quiz",
-      is_premium: false
-    })
-    .select()
+    .insert(
+      {
+        title: "Placeholder game",
+        description: "TODO: implement game generation",
+        status: "draft",
+        game_type: "quiz",
+        is_premium: false,
+      } as any
+    )
+    .select("*")
     .single();
 
   if (error) {
-    console.error(error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    console.error("Error creating game", error);
+    return NextResponse.json(
+      { error: "Fout bij aanmaken van game" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ ok: true, game: data });
+  return NextResponse.json(
+    {
+      ok: true,
+      game: data,
+    },
+    { status: 200 }
+  );
 }
