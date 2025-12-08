@@ -1,90 +1,63 @@
-
-import Link from "next/link";
+import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabaseClient";
-import { TourEditForm, TourEditValues } from "@/components/dashboard/TourEditForm";
+import TourEditForm, {
+  CmsTour,
+} from "@/components/crm/TourEditForm";
+
+type PageProps = {
+  params: { id: string };
+};
 
 export const dynamic = "force-dynamic";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
-
-export default async function DashboardTourEditPage({ params }: Params) {
+export default async function TourEditPage({ params }: PageProps) {
   const supabase = supabaseServer();
-  const { id } = params;
 
   const { data, error } = await supabase
     .from("tours")
-    .select("id, title, subtitle, overview_intro, detail_intro, experience_text, user_hints, closing_text")
-    .eq("id", id)
-    .maybeSingle();
+    .select(
+      `
+      id,
+      date,
+      title,
+      intro,
+      is_premium,
+      status,
+      theme,
+      subtitle,
+      short_description,
+      duration_min,
+      experience_text,
+      closing_text,
+      overview_intro,
+      detail_intro,
+      user_hints
+    `
+    )
+    .eq("id", params.id)
+    .maybeSingle<CmsTour>();
 
-  if (error) {
-    return (
-      <main className="min-h-screen px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="border border-red-500 rounded-2xl bg-[#220000] px-4 py-3 text-sm text-red-100">
-            Fout bij het laden van deze tour: {error.message}
-          </div>
-        </div>
-      </main>
-    );
+  if (error || !data) {
+    console.error("CRM tour load error", error);
+    notFound();
   }
-
-  if (!data) {
-    return (
-      <main className="min-h-screen px-6 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="border border-gray-800 rounded-2xl bg-[#050816] px-4 py-3 text-sm text-gray-200">
-            Tour niet gevonden.
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  const initial: TourEditValues = {
-    id: data.id,
-    title: data.title ?? "",
-    subtitle: data.subtitle ?? null,
-    overview_intro: data.overview_intro ?? null,
-    detail_intro: data.detail_intro ?? null,
-    experience_text: data.experience_text ?? null,
-    user_hints: data.user_hints ?? null,
-    closing_text: data.closing_text ?? null,
-  };
 
   return (
-    <main className="min-h-screen px-6 py-8">
-      <div className="max-w-5xl mx-auto flex flex-col gap-6">
-        <header className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-yellow-400">
-              Content & CRM
-            </p>
-            <h1 className="text-2xl font-semibold mb-1">
-              Tour bewerken
-            </h1>
-            <p className="text-sm text-gray-300">
-              Pas hier de teksten en context van deze tour aan. Wijzigingen zijn direct zichtbaar op de site.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard/content/tours"
-              className="inline-flex items-center px-3 py-1.5 rounded-full border border-gray-700 text-xs text-gray-100 hover:border-gray-300 transition-colors"
-            >
-              Terug naar overzicht
-            </Link>
-          </div>
-        </header>
-
-        <section className="rounded-2xl border border-gray-800 bg-[#020617] px-4 py-5">
-          <TourEditForm initial={initial} />
-        </section>
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8">
+      <div>
+        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+          Content &amp; CRM
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold text-slate-50">
+          Tour bewerken
+        </h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Pas hier titel, metadata en begeleidende teksten aan. De wijzigingen
+          zijn direct zichtbaar op de tourpagina en in de overlay.
+        </p>
       </div>
-    </main>
+
+      <TourEditForm initialTour={data} />
+    </div>
   );
 }
