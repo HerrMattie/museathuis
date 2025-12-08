@@ -44,9 +44,31 @@ export async function getDailyProgram(): Promise<DayProgram> {
     focusId ? supabase.from('focus_items').select('id, title, intro, is_premium, artwork:artworks(image_url)').eq('id', focusId).single() : Promise.resolve({ data: null })
   ]);
 
+  // --- DE FIX ZIT HIERONDER ---
+  // Supabase geeft 'artwork' terug als een array (bijv: [{image_url: '...'}]).
+  // Wij transformeren dit hier naar een enkel object of null, zodat TypeScript tevreden is.
+  
+  const focusData = focusRes.data as any; // We gebruiken 'any' om de array-structuur tijdelijk te negeren
+  
+  let formattedFocus = null;
+  if (focusData) {
+    // Check of artwork een array is en pak de eerste, anders pak het object zelf of null
+    const artworkObj = Array.isArray(focusData.artwork) && focusData.artwork.length > 0 
+      ? focusData.artwork[0] 
+      : focusData.artwork;
+
+    formattedFocus = {
+      id: focusData.id,
+      title: focusData.title,
+      intro: focusData.intro,
+      is_premium: focusData.is_premium,
+      artwork: artworkObj || null
+    };
+  }
+
   return {
     tour: tourRes.data,
     game: gameRes.data,
-    focus: focusRes.data,
+    focus: formattedFocus,
   };
 }
