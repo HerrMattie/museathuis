@@ -1,6 +1,6 @@
 "use client";
 
-import { RatingStars } from "./RatingStars";
+import RatingStars from "./RatingStars";
 
 type TourRatingSectionProps = {
   tourId: string;
