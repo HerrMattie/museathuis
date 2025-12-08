@@ -1,8 +1,4 @@
-// lib/data/day-program.ts
-import { createClient } from '@/utils/supabase/server'; 
-// LET OP: Als je in je file tree 'lib/supabaseServer.ts' gebruikt, 
-// verander bovenstaande regel dan naar: import { createClient } from '@/lib/supabaseServer';
-
+import { createClient } from '@/lib/supabaseServer'; 
 import { cookies } from 'next/headers';
 
 export type DayProgram = {
@@ -13,8 +9,8 @@ export type DayProgram = {
 
 export async function getDailyProgram(): Promise<DayProgram> {
   const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const supabase = createClient(cookieStore); 
+  const today = new Date().toISOString().split('T')[0];
 
   // 1. Haal de planning op
   const { data: schedule } = await supabase
@@ -23,12 +19,11 @@ export async function getDailyProgram(): Promise<DayProgram> {
     .eq('day_date', today)
     .single();
 
-  // IDs verzamelen (of null als er geen schedule is)
   let tourId = schedule?.tour_id;
   let gameId = schedule?.game_id;
   let focusId = schedule?.focus_id;
 
-  // 2. Fallbacks: Als er geen harde planning is, zoek op datum in de losse tabellen
+  // 2. Fallbacks
   if (!tourId) {
     const { data } = await supabase.from('tours').select('id').eq('date', today).eq('status', 'published').maybeSingle();
     tourId = data?.id;
@@ -37,13 +32,12 @@ export async function getDailyProgram(): Promise<DayProgram> {
     const { data } = await supabase.from('games').select('id').eq('date', today).eq('status', 'published').maybeSingle();
     gameId = data?.id;
   }
-  // Focus items hebben vaak een 'published_date' of 'scheduled_for'
   if (!focusId) {
     const { data } = await supabase.from('focus_items').select('id').eq('published_date', today).maybeSingle();
     focusId = data?.id;
   }
 
-  // 3. Haal alle content parallel op (sneller!)
+  // 3. Haal content op
   const [tourRes, gameRes, focusRes] = await Promise.all([
     tourId ? supabase.from('tours').select('id, title, intro, hero_image_url, is_premium').eq('id', tourId).single() : Promise.resolve({ data: null }),
     gameId ? supabase.from('games').select('id, title, short_description, is_premium').eq('id', gameId).single() : Promise.resolve({ data: null }),
@@ -53,6 +47,6 @@ export async function getDailyProgram(): Promise<DayProgram> {
   return {
     tour: tourRes.data,
     game: gameRes.data,
-    focus: focusRes.data, // Let op: Supabase geeft geneste data terug voor artwork
+    focus: focusRes.data,
   };
 }
