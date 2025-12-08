@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -31,7 +32,7 @@ function resolveLabel(slot: DayprogramSlot): string {
     case "tour":
       return "Tour";
     case "game":
-      return "Game";
+      return "Spel";
     case "focus":
       return "Focusmoment";
     case "salon":
@@ -118,12 +119,11 @@ export function DayProgramTiles() {
                 <h2 className="text-lg font-semibold">
                   {resolveLabel(slot)}
                 </h2>
-                {slot.is_premium && (
+                {slot.is_premium ? (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500 text-black">
                     Premium
                   </span>
-                )}
-                {!slot.is_premium && (
+                ) : (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-green-500 text-black">
                     Gratis
                   </span>
