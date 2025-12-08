@@ -1,70 +1,76 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceClient } from "@/lib/supabaseServiceClient";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } }
-);
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-type Body = {
-  date: string;
-  contentType: "tour" | "game" | "focus";
-  status: "draft" | "published";
-};
+type DayprogramStatusResponse =
+  | {
+      status: "ok";
+      date: string;
+      total_slots: number;
+      premium_slots: number;
+      free_slots: number;
+    }
+  | {
+      status: "empty";
+      date: string;
+      total_slots: 0;
+      premium_slots: 0;
+      free_slots: 0;
+    }
+  | {
+      status: "error";
+      error: string;
+    };
 
-export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as Body | null;
+export async function GET() {
+  const supabase = createServiceClient();
 
-  if (!body || !body.date || !body.contentType || !body.status) {
-    return NextResponse.json(
-      { error: "INVALID_BODY" },
-      { status: 400 }
-    );
+  try {
+    const { data, error } = await supabase
+      .from("v_dayprogram_status_today")
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error(
+        "Supabase error in /api/crm/day-program/status",
+        error.message
+      );
+      const resp: DayprogramStatusResponse = {
+        status: "error",
+        error: error.message,
+      };
+      return NextResponse.json(resp, { status: 500 });
+    }
+
+    if (!data) {
+      const resp: DayprogramStatusResponse = {
+        status: "empty",
+        date: new Date().toISOString().slice(0, 10),
+        total_slots: 0,
+        premium_slots: 0,
+        free_slots: 0,
+      };
+      return NextResponse.json(resp);
+    }
+
+    const resp: DayprogramStatusResponse = {
+      status: "ok",
+      date: data.date ?? new Date().toISOString().slice(0, 10),
+      total_slots: data.total_slots ?? 0,
+      premium_slots: data.premium_slots ?? 0,
+      free_slots: data.free_slots ?? 0,
+    };
+
+    return NextResponse.json(resp);
+  } catch (err: any) {
+    console.error("Unexpected error in /api/crm/day-program/status", err);
+    const resp: DayprogramStatusResponse = {
+      status: "error",
+      error: err?.message ?? "Unknown error",
+    };
+    return NextResponse.json(resp, { status: 500 });
   }
-
-  const d = new Date(body.date);
-  if (Number.isNaN(d.getTime())) {
-    return NextResponse.json(
-      { error: "INVALID_DATE" },
-      { status: 400 }
-    );
-  }
-
-  const dateStr = d.toISOString().slice(0, 10);
-
-  let error = null;
-
-  if (body.contentType === "tour") {
-    const result = await supabase
-      .from("tours")
-      .update({ status: body.status })
-      .eq("date", dateStr);
-
-    error = result.error;
-  } else if (body.contentType === "game") {
-    const result = await supabase
-      .from("games")
-      .update({ status: body.status })
-      .eq("date", dateStr);
-
-    error = result.error;
-  } else if (body.contentType === "focus") {
-    const result = await supabase
-      .from("focus_schedule")
-      .update({ status: body.status })
-      .eq("date", dateStr);
-
-    error = result.error;
-  }
-
-  if (error) {
-    console.error("Error updating day program status", error);
-    return NextResponse.json(
-      { error: "STATUS_UPDATE_FAILED" },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({ success: true });
 }
