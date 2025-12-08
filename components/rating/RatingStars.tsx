@@ -7,7 +7,7 @@ type RatingStarsProps = {
   contentType?: "tour" | "game" | "focus";
   contentId?: string;
 
-  /** Voor gecontroleerd gebruik (zoals nu in app/game/page.tsx) */
+  /** Voor gecontroleerd gebruik (zoals in app/game/page.tsx) */
   value?: number | null;
   onChange?: (value: number) => void;
 
@@ -27,7 +27,6 @@ export default function RatingStars({
   const [internalValue, setInternalValue] = useState<number | null>(null);
   const effectiveValue = value ?? internalValue;
 
-  // Houd interne state in sync als er een externe value wordt meegegeven
   useEffect(() => {
     if (typeof value === "number" || value === null) {
       setInternalValue(value);
@@ -40,30 +39,24 @@ export default function RatingStars({
     try {
       await fetch("/api/ratings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contentType,
-          contentId,
-          rating,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType, contentId, rating }),
       });
     } catch {
-      // Bewust stil; UI hoeft hier niet op te breken
+      // Geen hard error in de UI
     }
   }
 
   async function handleClick(star: number) {
     if (disabled) return;
 
-    // 1. Gecontroleerd gebruik: laat de ouder alle logica doen
+    // Gecontroleerd gebruik (game)
     if (onChange) {
       onChange(star);
       return;
     }
 
-    // 2. Zelfstandig gebruik: sla op via API
+    // Zelf-afhandelend gebruik (tour/focus/best-of)
     setInternalValue(star);
     await sendRatingToServer(star);
   }
