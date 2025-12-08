@@ -1,17 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import TourOverlay from "@/components/tour/TourOverlay";
-
-export type TourItem = {
-  id: string;
-  title: string;
-  subtitle?: string | null;
-  year_from?: number | null;
-  image_url?: string | null;
-  description?: string | null;
-  artist_name?: string | null;
-};
 
 export type TourMeta = {
   id: string;
@@ -31,140 +21,145 @@ export type TourMeta = {
   userHints: string | null;
 };
 
+export type TourItem = {
+  id: string;
+  title?: string;
+  image_url?: string | null;
+  year_from?: number | null;
+  dating_text?: string | null;
+  text?: string | null;
+  description?: string | null;
+  audio_url?: string | null;
+};
+
 type Props = {
   meta: TourMeta;
   items: TourItem[];
 };
 
-function formatDutchDate(dateString: string | null): string | null {
-  if (!dateString) return null;
-  const d = new Date(dateString);
-  if (Number.isNaN(d.getTime())) return null;
-
-  return d.toLocaleDateString("nl-NL", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 export default function TourTheater({ meta, items }: Props) {
-  const dateLabel = formatDutchDate(meta.date);
-  const durationLabel = meta.durationMin
-    ? `Ongeveer ${meta.durationMin} minuten`
-    : "Ongeveer twintig minuten";
+  const [overlayOpen, setOverlayOpen] = useState(false);
 
-  const heroSublineParts: string[] = [];
-  if (dateLabel) heroSublineParts.push(`Dagtour voor ${dateLabel}`);
-  heroSublineParts.push(durationLabel);
-  const heroSubline = heroSublineParts.join(" · ");
+  const handleStartTour = () => {
+    if (!items || items.length === 0) return;
+    setOverlayOpen(true);
+  };
+
+  const handleCloseOverlay = () => {
+    setOverlayOpen(false);
+  };
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* HERO HEADER */}
-      <section className="flex flex-col gap-2">
-        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">
-          Tour
-          {meta.isPremium && (
-            <span className="ml-2 rounded-full bg-yellow-400/10 px-2 py-0.5 text-[10px] font-semibold text-yellow-300">
-              Premium
-            </span>
-          )}
-        </div>
-
-        <h1 className="text-3xl font-semibold md:text-4xl">
-          {meta.title}
-        </h1>
-
-        <p className="text-sm text-muted-foreground">
-          {heroSubline}
-        </p>
-
-        <div className="mt-2">
-          <Link
-            href="/tour"
-            className="text-sm font-medium text-yellow-300 hover:text-yellow-200 hover:underline"
-          >
-            ← Terug naar tours van vandaag
-          </Link>
-        </div>
-      </section>
-
-      {/* OVER DEZE TOUR */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-white/5 bg-white/5 px-5 py-4">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Introductie van deze tour
-          </h2>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {meta.detailIntro ||
-              "Deze tour neemt u mee langs een reeks kunstwerken die samen een verhaal vertellen, met toelichting in heldere museale taal."}
+    <>
+      {/* Detailpagina met uitleg en CTA */}
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
+        {/* Titelblok */}
+        <div className="flex flex-col gap-2">
+          <div className="text-xs uppercase tracking-[0.16em] text-amber-300">
+            Tour {meta.isPremium ? "· Premium" : ""}
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-50 sm:text-3xl">
+            {meta.title}
+          </h1>
+          <p className="text-xs text-slate-400 sm:text-sm">
+            Dagtour voor{" "}
+            {meta.date
+              ? new Date(meta.date).toLocaleDateString("nl-NL", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                })
+              : "vandaag"}
+            {meta.durationMin ? ` · Ongeveer ${meta.durationMin} minuten` : ""}
           </p>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl border border-white/5 bg-white/5 px-5 py-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Wat u van deze tour kunt verwachten
-            </h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {meta.overviewIntro ||
-                "U volgt de tour in uw eigen tempo. Elk werk verschijnt groot in beeld, met een korte audiotoelichting en begeleidende tekst."}
+        {/* Intro en verwachtingen */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl bg-slate-900/60 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Introductie van deze tour
+            </div>
+            <p className="mt-2 text-sm text-slate-100">
+              {meta.detailIntro ??
+                meta.overviewIntro ??
+                "Deze tour neemt u mee langs een reeks kunstwerken die samen een verhaal vertellen."}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/5 bg-white/5 px-5 py-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Praktische tips
-            </h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {meta.userHints ||
-                "Kies een rustige plek, zet uw scherm op volledige helderheid en neem af en toe afstand om het werk als geheel te bekijken."}
-            </p>
+          <div className="space-y-4">
+            <div className="rounded-xl bg-slate-900/60 p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Wat u van deze tour kunt verwachten
+              </div>
+              <p className="mt-2 text-sm text-slate-100">
+                {meta.experienceText ??
+                  "U volgt de tour in uw eigen tempo. Elk werk verschijnt groot in beeld, met een korte audiotoelichting en begeleidende tekst."}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-900/60 p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Praktische tips
+              </div>
+              <p className="mt-2 text-sm text-slate-100">
+                {meta.userHints ??
+                  "Kies een rustige plek, zet uw scherm op volledige helderheid en neem af en toe afstand van het scherm om het werk als geheel te bekijken."}
+              </p>
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* UITLEG PREMIUM-ERVARING */}
-      <section className="rounded-2xl border border-white/5 bg-white/5 px-5 py-5">
-        <h2 className="mb-2 text-sm font-semibold">
-          Hoe werkt deze tour?
-        </h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          In deze tour beleeft u elk kunstwerk in een rustige theatermodus, met
-          beeld, audio en toelichting die speciaal op elkaar zijn afgestemd.
-        </p>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>Ongeveer acht kunstwerken per tour.</li>
-          <li>Bij elk werk een audiotoelichting en begeleidende tekst.</li>
-          <li>
-            U kunt elk werk beoordelen, zodat we de best gewaardeerde werken
-            terugzien in Best of MuseaThuis.
-          </li>
-        </ul>
-      </section>
+        {/* Hoe werkt deze tour */}
+        <div className="rounded-xl bg-slate-900/60 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Hoe werkt deze tour
+          </div>
+          <div className="mt-2 text-sm text-slate-100">
+            <p className="mb-2">
+              In deze tour beleeft u elk kunstwerk in een rustige theatermodus,
+              met beeld, audio en toelichting die op elkaar zijn afgestemd.
+            </p>
+            <ul className="ml-5 list-disc space-y-1 text-slate-100">
+              <li>Ongeveer acht kunstwerken per tour.</li>
+              <li>Bij elk werk een audiotoelichting en begeleidende tekst.</li>
+              <li>
+                U kunt elk werk beoordelen. De best gewaardeerde werken komen
+                terug in Best of MuseaThuis.
+              </li>
+            </ul>
+          </div>
+        </div>
 
-      {/* CTA + START TOUR (OVERLAY) */}
-      <section className="flex flex-col items-center gap-3 pb-4 pt-2">
-        <p className="text-sm text-muted-foreground">
-          Klaar om de tour te starten?
-        </p>
+        {/* CTA: start tour */}
+        <div className="mt-8 flex flex-col items-center gap-3 pb-4">
+          <p className="text-sm text-slate-300">Klaar om de tour te starten?</p>
+          <button
+            type="button"
+            onClick={handleStartTour}
+            className="rounded-full bg-yellow-400 px-6 py-2.5 text-sm font-semibold text-black shadow-lg shadow-yellow-400/30 transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+          >
+            Start tour
+          </button>
+          <button
+            type="button"
+            className="text-xs text-slate-400 underline-offset-2 hover:underline"
+          >
+            Liever een andere tour van vandaag kiezen
+          </button>
+        </div>
+      </div>
 
-        <TourOverlay
-          tourTitle={meta.title}
-          items={items}
-          contentType="tour"
-          contentId={meta.id}
-        />
-
-        <Link
-          href="/tour"
-          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-        >
-          Liever een andere tour van vandaag kiezen
-        </Link>
-      </section>
-    </div>
+      {/* Overlay: alleen open na klik op Start tour */}
+      <TourOverlay
+        tourTitle={meta.title}
+        items={items}
+        contentType="tour"
+        contentId={meta.id}
+        open={overlayOpen}
+        onClose={handleCloseOverlay}
+      />
+    </>
   );
 }
