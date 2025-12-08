@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseClient";
-import { RatingStars } from "@/components/RatingStars";
+import RatingStars from "@/components/ratings/RatingStars";
 
 type LoadState = "idle" | "loading" | "loaded" | "empty" | "error";
 
