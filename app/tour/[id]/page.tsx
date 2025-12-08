@@ -57,21 +57,22 @@ export default async function TourDetailPage({ params }: PageProps) {
     userHints: data.user_hints ?? null,
   };
 
-<TourOverlay
-  tourTitle={tour.title}
-  items={tourItems}
-  contentType="tour"
-  contentId={tour.id}
-/>
-
-  
   const items: TourItem[] = Array.isArray(data.items)
     ? (data.items as TourItem[])
     : [];
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10">
+      {/* Intro / uitleg van de tour zoals nu */}
       <TourTheater meta={meta} items={items} />
+
+      {/* Overlay-component die de echte tourervaring in fullscreen/theatermodus toont */}
+      <TourOverlay
+        tourTitle={meta.title}
+        items={items}
+        contentType="tour"
+        contentId={meta.id}
+      />
     </div>
   );
 }
