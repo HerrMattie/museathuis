@@ -1,51 +1,84 @@
 // app/api/tour/today/route.ts
 import { NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { supabaseServer } from "@/lib/supabaseClient";
+
+type TourMeta = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  intro?: string | null;
+};
+
+type TourItem = {
+  id: string;
+  title: string;
+  image_url?: string | null;
+  artist_name?: string | null;
+  year_text?: string | null;
+  museum_name?: string | null;
+  text?: string | null;
+};
+
+type TodayResponse =
+  | { status: "ok"; meta: TourMeta; items: TourItem[] }
+  | { status: "empty"; meta?: TourMeta | null }
+  | { status: "error"; error: string };
 
 export async function GET() {
-  const supabase = getSupabaseServerClient();
+  const supabase = supabaseServer();
+  const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
 
-  const today = new Date().toISOString().slice(0, 10);
+  // 1. Slot voor vandaag zoeken
+  const { data: slot, error: slotError } = await supabase
+    .from("dayprogram_slots")
+    .select("content_id")
+    .eq("slot_date", today)
+    .eq("content_type", "tour")
+    .order("slot_key", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-  const { data: tour, error } = await supabase
-    .from("tours")
-    .select("*")
-    .eq("tour_date", today)
-    .eq("status", "published")
-    .single();
-
-  if (error || !tour) {
-    return NextResponse.json({ status: "NO_TOUR_FOR_TODAY" });
+  if (slotError) {
+    console.error("tour/today slot error:", slotError);
+    const body: TodayResponse = {
+      status: "error",
+      error: "Kon het dagprogramma voor vandaag niet lezen.",
+    };
+    return NextResponse.json(body, { status: 500 });
   }
 
-  const { data: items } = await supabase
-    .from("tour_items")
-    .select(
-      `
-      id,
-      order_index,
-      generated_text,
-      artwork:artworks (
-        id,
-        museum,
-        title,
-        artist_name,
-        dating_text,
-        object_type,
-        materials,
-        image_url,
-        image_thumbnail_url,
-        location_city,
-        location_country
-      )
-    `
-    )
-    .eq("tour_id", tour.id)
-    .order("order_index", { ascending: true });
+  if (!slot) {
+    const body: TodayResponse = { status: "empty" };
+    return NextResponse.json(body);
+  }
 
-  return NextResponse.json({
-    status: "OK",
-    tour,
-    items: items ?? [],
-  });
+  // 2. Tour zelf ophalen
+  const { data: tour, error: tourError } = await supabase
+    .from("tours")
+    .select("id, title, intro, items")
+    .eq("id", slot.content_id)
+    .maybeSingle();
+
+  if (tourError || !tour) {
+    console.error("tour/today tour error:", tourError);
+    const body: TodayResponse = {
+      status: "error",
+      error: "De tour uit het dagprogramma kon niet worden geladen.",
+    };
+    return NextResponse.json(body, { status: 500 });
+  }
+
+  const items = Array.isArray(tour.items) ? tour.items : [];
+
+  const body: TodayResponse = {
+    status: "ok",
+    meta: {
+      id: tour.id,
+      title: tour.title,
+      intro: tour.intro ?? null,
+    },
+    items: items as TourItem[],
+  };
+
+  return NextResponse.json(body);
 }
