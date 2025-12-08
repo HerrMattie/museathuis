@@ -1,157 +1,256 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import RatingStars from "@/components/rating/RatingStars";
 
-type TourTheaterItem = {
-  id: string;
-  text?: string | null;
-  image_url?: string | null;
-  title?: string | null;
-  artwork?: {
-    title?: string | null;
-    artist_name?: string | null;
-    dating_text?: string | null;
-    image_url?: string | null;
-  } | null;
-};
+type ContentType = "tour" | "game" | "focus";
 
 type TourOverlayProps = {
   tourTitle: string;
-  items: TourTheaterItem[];
-  contentType: "tour";
+  items: any[]; // bewust ruim: werkt met huidige en toekomstige item-vormen
+  contentType?: ContentType;
   contentId: string;
+  initialIndex?: number;
+  open?: boolean;          // optioneel: default = true (zoals nu)
+  onClose?: () => void;    // optioneel: bij ontbreken doen we history.back()
 };
 
-export default function TourOverlay({
+function getImageUrl(item: any): string | null {
+  return (
+    item?.image_url ??
+    item?.imageUrl ??
+    item?.artwork_image_url ??
+    item?.artworkImageUrl ??
+    null
+  );
+}
+
+function getTitle(item: any): string {
+  return (
+    item?.title ??
+    item?.artwork_title ??
+    item?.artworkTitle ??
+    "Zonder titel"
+  );
+}
+
+function getYear(item: any): string | null {
+  const year =
+    item?.year ??
+    item?.dating_text ??
+    item?.datingText ??
+    item?.date_display ??
+    null;
+  return year ? String(year) : null;
+}
+
+function getText(item: any): string | null {
+  return (
+    item?.text ??
+    item?.description ??
+    item?.description_primary ??
+    item?.descriptionPrimary ??
+    null
+  );
+}
+
+function getAudioUrl(item: any): string | null {
+  return item?.audio_url ?? item?.audioUrl ?? null;
+}
+
+const TourOverlay = ({
   tourTitle,
   items,
-  contentType,
+  contentType = "tour",
   contentId,
-}: TourOverlayProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [index, setIndex] = useState(0);
+  initialIndex = 0,
+  open,
+  onClose,
+}: TourOverlayProps) => {
+  const [index, setIndex] = useState(initialIndex);
 
-  if (!items || items.length === 0) return null;
+  const isOpen = open ?? true;
+  const total = items?.length ?? 0;
 
-  const current = items[index];
-  const imageUrl =
-    current.artwork?.image_url ?? current.image_url ?? null;
-  const title =
-    current.artwork?.title ?? current.title ?? "Onbekend werk";
-  const meta =
-    current.artwork?.artist_name ??
-    current.artwork?.dating_text ??
-    "";
+  const currentItem = useMemo(
+    () => (total > 0 ? items[Math.min(Math.max(index, 0), total - 1)] : null),
+    [items, index, total]
+  );
 
-  const goNext = () => setIndex((i) => (i + 1) % items.length);
-  const goPrev = () =>
-    setIndex((i) => (i - 1 + items.length) % items.length);
+  useEffect(() => {
+    setIndex(initialIndex);
+  }, [initialIndex]);
+
+  // sluiting via ESC
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+      if (e.key === "ArrowRight") {
+        handleNext();
+      }
+      if (e.key === "ArrowLeft") {
+        handlePrev();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
+
+  if (!isOpen || !currentItem) return null;
+
+  const currentImage = getImageUrl(currentItem);
+  const currentTitle = getTitle(currentItem);
+  const currentYear = getYear(currentItem);
+  const currentText = getText(currentItem);
+  const currentAudio = getAudioUrl(currentItem);
+
+  const workLabel = `Werk ${index + 1} van ${total}`;
+  const ratingContentId =
+    currentItem?.id != null
+      ? `${contentId}:${String(currentItem.id)}`
+      : contentId;
+
+  function handleClose() {
+    if (onClose) {
+      onClose();
+    } else {
+      // fallback wanneer geen onClose is meegegeven
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        window.history.back();
+      }
+    }
+  }
+
+  function handleNext() {
+    setIndex((prev) => (prev + 1 < total ? prev + 1 : prev));
+  }
+
+  function handlePrev() {
+    setIndex((prev) => (prev - 1 >= 0 ? prev - 1 : prev));
+  }
 
   return (
-    <>
-      {/* knop op de pagina zelf */}
-      <div className="mt-8 flex justify-start">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Start tour
-        </button>
-      </div>
+    <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-md">
+      <div className="flex h-full w-full flex-col px-4 py-6 sm:px-8 sm:py-8">
+        {/* HEADER: titel links, rating + sluiten rechts */}
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1 text-slate-100">
+            <div className="text-xs uppercase tracking-[0.16em] text-amber-300">
+              Tour
+            </div>
+            <div className="text-lg font-semibold sm:text-2xl">
+              {tourTitle}
+            </div>
+            <div className="text-xs text-slate-400 sm:text-sm">
+              {workLabel}
+            </div>
+          </div>
 
-      {!isOpen ? null : (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="relative flex h-[90vh] w-[95vw] max-w-6xl flex-col gap-4 rounded-3xl bg-surface-1 p-4 md:p-6">
-            {/* header */}
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Tour
-                </p>
-                <h2 className="text-lg md:text-xl font-semibold">
-                  {tourTitle}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Werk {index + 1} van {items.length}
-                </p>
-              </div>
+          <div className="flex flex-col items-end gap-3">
+            <div className="flex items-center gap-3">
+              <RatingStars
+                contentType={contentType}
+                contentId={ratingContentId}
+                initialRating={currentItem?.initial_rating ?? null}
+                size="sm"
+              />
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                className="rounded-full border border-border px-3 py-1 text-xs hover:bg-surface-2"
+                onClick={handleClose}
+                className="rounded-full border border-slate-600 bg-black/40 px-3 py-1 text-xs font-medium text-slate-100 hover:bg-black/60"
               >
                 Sluiten
               </button>
             </div>
+          </div>
+        </div>
 
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 overflow-hidden">
-              {/* beeld */}
-              <div className="flex items-center justify-center rounded-2xl bg-surface-2 overflow-hidden">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={title}
-                    className="max-h-[80vh] w-auto object-contain"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center px-8 py-16 text-sm text-muted-foreground">
-                    <div className="mb-3 text-4xl">🖼️</div>
-                    Geen afbeelding beschikbaar voor dit werk.
-                  </div>
+        {/* HOOFDDEEL: grote afbeelding */}
+        <div className="flex flex-1 flex-col items-center">
+          <div className="flex flex-1 items-center justify-center w-full">
+            {currentImage ? (
+              <img
+                src={currentImage}
+                alt={currentTitle}
+                className="max-h-[70vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+              />
+            ) : (
+              <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-dashed border-slate-700 bg-black/30 text-sm text-slate-400">
+                Geen afbeelding beschikbaar voor dit werk.
+              </div>
+            )}
+          </div>
+
+          {/* NAVIGATIE DIRECT ONDER DE AFBEELDING */}
+          <div className="mt-4 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={index === 0}
+              className="rounded-full border border-slate-700 px-4 py-1 text-xs font-medium text-slate-100 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
+            >
+              Vorig werk
+            </button>
+            <span className="text-xs text-slate-400">{workLabel}</span>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={index + 1 >= total}
+              className="rounded-full bg-amber-400/90 px-4 py-1 text-xs font-semibold text-black shadow-md hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              Volgend werk
+            </button>
+          </div>
+
+          {/* TEKST + AUDIO OVER DE HELE BREEDTE */}
+          <div className="mt-6 w-full max-w-4xl space-y-4 text-slate-100">
+            {/* Audioblok (voor nu optioneel, al voorbereid voor premium) */}
+            <div className="rounded-xl bg-black/40 px-4 py-3 text-sm">
+              <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
+                Audiotoelichting
+              </div>
+              {currentAudio ? (
+                <audio
+                  controls
+                  src={currentAudio}
+                  className="mt-1 w-full"
+                />
+              ) : (
+                <p className="text-xs text-slate-400">
+                  In een volgende fase wordt hier de audiotoelichting
+                  voor deze tour toegevoegd.
+                </p>
+              )}
+            </div>
+
+            {/* Titel + jaar + begeleidende tekst (wordt door audio voorgelezen) */}
+            <div className="rounded-xl bg-black/40 px-4 py-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-lg font-semibold sm:text-xl">
+                  {currentTitle}
+                </h2>
+                {currentYear && (
+                  <span className="text-xs text-slate-400 sm:text-sm">
+                    {currentYear}
+                  </span>
                 )}
               </div>
-
-              {/* tekst */}
-              <div className="flex flex-col justify-between gap-4">
-                <div>
-                  <h3 className="text-base md:text-lg font-semibold">
-                    {title}
-                  </h3>
-                  {meta && (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {meta}
-                    </p>
-                  )}
-                  {current.text && (
-                    <p className="mt-4 text-sm leading-relaxed">
-                      {current.text}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  {/* rating voor de hele tour, niet per werk */}
-                  <RatingStars
-                    contentType={contentType}
-                    contentId={contentId}
-                    initialRating={null}
-                    size="sm"
-                  />
-
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={goPrev}
-                      className="rounded-full border border-border px-4 py-2 text-xs md:text-sm hover:bg-surface-2"
-                    >
-                      Vorig werk
-                    </button>
-                    <button
-                      type="button"
-                      onClick={goNext}
-                      className="rounded-full bg-primary px-4 py-2 text-xs md:text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                    >
-                      Volgend werk
-                    </button>
-                  </div>
-                </div>
-              </div>
+              {currentText && (
+                <p className="mt-3 text-sm leading-relaxed text-slate-200">
+                  {currentText}
+                </p>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
-}
+};
+
+export default TourOverlay;
