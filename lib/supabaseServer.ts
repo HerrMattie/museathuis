@@ -1,10 +1,17 @@
-// lib/supabaseServer.ts
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-export function getSupabaseServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(url, key, {
-    auth: { persistSession: false },
-  });
+// Deze functie wordt door page.tsx aangeroepen
+export function createClient(cookieStore: ReturnType<typeof cookies>) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
 }
