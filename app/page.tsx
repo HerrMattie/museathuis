@@ -1,18 +1,17 @@
-// app/page.tsx
 import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
 import { getDailyProgram } from '@/lib/data/day-program';
-import TourCard from '@/components/dashboard/TourCard';
+import DayCard from '@/components/tour/DayCard';
 
-export const revalidate = 3600; // Cache deze pagina voor 1 uur (performance!)
+export const revalidate = 3600; // Cache 1 uur
 
 export default async function DashboardPage() {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  // 1. Haal user info op (voor premium check)
+  // 1. Check User Premium Status
   const { data: { user } } = await supabase.auth.getUser();
-  let isPremium = false;
+  let isUserPremium = false;
 
   if (user) {
     const { data: profile } = await supabase
@@ -21,37 +20,67 @@ export default async function DashboardPage() {
       .eq('user_id', user.id)
       .single();
     
-    // Check of premium actief is (datum in toekomst)
-    if (profile?.is_premium) {
-       // Hier kun je evt. ook checken of premium_until > now() is
-       isPremium = true; 
-    }
+    // Simpele check: is_premium flag óf geldige datum
+    if (profile?.is_premium) isUserPremium = true;
   }
 
-  // 2. Haal programma op
-  const { tour } = await getDailyProgram();
+  // 2. Haal Programma Data
+  const { tour, game, focus } = await getDailyProgram();
 
   return (
     <main className="container mx-auto max-w-5xl px-4 py-8">
       <header className="mb-10 text-center">
-        <h1 className="text-3xl font-extrabold text-gray-900">MuseaThuis Vandaag</h1>
-        <p className="mt-2 text-gray-600">Jouw dagelijkse dosis kunst en inspiratie.</p>
+        <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">MuseaThuis Vandaag</h1>
+        <p className="mt-3 text-lg text-gray-600">Jouw dagelijkse dosis kunst en inspiratie.</p>
       </header>
 
-      {/* Grid voor de dagkaarten */}
+      {/* Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Tour Kaart */}
-        <TourCard tour={tour} isUserPremium={isPremium} />
+        
+        {/* TOUR CARD */}
+        {tour ? (
+          <DayCard 
+            type="tour"
+            title={tour.title}
+            description={tour.intro}
+            imageUrl={tour.hero_image_url}
+            href={`/tour/${tour.id}`}
+            isPremium={tour.is_premium}
+            isLocked={tour.is_premium && !isUserPremium}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed p-10 text-center text-gray-400">Geen tour vandaag</div>
+        )}
 
-        {/* Placeholder voor Game (komen we later aan toe) */}
-        <div className="flex h-full min-h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50">
-          <span className="text-gray-400">Game van de dag</span>
-        </div>
+        {/* GAME CARD */}
+        {game ? (
+          <DayCard 
+            type="game"
+            title={game.title}
+            description={game.short_description}
+            href={`/game/${game.id}`}
+            isPremium={game.is_premium}
+            isLocked={game.is_premium && !isUserPremium}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed p-10 text-center text-gray-400">Geen game vandaag</div>
+        )}
 
-        {/* Placeholder voor Focus */}
-        <div className="flex h-full min-h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50">
-          <span className="text-gray-400">Focus kunstwerk</span>
-        </div>
+        {/* FOCUS CARD */}
+        {focus ? (
+          <DayCard 
+            type="focus"
+            title={focus.title}
+            description={focus.intro}
+            imageUrl={focus.artwork?.image_url}
+            href={`/focus/${focus.id}`}
+            isPremium={focus.is_premium}
+            isLocked={focus.is_premium && !isUserPremium}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed p-10 text-center text-gray-400">Geen focus item vandaag</div>
+        )}
+
       </div>
     </main>
   );
