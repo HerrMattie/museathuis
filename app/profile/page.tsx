@@ -100,11 +100,12 @@ export default function ProfilePage() {
           favoriteMuseum: p.favorite_museum ?? "",
           primaryDevice: p.primary_device ?? "",
           museumPass:
-            p.has_museum_pass === true
+            p.has_museum === true
               ? "yes"
-              : p.has_museum_pass === false
+              : p.has_museum === false
               ? "no"
               : "",
+
         });
       } catch (err) {
         console.error("Onverwachte fout in profiel", err);
@@ -181,7 +182,7 @@ export default function ProfilePage() {
       favorite_period: profileForm.favoritePeriod || null,
       favorite_museum: profileForm.favoriteMuseum || null,
       primary_device: profileForm.primaryDevice || null,
-      has_museum_pass: hasMuseumPass,
+      has_museum: hasMuseumPass,
       data_consent: true,
     };
 
