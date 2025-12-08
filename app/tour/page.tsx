@@ -1,244 +1,227 @@
 // app/tour/page.tsx
-import Link from "next/link";
 import { supabaseServer } from "@/lib/supabaseClient";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-type DayProgram = {
-  id: string;
-};
-
 type DayProgramSlot = {
-  slot_index: number | null;
-  is_premium: boolean | null;
+  id: string;
+  day: string | null;
   content_id: string | null;
-  content_type: string | null;
+  slot_type: string | null; // "free" | "premium1" | "premium2" | ...
 };
 
 type TourRow = {
   id: string;
-  date: string | null;
   title: string | null;
+  intro: string | null;
   overview_intro: string | null;
   short_description: string | null;
   duration_min: number | null;
-  status: string | null;
 };
 
-type TourWithSlot = TourRow & {
-  slot_index: number;
-  slot_is_premium: boolean;
-};
+function formatDuration(minutes: number | null | undefined): string {
+  if (!minutes || minutes <= 0) {
+    return "Ongeveer 20–25 minuten";
+  }
+  if (minutes < 20) return `Ongeveer ${minutes} minuten`;
+  return `Ongeveer ${minutes} minuten`;
+}
 
-export default async function ToursPage() {
+function slotLabel(slotType: string | null | undefined): "Gratis" | "Premium" {
+  if (!slotType) return "Gratis";
+  return slotType === "free" ? "Gratis" : "Premium";
+}
+
+export default async function TourListPage() {
   const supabase = supabaseServer();
 
-  // 1. Bepaal "vandaag" in YYYY-MM-DD
+  // 1. Vandaag bepalen (YYYY-MM-DD)
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
 
-  // 2. Haal dagprogramma voor vandaag op
-  const { data: program, error: programError } = await supabase
-    .from("day_programs")
-    .select("id")
-    .eq("date", todayStr)
-    .maybeSingle<DayProgram>();
-
-  if (programError) {
-    console.error("Error loading day program:", programError);
-  }
-
-  // Geen dagprogramma -> duidelijke melding
-  if (!program) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
-          Tours
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-50">
-          Ontdek de tours van vandaag
-        </h1>
-        <p className="mt-4 text-sm text-slate-400">
-          Er is nog geen dagprogramma ingericht. Voeg eerst tours toe in het
-          CRM-dagprogramma.
-        </p>
-      </div>
-    );
-  }
-
-  // 3. Haal de tourslots uit het dagprogramma
-  const { data: slots, error: slotsError } = await supabase
+  // 2. Dagprogramma-slots voor tours ophalen
+  const { data: slotData, error: slotError } = await supabase
     .from("day_program_slots")
-    .select("slot_index, is_premium, content_id, content_type")
-    .eq("day_program_id", program.id)
+    .select("id, day, content_id, slot_type, content_type")
+    .eq("day", todayStr)
     .eq("content_type", "tour")
-    .order("slot_index", { ascending: true });
+    .order("slot_type", { ascending: true });
 
-  if (slotsError) {
-    console.error("Error loading tour slots:", slotsError);
+  if (slotError) {
+    console.error("Fout bij ophalen day_program_slots:", slotError);
   }
 
-  const tourSlots: DayProgramSlot[] = (slots ?? []).filter(
-    (s): s is DayProgramSlot => !!s.content_id
-  );
+  const slots: DayProgramSlot[] =
+    (slotData as DayProgramSlot[] | null) ?? [];
 
-  // Geen tours in het dagprogramma
-  if (tourSlots.length === 0) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
-          Tours
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold text-slate-50">
-          Ontdek de tours van vandaag
-        </h1>
-        <p className="mt-4 text-sm text-slate-400">
-          Het dagprogramma van vandaag bevat nog geen tours. Koppel in het CRM
-          één of meer tours aan de tour-slots.
-        </p>
-      </div>
-    );
-  }
-
-  const tourIds = tourSlots
+  const tourIds = slots
     .map((s) => s.content_id)
     .filter((id): id is string => !!id);
 
-  // 4. Haal de bijbehorende tours op
-  const { data: toursData, error: toursError } = await supabase
-    .from("tours")
-    .select(
-      `
-      id,
-      date,
-      title,
-      overview_intro,
-      short_description,
-      duration_min,
-      status
-    `
-    )
-    .in("id", tourIds)
-    .eq("status", "published");
+  // 3. Gekoppelde tours ophalen
+  let toursById = new Map<string, TourRow>();
 
-  if (toursError) {
-    console.error("Error loading tours:", toursError);
+  if (tourIds.length > 0) {
+    const { data: tourData, error: tourError } = await supabase
+      .from("tours")
+      .select(
+        "id, title, intro, overview_intro, short_description, duration_min"
+      )
+      .in("id", tourIds);
+
+    if (tourError) {
+      console.error("Fout bij ophalen tours:", tourError);
+    }
+
+    const tours = (tourData as TourRow[] | null) ?? [];
+
+    toursById = new Map<string, TourRow>(
+      tours.map((t) => [t.id, t])
+    );
   }
 
-  const toursMap = new Map<string, TourRow>();
-  (toursData ?? []).forEach((t) => {
-    toursMap.set((t as TourRow).id, t as TourRow);
-  });
-
-  // 5. Combineer slots en tours, gesorteerd op slot_index
-  const tours: TourWithSlot[] = tourSlots
+  // 4. Slots combineren met tour-gegevens en lege slots filteren
+  const tourSlots = slots
     .map((slot) => {
-      const tour = slot.content_id ? toursMap.get(slot.content_id) : undefined;
+      const tour = slot.content_id
+        ? toursById.get(slot.content_id)
+        : undefined;
       if (!tour) return null;
-
-      return {
-        ...tour,
-        slot_index: slot.slot_index ?? 0,
-        slot_is_premium: !!slot.is_premium,
-      } as TourWithSlot;
+      return { slot, tour };
     })
-    .filter((t): t is TourWithSlot => t !== null)
-    .sort((a, b) => a.slot_index - b.slot_index);
+    .filter(
+      (item): item is { slot: DayProgramSlot; tour: TourRow } => item !== null
+    );
+
+  const hasTours = tourSlots.length > 0;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
       {/* Header */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
-            Tours
-          </div>
-          <h1 className="mt-2 text-3xl font-semibold text-slate-50">
-            Ontdek de tours van vandaag
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">
-            Elke tour is een korte ontdekkingstocht langs ongeveer acht
-            kunstwerken rond een thema, met toelichting in heldere museale
-            taal. Kies een tour die past bij uw stemming of beschikbare tijd.
-          </p>
-
-          <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
-            <span className="rounded-full bg-slate-800/70 px-3 py-1 text-slate-200">
-              • Gratis tours
-            </span>
-            <span className="rounded-full bg-slate-800/70 px-3 py-1 text-slate-200">
-              • Premiumtours
-            </span>
-            <span className="rounded-full bg-slate-800/70 px-3 py-1 text-slate-200">
-              • Gemiddeld 20–25 minuten per tour
-            </span>
-          </div>
+      <header className="flex flex-col gap-2">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
+          Tours
         </div>
-
-        <div className="text-right text-xs text-slate-400">
-          <div className="font-semibold text-slate-200">Dagprogramma</div>
-          <div>Huidige tours voor {todayStr}</div>
-        </div>
-      </div>
-
-      {/* Tourtegels volgens dagprogramma-slots */}
-      <div className="mt-8 grid gap-6 md:grid-cols-3">
-        {tours.map((tour) => {
-          const isPremium = tour.slot_is_premium;
-          const label = isPremium ? "Premium" : "Gratis";
-          const labelClass = isPremium
-            ? "bg-amber-400/10 text-amber-300 ring-amber-400/40"
-            : "bg-emerald-400/10 text-emerald-300 ring-emerald-400/40";
-
-          return (
-            <div
-              key={tour.id}
-              className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 shadow-sm"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium ring-1 ${labelClass}`}
-                >
-                  {label}
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Dagelijkse tour
-                </span>
-              </div>
-
-              <div className="mt-4">
-                <h2 className="text-base font-semibold text-slate-50">
-                  {tour.title ?? "Tour"}
-                </h2>
-                {(tour.overview_intro || tour.short_description) && (
-                  <p className="mt-2 line-clamp-3 text-sm text-slate-400">
-                    {tour.overview_intro ?? tour.short_description}
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>
-                  {tour.duration_min
-                    ? `Ongeveer ${tour.duration_min} minuten • 8 werken`
-                    : "Ongeveer 20–25 minuten • 8 werken"}
-                </span>
-                <Link
-                  href={`/tour/${tour.id}`}
-                  className="text-xs font-semibold text-amber-300 hover:text-amber-200"
-                >
-                  Bekijk tour →
-                </Link>
-              </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-50">
+              Ontdek de tours van vandaag
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-300">
+              Elke tour is een korte ontdekkingstocht langs ongeveer acht
+              kunstwerken rond een thema, met toelichting in heldere
+              museale taal. Kies een tour die past bij uw stemming of
+              beschikbare tijd.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-emerald-900/40 px-3 py-1 text-emerald-200">
+                ● Gratis tours
+              </span>
+              <span className="rounded-full bg-amber-900/40 px-3 py-1 text-amber-200">
+                ● Premiumtours
+              </span>
+              <span className="rounded-full bg-slate-800 px-3 py-1 text-slate-200">
+                ● Gemiddeld 20–25 minuten per tour
+              </span>
             </div>
-          );
-        })}
-      </div>
+          </div>
 
-      {tours.length === 0 && (
-        <p className="mt-8 text-sm text-slate-400">
-          Het dagprogramma bevat op dit moment nog geen gepubliceerde tours.
-        </p>
+          <div className="text-right text-xs text-slate-400">
+            <div className="font-semibold text-slate-200">
+              Dagprogramma voor
+            </div>
+            <div>
+              {new Intl.DateTimeFormat("nl-NL", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              }).format(today)}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-500">
+              Huidige beschikbare tours
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Geen dagprogramma / geen tours */}
+      {!hasTours && (
+        <div className="mt-8 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-6 text-sm text-slate-300">
+          <p>
+            Er is nog geen dagprogramma ingericht. Voeg eerst tours toe in
+            het CRM-dagprogramma, of controleer of er tours zijn
+            gekoppeld aan de tour-slots van vandaag.
+          </p>
+        </div>
+      )}
+
+      {/* Raster met tours */}
+      {hasTours && (
+        <>
+          <section className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {tourSlots.map(({ slot, tour }) => {
+              const label = slotLabel(slot.slot_type);
+              const isFree = label === "Gratis";
+              const durationText = formatDuration(tour.duration_min);
+
+              const description =
+                tour.overview_intro ||
+                tour.short_description ||
+                tour.intro ||
+                "Korte ontdekkingsreis langs een reeks kunstwerken rond een helder thema.";
+
+              return (
+                <article
+                  key={slot.id}
+                  className="flex flex-col rounded-2xl bg-slate-900/70 px-4 py-4 shadow-sm ring-1 ring-slate-800"
+                >
+                  <div className="mb-3 flex items-center justify-between text-[11px]">
+                    <span
+                      className={
+                        "rounded-full px-3 py-1 font-semibold " +
+                        (isFree
+                          ? "bg-emerald-900/40 text-emerald-200"
+                          : "bg-amber-900/40 text-amber-200")
+                      }
+                    >
+                      {label}
+                    </span>
+                    <span className="text-slate-400">Dagelijkse tour</span>
+                  </div>
+
+                  <h2 className="text-base font-semibold text-slate-50">
+                    {tour.title ?? "Tour"}
+                  </h2>
+                  <p className="mt-2 flex-1 text-xs leading-relaxed text-slate-300">
+                    {description}
+                  </p>
+
+                  <div className="mt-4 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>{durationText}</span>
+                    <span>Ongeveer 8 werken</span>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <Link
+                      href={`/tour/${tour.id}`}
+                      className="text-xs font-semibold text-amber-300 hover:text-amber-200"
+                    >
+                      Bekijk tour →
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+
+          <section className="mt-6 text-xs text-slate-400">
+            In een latere fase wordt op deze pagina ook een archief met
+            eerdere tours en thematische selecties zichtbaar. De huidige
+            versie richt zich op het dagprogramma van vandaag.
+          </section>
+        </>
       )}
     </div>
   );
