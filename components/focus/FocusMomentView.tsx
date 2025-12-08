@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RatingStars } from "@/components/rating/RatingStars";
+import RatingStars from "@/components/rating/RatingStars";
 
 type FocusItem = {
   id: string;
