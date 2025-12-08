@@ -3,17 +3,22 @@
 import { useEffect, useState } from "react";
 
 type RatingStarsProps = {
-  /** Voor tour / game / focus als de component zelf de rating naar de API moet sturen */
-  contentType?: "tour" | "game" | "focus";
+  /** Voor automatische opslag (tour/game/focus/best-of) */
+  contentType?: string;          // bv. "tour" | "game" | "focus"
   contentId?: string;
 
-  /** Voor gecontroleerd gebruik (zoals in app/game/page.tsx) */
+  /** Gecontroleerd gebruik (bv. game-page) */
   value?: number | null;
   onChange?: (value: number) => void;
+
+  /** Startwaarde als er al een gemiddelde rating is (best-of) */
+  initialRating?: number | null;
 
   /** Algemene opties */
   disabled?: boolean;
   label?: string;
+  size?: "sm" | "md";
+  className?: string;
 };
 
 export default function RatingStars({
@@ -21,17 +26,26 @@ export default function RatingStars({
   contentId,
   value,
   onChange,
+  initialRating = null,
   disabled = false,
   label,
+  size = "md",
+  className = "",
 }: RatingStarsProps) {
-  const [internalValue, setInternalValue] = useState<number | null>(null);
-  const effectiveValue = value ?? internalValue;
+  const [internalValue, setInternalValue] = useState<number | null>(
+    value ?? initialRating
+  );
 
+  // Houd interne state in sync met externe value / initialRating
   useEffect(() => {
     if (typeof value === "number" || value === null) {
       setInternalValue(value);
+    } else if (typeof initialRating === "number") {
+      setInternalValue(initialRating);
     }
-  }, [value]);
+  }, [value, initialRating]);
+
+  const effectiveValue = value ?? internalValue;
 
   async function sendRatingToServer(rating: number) {
     if (!contentType || !contentId) return;
@@ -43,26 +57,28 @@ export default function RatingStars({
         body: JSON.stringify({ contentType, contentId, rating }),
       });
     } catch {
-      // Geen hard error in de UI
+      // Geen harde fout tonen in de UI
     }
   }
 
   async function handleClick(star: number) {
     if (disabled) return;
 
-    // Gecontroleerd gebruik (game)
+    // Gecontroleerd gebruik: caller regelt opslag
     if (onChange) {
       onChange(star);
       return;
     }
 
-    // Zelf-afhandelend gebruik (tour/focus/best-of)
+    // Zelf-afhandelend gebruik: zelf opslaan
     setInternalValue(star);
     await sendRatingToServer(star);
   }
 
+  const sizeClass = size === "sm" ? "text-base" : "text-xl";
+
   return (
-    <div className="flex flex-col gap-1">
+    <div className={`flex flex-col gap-1 ${className}`}>
       {label && (
         <div className="text-xs font-medium text-slate-300">{label}</div>
       )}
@@ -71,7 +87,7 @@ export default function RatingStars({
         {[1, 2, 3, 4, 5].map((star) => {
           const active = (effectiveValue ?? 0) >= star;
           const base =
-            "text-xl transition-colors cursor-pointer select-none";
+            "transition-colors cursor-pointer select-none";
           const stateClass = active ? "text-yellow-300" : "text-slate-600";
           const disabledClass = disabled ? "opacity-50 cursor-not-allowed" : "";
 
@@ -81,7 +97,7 @@ export default function RatingStars({
               type="button"
               disabled={disabled}
               onClick={() => handleClick(star)}
-              className={`${base} ${stateClass} ${disabledClass}`}
+              className={`${sizeClass} ${base} ${stateClass} ${disabledClass}`}
               aria-label={`Geef ${star} van 5 sterren`}
             >
               ★
