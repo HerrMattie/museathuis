@@ -28,22 +28,22 @@ type ProfileForm = {
 
 export default function ProfilePage() {
   const [state, setState] = useState<ProfileState>({ status: "loading" });
-const [profileForm, setProfileForm] = useState<ProfileForm>({
-  displayName: "",
-  ageGroup: "",
-  museumVisit: "",
-  artInterestLevel: "",
-  favoritePeriod: "",
-  favoriteMuseum: "",
-  primaryDevice: "",
-  usesCasting: false,
-});
+  const [profileForm, setProfileForm] = useState<ProfileForm>({
+    displayName: "",
+    ageGroup: "",
+    museumVisit: "",
+    artInterestLevel: "",
+    favoritePeriod: "",
+    favoriteMuseum: "",
+    primaryDevice: "",
+    usesCasting: false,
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">(
     "idle"
   );
 
-  // Laden van gebruiker, profiel en badges
+  // Laden gebruiker, profiel en badges
   useEffect(() => {
     const supabase = supabaseBrowser();
 
@@ -90,20 +90,18 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
           badges: badges ?? [],
         });
 
-        // Formulierwaarden initialiseren vanuit profiel
-          const p = profile ?? {};
-          setProfileForm({
-            displayName: p.display_name ?? "",
-            ageGroup: p.age_group ?? "",
-            museumVisit: p.museum_visit ?? "",
-            artInterestLevel: p.art_interest_level ?? "",
-            favoritePeriod: p.favorite_period ?? "",
-            favoriteMuseum: p.favorite_museum ?? "",
-            primaryDevice: p.primary_device ?? "",
-            usesCasting: Boolean(p.uses_casting),
-          });
-
-      } catch (err: any) {
+        const p = profile ?? {};
+        setProfileForm({
+          displayName: p.display_name ?? "",
+          ageGroup: p.age_group ?? "",
+          museumVisit: p.museum_visit ?? "",
+          artInterestLevel: p.art_interest_level ?? "",
+          favoritePeriod: p.favorite_period ?? "",
+          favoriteMuseum: p.favorite_museum ?? "",
+          primaryDevice: p.primary_device ?? "",
+          usesCasting: Boolean(p.uses_casting),
+        });
+      } catch (err) {
         console.error("Onverwachte fout in profiel", err);
         setState({
           status: "error",
@@ -160,20 +158,18 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
     setSaveStatus("idle");
     const supabase = supabaseBrowser();
 
-        const payload = {
-          user_id: state.userId,
-          display_name: profileForm.displayName || null,
-          age_group: profileForm.ageGroup || null,
-          museum_visit: profileForm.museumVisit || null,
-          art_interest_level: profileForm.artInterestLevel || null,
-          favorite_period: profileForm.favoritePeriod || null,
-          favorite_museum: profileForm.favoriteMuseum || null,
-          primary_device: profileForm.primaryDevice || null,
-          uses_casting: profileForm.usesCasting,
-          // automatische toestemming zodra er een profiel is
-          data_consent: true,
-        };
-
+    const payload = {
+      user_id: state.userId,
+      display_name: profileForm.displayName || null,
+      age_group: profileForm.ageGroup || null,
+      museum_visit: profileForm.museumVisit || null,
+      art_interest_level: profileForm.artInterestLevel || null,
+      favorite_period: profileForm.favoritePeriod || null,
+      favorite_museum: profileForm.favoriteMuseum || null,
+      primary_device: profileForm.primaryDevice || null,
+      uses_casting: profileForm.usesCasting,
+      data_consent: true, // technisch: profiel = toestemming
+    };
 
     const { error } = await supabase
       .from("user_profiles")
@@ -184,7 +180,6 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
       setSaveStatus("error");
     } else {
       setSaveStatus("success");
-      // lokale state bijwerken zodat scherm direct klopt
       setState((prev) => {
         if (prev.status !== "logged_in") return prev;
         return {
@@ -285,17 +280,21 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
             Gegevens en privacy
           </h2>
           <p className="mt-2 text-xs text-slate-400">
-            Profielgegevens worden gebruikt om uw ervaring te
-            personaliseren en op geaggregeerd niveau inzicht te geven in
-            kunstvoorkeuren. Persoonsgegevens worden niet individueel
-            gedeeld met musea of andere partijen.
+            Profiel- en gebruiksgegevens worden gebruikt om het aanbod te
+            verbeteren en op geaggregeerd niveau inzicht te geven in
+            kunst- en museumvoorkeuren. Persoonsgegevens worden niet als
+            losse profielen gedeeld met musea of andere partijen.
           </p>
         </section>
       </main>
     );
   }
 
-  // logged_in
+  // vanaf hier: zeker dat we ingelogd zijn
+  if (state.status !== "logged_in") {
+    return null;
+  }
+
   const { userEmail, profile, badges } = state;
   const displayNameResolved = resolveDisplayName(profile, userEmail);
   const isPremium = resolveIsPremium(profile);
@@ -314,13 +313,13 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
       </header>
 
       <section className="grid gap-4 md:grid-cols-3">
-        {/* Profielgegevens en formulier */}
+        {/* Profielgegevens + formulier */}
         <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-          <h2 className="text-base font-semibold text-slate-100 mb-3">
+          <h2 className="mb-3 text-base font-semibold text-slate-100">
             Profielgegevens
           </h2>
 
-          <dl className="space-y-2 text-sm text-slate-200 mb-4">
+          <dl className="mb-4 space-y-2 text-sm text-slate-200">
             <div className="flex items-baseline justify-between gap-4">
               <dt className="text-slate-400">Naam (weergave)</dt>
               <dd className="font-medium">{displayNameResolved}</dd>
@@ -342,207 +341,220 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
               </dd>
             </div>
           </dl>
-<div className="mt-4 border-t border-slate-800 pt-4">
-  <h3 className="text-sm font-semibold text-slate-100">
-    Voorkeuren en achtergrond
-  </h3>
 
-  <div className="mt-3 space-y-3 text-sm">
-    {/* Naam */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        Naam zoals getoond in MuseaThuis
-      </label>
-      <input
-        type="text"
-        value={profileForm.displayName}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            displayName: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-        placeholder="Bijvoorbeeld: Kunstliefhebber, Maria, Jan"
-      />
-    </div>
+          <div className="mt-4 border-t border-slate-800 pt-4">
+            <h3 className="text-sm font-semibold text-slate-100">
+              Voorkeuren en achtergrond
+            </h3>
 
-    {/* Leeftijdsgroep */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        In welke leeftijdsgroep valt u ongeveer
-      </label>
-      <select
-        value={profileForm.ageGroup}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            ageGroup: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-      >
-        <option value="">Selecteer een categorie</option>
-        <option value="<30">Jonger dan 30 jaar</option>
-        <option value="30-44">Tussen 30 en 44 jaar</option>
-        <option value="45-59">Tussen 45 en 59 jaar</option>
-        <option value="60+">60 jaar of ouder</option>
-      </select>
-    </div>
+            <div className="mt-3 space-y-3 text-sm">
+              {/* Naam */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Naam zoals getoond in MuseaThuis
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.displayName}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      displayName: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                  placeholder="Bijvoorbeeld: Kunstliefhebber, Maria, Jan"
+                />
+              </div>
 
-    {/* Museumbezoek */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        Hoe vaak bezoekt u normaal een museum
-      </label>
-      <select
-        value={profileForm.museumVisit}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            museumVisit: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-      >
-        <option value="">Selecteer een optie</option>
-        <option value="nooit">Bijna nooit</option>
-        <option value="1-2x">Ongeveer 1 tot 2 keer per jaar</option>
-        <option value="meerdere-keren">Meerdere keren per jaar</option>
-        <option value="maandelijks">Ongeveer maandelijks of vaker</option>
-      </select>
-    </div>
+              {/* Leeftijdsgroep */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  In welke leeftijdsgroep valt u ongeveer
+                </label>
+                <select
+                  value={profileForm.ageGroup}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      ageGroup: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                >
+                  <option value="">Selecteer een categorie</option>
+                  <option value="<30">Jonger dan 30 jaar</option>
+                  <option value="30-44">Tussen 30 en 44 jaar</option>
+                  <option value="45-59">Tussen 45 en 59 jaar</option>
+                  <option value="60+">60 jaar of ouder</option>
+                </select>
+              </div>
 
-    {/* Interesse niveau */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        Hoe zou u uw interesse in kunst omschrijven
-      </label>
-      <select
-        value={profileForm.artInterestLevel}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            artInterestLevel: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-      >
-        <option value="">Selecteer een optie</option>
-        <option value="beginnend">Ik begin net met kunst ontdekken</option>
-        <option value="geinteresseerd">Ik ben duidelijk geïnteresseerd</option>
-        <option value="liefhebber">Ik ben een echte kunstliefhebber</option>
-        <option value="expert">Ik werk met of in de kunstwereld</option>
-      </select>
-    </div>
+              {/* Museumbezoek */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Hoe vaak bezoekt u normaal een museum
+                </label>
+                <select
+                  value={profileForm.museumVisit}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      museumVisit: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                >
+                  <option value="">Selecteer een optie</option>
+                  <option value="nooit">Bijna nooit</option>
+                  <option value="1-2x">Ongeveer 1 tot 2 keer per jaar</option>
+                  <option value="meerdere-keren">
+                    Meerdere keren per jaar
+                  </option>
+                  <option value="maandelijks">
+                    Ongeveer maandelijks of vaker
+                  </option>
+                </select>
+              </div>
 
-    {/* Favoriete periode */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        Welke kunstperiode spreekt u het meest aan
-      </label>
-      <input
-        type="text"
-        value={profileForm.favoritePeriod}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            favoritePeriod: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-        placeholder="Bijvoorbeeld: Gouden Eeuw, moderne kunst, renaissance"
-      />
-    </div>
+              {/* Interesse in kunst */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Hoe zou u uw interesse in kunst omschrijven
+                </label>
+                <select
+                  value={profileForm.artInterestLevel}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      artInterestLevel: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                >
+                  <option value="">Selecteer een optie</option>
+                  <option value="beginnend">
+                    Ik begin net met kunst ontdekken
+                  </option>
+                  <option value="geinteresseerd">
+                    Ik ben duidelijk geïnteresseerd
+                  </option>
+                  <option value="liefhebber">
+                    Ik ben een echte kunstliefhebber
+                  </option>
+                  <option value="expert">
+                    Ik werk met of in de kunstwereld
+                  </option>
+                </select>
+              </div>
 
-    {/* Favoriet museum */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        Heeft u een favoriet museum
-      </label>
-      <input
-        type="text"
-        value={profileForm.favoriteMuseum}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            favoriteMuseum: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-        placeholder="Bijvoorbeeld: Rijksmuseum, Museum Boijmans, onbekend"
-      />
-    </div>
+              {/* Favoriete periode */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Welke kunstperiode spreekt u het meest aan
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.favoritePeriod}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      favoritePeriod: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                  placeholder="Bijvoorbeeld: Gouden Eeuw, moderne kunst, renaissance"
+                />
+              </div>
 
-    {/* Apparaat en casting */}
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">
-        Welk apparaat gebruikt u meestal voor MuseaThuis
-      </label>
-      <select
-        value={profileForm.primaryDevice}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            primaryDevice: e.target.value,
-          }))
-        }
-        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
-      >
-        <option value="">Selecteer een optie</option>
-        <option value="telefoon">Telefoon</option>
-        <option value="tablet">Tablet</option>
-        <option value="laptop">Laptop</option>
-        <option value="desktop">Computer</option>
-        <option value="tv">Televisie met casting</option>
-      </select>
-    </div>
+              {/* Favoriet museum */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Heeft u een favoriet museum
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.favoriteMuseum}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      favoriteMuseum: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                  placeholder="Bijvoorbeeld: Rijksmuseum, Museum Boijmans, onbekend"
+                />
+              </div>
 
-    <div className="mt-1 flex items-start gap-2">
-      <input
-        id="usesCasting"
-        type="checkbox"
-        checked={profileForm.usesCasting}
-        onChange={(e) =>
-          setProfileForm((f) => ({
-            ...f,
-            usesCasting: e.target.checked,
-          }))
-        }
-        className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-amber-400"
-      />
-      <label
-        htmlFor="usesCasting"
-        className="text-xs text-slate-400 leading-snug"
-      >
-        Ik gebruik soms of vaak casting naar televisie voor MuseaThuis.
-      </label>
-    </div>
+              {/* Apparaat en casting */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Welk apparaat gebruikt u meestal voor MuseaThuis
+                </label>
+                <select
+                  value={profileForm.primaryDevice}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      primaryDevice: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                >
+                  <option value="">Selecteer een optie</option>
+                  <option value="telefoon">Telefoon</option>
+                  <option value="tablet">Tablet</option>
+                  <option value="laptop">Laptop</option>
+                  <option value="desktop">Computer</option>
+                  <option value="tv">Televisie met casting</option>
+                </select>
+              </div>
 
-    {/* Opslaan */}
-    <div className="mt-3 flex items-center gap-3">
-      <button
-        type="button"
-        onClick={handleSaveProfile}
-        disabled={isSaving}
-        className="inline-flex items-center justify-center rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-black shadow-md hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-200"
-      >
-        {isSaving ? "Opslaan..." : "Profiel opslaan"}
-      </button>
-      {saveStatus === "success" && (
-        <span className="text-xs text-emerald-300">
-          Profiel opgeslagen.
-        </span>
-      )}
-      {saveStatus === "error" && (
-        <span className="text-xs text-red-300">
-          Opslaan mislukt. Probeer het later opnieuw.
-        </span>
-      )}
-    </div>
-  </div>
-</div>
+              <div className="mt-1 flex items-start gap-2">
+                <input
+                  id="usesCasting"
+                  type="checkbox"
+                  checked={profileForm.usesCasting}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      usesCasting: e.target.checked,
+                    }))
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-amber-400"
+                />
+                <label
+                  htmlFor="usesCasting"
+                  className="text-xs text-slate-400 leading-snug"
+                >
+                  Ik gebruik soms of vaak casting naar televisie voor MuseaThuis.
+                </label>
+              </div>
 
+              {/* Opslaan */}
+              <div className="mt-3 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="inline-flex items-center justify-center rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-black shadow-md hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-200"
+                >
+                  {isSaving ? "Opslaan..." : "Profiel opslaan"}
+                </button>
+                {saveStatus === "success" && (
+                  <span className="text-xs text-emerald-300">
+                    Profiel opgeslagen.
+                  </span>
+                )}
+                {saveStatus === "error" && (
+                  <span className="text-xs text-red-300">
+                    Opslaan mislukt. Probeer het later opnieuw.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Badges */}
         <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/20 p-5">
@@ -597,7 +609,7 @@ const [profileForm, setProfileForm] = useState<ProfileForm>({
           MuseaThuis gebruikt profiel- en gebruiksgegevens om het aanbod te
           verbeteren en op geaggregeerd niveau inzicht te geven in
           kunst- en museumvoorkeuren. Gegevens worden nooit als losse
-          profielen verkocht. Externe partijen ontvangen alleen
+          profielen verkocht; externe partijen ontvangen alleen
           rapportages op groepsniveau.
         </p>
       </section>
