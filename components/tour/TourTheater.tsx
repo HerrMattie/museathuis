@@ -20,7 +20,10 @@ type TourMeta = {
   subtitle?: string | null;
   intro?: string | null;
   detail_intro?: string | null;
+  overview_intro?: string | null;
+  experience_text?: string | null;
   user_hints?: string | null;
+  closing_text?: string | null;
 };
 
 type TourDetailOk = {
@@ -150,6 +153,8 @@ export function TourTheater({ tourId }: Props) {
 
   const introText = meta.detail_intro ?? meta.intro ?? null;
   const hintsText = meta.user_hints ?? null;
+  const experienceText = meta.experience_text ?? null;
+  const closingText = meta.closing_text ?? null;
 
   return (
     <main className="min-h-screen px-4 py-8 flex flex-col items-center">
@@ -170,6 +175,13 @@ export function TourTheater({ tourId }: Props) {
             </p>
           )}
         </header>
+
+        {experienceText && (
+          <section className="rounded-2xl border border-gray-800 bg-[#030712] px-4 py-3 text-xs md:text-sm text-gray-200 max-w-3xl">
+            <p className="font-medium mb-1">Wat u van deze tour kunt verwachten</p>
+            <p className="whitespace-pre-line">{experienceText}</p>
+          </section>
+        )}
 
         {hintsText && (
           <section className="rounded-2xl border border-gray-800 bg-[#050816] px-4 py-3 text-xs text-gray-200 max-w-3xl">
@@ -261,6 +273,12 @@ export function TourTheater({ tourId }: Props) {
             size="md"
           />
         </section>
+
+        {closingText && (
+          <section className="mt-4 rounded-2xl border border-gray-800 bg-[#020617] px-4 py-3 text-xs md:text-sm text-gray-200 max-w-3xl">
+            <p className="whitespace-pre-line">{closingText}</p>
+          </section>
+        )}
       </div>
     </main>
   );

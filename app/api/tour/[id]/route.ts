@@ -8,7 +8,10 @@ type TourMeta = {
   subtitle?: string | null;
   intro?: string | null;
   detail_intro?: string | null;
+  overview_intro?: string | null;
+  experience_text?: string | null;
   user_hints?: string | null;
+  closing_text?: string | null;
 };
 
 type TourItem = {
@@ -58,7 +61,18 @@ export async function GET(
 
   const { data: tour, error } = await supabase
     .from("tours")
-    .select("id, title, intro, subtitle, overview_intro, detail_intro, user_hints, items")
+    .select(`
+      id,
+      title,
+      intro,
+      subtitle,
+      overview_intro,
+      detail_intro,
+      experience_text,
+      user_hints,
+      closing_text,
+      items
+    `)
     .eq("id", tourId)
     .maybeSingle();
 
@@ -87,8 +101,11 @@ export async function GET(
       title: tour.title,
       subtitle: tour.subtitle ?? null,
       intro: tour.intro ?? null,
+      overview_intro: tour.overview_intro ?? null,
       detail_intro: tour.detail_intro ?? null,
+      experience_text: tour.experience_text ?? null,
       user_hints: tour.user_hints ?? null,
+      closing_text: tour.closing_text ?? null,
     },
     items,
   };
