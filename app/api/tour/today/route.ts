@@ -1,4 +1,4 @@
-// app/api/tour/today/route.ts
+
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseClient";
 
@@ -10,7 +10,7 @@ type TourMeta = {
 };
 
 type TourItem = {
-  id: string;
+  id?: string;
   title: string;
   image_url?: string | null;
   artist_name?: string | null;
@@ -19,20 +19,31 @@ type TourItem = {
   text?: string | null;
 };
 
-type TodayResponse =
-  | { status: "ok"; meta: TourMeta; items: TourItem[] }
-  | { status: "empty"; meta?: TourMeta | null }
-  | { status: "error"; error: string };
+type TourTodayOk = {
+  status: "ok";
+  meta: TourMeta;
+  items: TourItem[];
+};
+
+type TourTodayEmpty = {
+  status: "empty";
+};
+
+type TourTodayError = {
+  status: "error";
+  error: string;
+};
+
+type TourTodayResponse = TourTodayOk | TourTodayEmpty | TourTodayError;
 
 export async function GET() {
   const supabase = supabaseServer();
   const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
 
-  // 1. Slot voor vandaag zoeken
+  // 1. Probeer tour uit dagprogramma
   const { data: slot, error: slotError } = await supabase
-    .from("dayprogram_slots")
-    .select("content_id")
-    .eq("slot_date", today)
+    .from("v_dayprogram_today")
+    .select("slot_date, slot_key, content_type, content_id, is_premium")
     .eq("content_type", "tour")
     .order("slot_key", { ascending: true })
     .limit(1)
@@ -40,44 +51,61 @@ export async function GET() {
 
   if (slotError) {
     console.error("tour/today slot error:", slotError);
-    const body: TodayResponse = {
-      status: "error",
-      error: "Kon het dagprogramma voor vandaag niet lezen.",
-    };
-    return NextResponse.json(body, { status: 500 });
   }
 
-  if (!slot) {
-    const body: TodayResponse = { status: "empty" };
+  let tourId: string | null = slot?.content_id ?? null;
+
+  // 2. Fallback naar meest recente gepubliceerde tour als er geen slot is
+  if (!tourId) {
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("tours")
+      .select("id")
+      .eq("status", "published")
+      .order("publish_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackError) {
+      console.error("tour/today fallback error:", fallbackError);
+    }
+
+    if (fallback?.id) {
+      tourId = fallback.id;
+    }
+  }
+
+  // 3. Als er nog steeds geen tourId is, is er echt geen tour
+  if (!tourId) {
+    const body: TourTodayResponse = { status: "empty" };
     return NextResponse.json(body);
   }
 
-  // 2. Tour zelf ophalen
+  // 4. Tour ophalen
   const { data: tour, error: tourError } = await supabase
     .from("tours")
     .select("id, title, intro, items")
-    .eq("id", slot.content_id)
+    .eq("id", tourId)
     .maybeSingle();
 
   if (tourError || !tour) {
     console.error("tour/today tour error:", tourError);
-    const body: TodayResponse = {
+    const body: TourTodayResponse = {
       status: "error",
-      error: "De tour uit het dagprogramma kon niet worden geladen.",
+      error: "De tour kon niet worden geladen.",
     };
     return NextResponse.json(body, { status: 500 });
   }
 
-  const items = Array.isArray(tour.items) ? tour.items : [];
+  const items = Array.isArray(tour.items) ? (tour.items as TourItem[]) : [];
 
-  const body: TodayResponse = {
+  const body: TourTodayResponse = {
     status: "ok",
     meta: {
       id: tour.id,
       title: tour.title,
       intro: tour.intro ?? null,
     },
-    items: items as TourItem[],
+    items,
   };
 
   return NextResponse.json(body);

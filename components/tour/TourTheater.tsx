@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { RatingStars } from "@/components/rating/RatingStars";
 
 type TourItem = {
-  id: string;
+  id?: string;
   title: string;
   image_url?: string | null;
   artist_name?: string | null;
@@ -29,8 +29,6 @@ type TourTodayOk = {
 
 type TourTodayEmpty = {
   status: "empty";
-  meta?: TourMeta | null;
-  items: [];
 };
 
 type TourTodayError = {
@@ -90,7 +88,7 @@ export function TourTheater() {
     );
   }
 
-  if (data.status === "empty" || !("items" in data) || data.items.length === 0) {
+  if (data.status === "empty") {
     return (
       <main className="min-h-screen px-4 py-8 flex flex-col items-center">
         <div className="max-w-3xl w-full border border-gray-800 rounded-2xl p-4 bg-[#050816]">
@@ -101,6 +99,10 @@ export function TourTheater() {
         </div>
       </main>
     );
+  }
+
+  if (data.status !== "ok") {
+    return null;
   }
 
   const meta = data.meta;
@@ -118,7 +120,6 @@ export function TourTheater() {
   }
 
   const progressPercent = total > 1 ? (position / total) * 100 : 100;
-
   const isOnLastWork = position === total;
 
   return (
@@ -154,7 +155,7 @@ export function TourTheater() {
         </div>
 
         <section className="rounded-3xl bg-[#020617] border border-gray-800 overflow-hidden flex flex-col md:flex-row">
-          <div className="md:w-1/2 bg-black flex items-center justify-center">
+          <div className="md:w-1/2 bg-black flex items_center justify-center">
             {current.image_url ? (
               <img
                 src={current.image_url}
@@ -185,7 +186,7 @@ export function TourTheater() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-800 mt-1">
+            <div className="flex items-center justify_between gap-3 pt-2 border-t border-gray-800 mt-1">
               <div className="flex gap-2">
                 <button
                   type="button"
