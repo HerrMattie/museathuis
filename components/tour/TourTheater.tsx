@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import RatingStars from "@/components/ratings/RatingStars";
+import RatingStars from "@/components/rating/RatingStars";
 
 export type TourItem = {
   id: string;
