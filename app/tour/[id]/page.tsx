@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import TourTheater, { TourMeta, TourItem } from "@/components/tour/TourTheater";
 import { supabaseServer } from "@/lib/supabaseClient";
+import TourOverlay from "@/components/tour/TourOverlay";
 
 type PageProps = {
   params: { id: string };
@@ -56,6 +57,14 @@ export default async function TourDetailPage({ params }: PageProps) {
     userHints: data.user_hints ?? null,
   };
 
+<TourOverlay
+  tourTitle={tour.title}
+  items={tourItems}
+  contentType="tour"
+  contentId={tour.id}
+/>
+
+  
   const items: TourItem[] = Array.isArray(data.items)
     ? (data.items as TourItem[])
     : [];
