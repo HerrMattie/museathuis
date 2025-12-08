@@ -52,6 +52,7 @@ export function TourTheater() {
         setData(json);
         setIndex(0);
       } catch (e) {
+        console.error(e);
         setData({
           status: "error",
           error: "Kon de tour van vandaag niet laden.",
@@ -106,17 +107,32 @@ export function TourTheater() {
   }
 
   const meta = data.meta;
-  const works = data.items;
-  const current = works[index];
+  const works = Array.isArray(data.items) ? data.items : [];
+
+  if (!works.length) {
+    return (
+      <main className="min-h-screen px-4 py-8 flex flex-col items-center">
+        <div className="max-w-3xl w-full border border-gray-800 rounded-2xl p-4 bg-[#050816]">
+          <h1 className="text-2xl font-semibold mb-2">Tour van vandaag</h1>
+          <p className="text-sm text-gray-300">
+            Deze tour is nog niet gevuld met kunstwerken.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const current = works[Math.min(currentIndex, works.length - 1)];
   const total = works.length;
-  const position = index + 1;
+  const position = currentIndex + 1;
 
   function goNext() {
-    setIndex((prev) => Math.min(prev + 1, total - 1));
+    setCurrentIndex((prev) => Math.min(prev + 1, total - 1));
   }
 
   function goPrev() {
-    setIndex((prev) => Math.max(prev - 1, 0));
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
 
   const progressPercent = total > 1 ? (position / total) * 100 : 100;
@@ -155,8 +171,8 @@ export function TourTheater() {
         </div>
 
         <section className="rounded-3xl bg-[#020617] border border-gray-800 overflow-hidden flex flex-col md:flex-row">
-          <div className="md:w-1/2 bg-black flex items_center justify-center">
-            {current.image_url ? (
+          <div className="md:w-1/2 bg-black flex items-center justify-center">
+            {current?.image_url ? (
               <img
                 src={current.image_url}
                 alt={current.title}
@@ -171,27 +187,27 @@ export function TourTheater() {
 
           <div className="md:w-1/2 p-5 md:p-6 flex flex-col gap-3 max-h-[480px]">
             <div>
-              <h2 className="text-xl font-semibold mb-1">{current.title}</h2>
+              <h2 className="text-xl font-semibold mb-1">{current?.title}</h2>
               <p className="text-xs text-gray-400">
-                {[current.artist_name, current.year_text, current.museum_name]
+                {[current?.artist_name, current?.year_text, current?.museum_name]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
             </div>
             <div className="flex-1 overflow-y-auto pr-1 text-sm text-gray-200">
-              {current.text || (
+              {current?.text || (
                 <p className="text-gray-500">
                   Voor dit werk is nog geen uitgebreide tekst beschikbaar.
                 </p>
               )}
             </div>
 
-            <div className="flex items-center justify_between gap-3 pt-2 border-t border-gray-800 mt-1">
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-800 mt-1">
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={goPrev}
-                  disabled={index === 0}
+                  disabled={currentIndex === 0}
                   className="px-3 py-1.5 rounded-full border border-gray-600 text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:border-gray-300 transition-colors"
                 >
                   Vorig werk
@@ -199,7 +215,7 @@ export function TourTheater() {
                 <button
                   type="button"
                   onClick={goNext}
-                  disabled={index === total - 1}
+                  disabled={isOnLastWork}
                   className="px-3 py-1.5 rounded-full border border-yellow-500 text-xs text-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-500 hover:text-black transition-colors"
                 >
                   Volgend werk
