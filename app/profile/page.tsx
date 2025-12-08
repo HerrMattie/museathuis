@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type ProfileState =
   | { status: "loading" }
@@ -17,64 +17,61 @@ type ProfileState =
 export default function ProfilePage() {
   const [state, setState] = useState<ProfileState>({ status: "loading" });
 
-  useEffect(() => {
-    const supabase = createClient();
+useEffect(() => {
+  const supabase = supabaseBrowser();
 
-    async function loadProfile() {
-      try {
-        // 1. Haal huidige gebruiker op
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+  async function loadProfile() {
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-        if (userError) {
-          console.error("Fout bij ophalen gebruiker", userError);
-        }
-
-        if (!user) {
-          setState({ status: "logged_out" });
-          return;
-        }
-
-        // 2. Haal profiel op (alle kolommen, zodat het robuust blijft)
-        const { data: profile, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("Fout bij ophalen profiel", profileError);
-        }
-
-        // 3. Haal badges op (alle kolommen, join doen we later eventueel)
-        const { data: badges, error: badgesError } = await supabase
-          .from("user_badges")
-          .select("*")
-          .eq("user_id", user.id);
-
-        if (badgesError) {
-          console.error("Fout bij ophalen badges", badgesError);
-        }
-
-        setState({
-          status: "logged_in",
-          userEmail: user.email ?? "Onbekend e-mailadres",
-          profile: profile ?? null,
-          badges: badges ?? [],
-        });
-      } catch (err: any) {
-        console.error("Onverwachte fout in profiel", err);
-        setState({
-          status: "error",
-          message: "Er ging iets mis bij het laden van uw profiel.",
-        });
+      if (userError) {
+        console.error("Fout bij ophalen gebruiker", userError);
       }
-    }
 
-    loadProfile();
-  }, []);
+      if (!user) {
+        setState({ status: "logged_out" });
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Fout bij ophalen profiel", profileError);
+      }
+
+      const { data: badges, error: badgesError } = await supabase
+        .from("user_badges")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (badgesError) {
+        console.error("Fout bij ophalen badges", badgesError);
+      }
+
+      setState({
+        status: "logged_in",
+        userEmail: user.email ?? "Onbekend e-mailadres",
+        profile: profile ?? null,
+        badges: badges ?? [],
+      });
+    } catch (err: any) {
+      console.error("Onverwachte fout in profiel", err);
+      setState({
+        status: "error",
+        message: "Er ging iets mis bij het laden van uw profiel.",
+      });
+    }
+  }
+
+  loadProfile();
+}, []);
 
   // Helper: haal een naam en premiumstatus uit een generiek profielobject
   function resolveDisplayName(profile: any | null, fallbackEmail: string) {
