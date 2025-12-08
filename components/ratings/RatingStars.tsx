@@ -1,62 +1,44 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 
 type RatingStarsProps = {
-  contentType: string;
-  contentId: string;
-};
+  /** Voor tour / game / focus als de component zelf de rating naar de API moet sturen */
+  contentType?: "tour" | "game" | "focus";
+  contentId?: string;
 
-type RatingResponse =
-  | { status: "ok"; rating?: number | null }
-  | { status: "error"; error: string };
+  /** Voor gecontroleerd gebruik (zoals nu in app/game/page.tsx) */
+  value?: number | null;
+  onChange?: (value: number) => void;
+
+  /** Algemene opties */
+  disabled?: boolean;
+  label?: string;
+};
 
 export default function RatingStars({
   contentType,
   contentId,
+  value,
+  onChange,
+  disabled = false,
+  label,
 }: RatingStarsProps) {
-  const [current, setCurrent] = useState<number | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [internalValue, setInternalValue] = useState<number | null>(null);
+  const effectiveValue = value ?? internalValue;
 
-  // Probeer bestaande rating op te halen (best effort)
+  // Houd interne state in sync als er een externe value wordt meegegeven
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadRating() {
-      try {
-        const params = new URLSearchParams({
-          contentType,
-          contentId,
-        });
-        const res = await fetch(`/api/ratings?${params.toString()}`, {
-          method: "GET",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as RatingResponse;
-        if (!cancelled && data.status === "ok" && typeof data.rating === "number") {
-          setCurrent(data.rating);
-        }
-      } catch {
-        // stil falen; geen hard error in UI
-      }
+    if (typeof value === "number" || value === null) {
+      setInternalValue(value);
     }
+  }, [value]);
 
-    loadRating();
+  async function sendRatingToServer(rating: number) {
+    if (!contentType || !contentId) return;
 
-    return () => {
-      cancelled = true;
-    };
-  }, [contentType, contentId]);
-
-  async function handleRate(value: number) {
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
     try {
-      const res = await fetch("/api/ratings", {
+      await fetch("/api/ratings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -64,58 +46,62 @@ export default function RatingStars({
         body: JSON.stringify({
           contentType,
           contentId,
-          rating: value,
+          rating,
         }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-      setCurrent(value);
-    } catch (err: any) {
-      setError(err?.message ?? "Beoordeling opslaan is niet gelukt.");
-    } finally {
-      setSubmitting(false);
+    } catch {
+      // Bewust stil; UI hoeft hier niet op te breken
     }
   }
 
-  const display = hover ?? current ?? 0;
+  async function handleClick(star: number) {
+    if (disabled) return;
+
+    // 1. Gecontroleerd gebruik: laat de ouder alle logica doen
+    if (onChange) {
+      onChange(star);
+      return;
+    }
+
+    // 2. Zelfstandig gebruik: sla op via API
+    setInternalValue(star);
+    await sendRatingToServer(star);
+  }
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="inline-flex items-center gap-1">
-        {[1, 2, 3, 4, 5].map((value) => {
-          const active = value <= display;
+      {label && (
+        <div className="text-xs font-medium text-slate-300">{label}</div>
+      )}
+
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => {
+          const active = (effectiveValue ?? 0) >= star;
+          const base =
+            "text-xl transition-colors cursor-pointer select-none";
+          const stateClass = active ? "text-yellow-300" : "text-slate-600";
+          const disabledClass = disabled ? "opacity-50 cursor-not-allowed" : "";
+
           return (
             <button
-              key={value}
+              key={star}
               type="button"
-              disabled={submitting}
-              onMouseEnter={() => setHover(value)}
-              onMouseLeave={() => setHover(null)}
-              onClick={() => handleRate(value)}
-              className={`h-8 w-8 rounded-full flex items-center justify-center text-lg transition-colors ${
-                active
-                  ? "text-yellow-300"
-                  : "text-gray-500 hover:text-gray-300"
-              } ${submitting ? "opacity-60 cursor-wait" : "cursor-pointer"}`}
-              aria-label={`Geef beoordeling ${value} van 5`}
+              disabled={disabled}
+              onClick={() => handleClick(star)}
+              className={`${base} ${stateClass} ${disabledClass}`}
+              aria-label={`Geef ${star} van 5 sterren`}
             >
-              {active ? "★" : "☆"}
+              ★
             </button>
           );
         })}
+
+        {typeof effectiveValue === "number" && (
+          <span className="ml-2 text-xs text-slate-400">
+            ({effectiveValue}/5)
+          </span>
+        )}
       </div>
-      {current != null && (
-        <p className="text-[11px] text-gray-400">
-          Uw beoordeling: {current} / 5
-        </p>
-      )}
-      {error && (
-        <p className="text-[11px] text-red-300">
-          {error}
-        </p>
-      )}
     </div>
   );
 }
