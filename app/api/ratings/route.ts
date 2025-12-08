@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabaseServiceClient";
+import { supabaseServer } from "@/lib/supabaseClient";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ type RatingResponse =
     };
 
 export async function POST(request: Request) {
-  const supabase = createServiceClient();
+const supabase = supabaseServer();
 
   try {
     const body = (await request.json()) as RatingPayload;
