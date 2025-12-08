@@ -1,9 +1,9 @@
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { getDailyProgram } from '@/lib/data/day-program';
 import DayCard from '@/components/tour/DayCard';
 
-export const revalidate = 3600; // Cache 1 uur
+export const revalidate = 3600;
 
 export default async function DashboardPage() {
   const cookieStore = cookies();
@@ -20,7 +20,6 @@ export default async function DashboardPage() {
       .eq('user_id', user.id)
       .single();
     
-    // Simpele check: is_premium flag óf geldige datum
     if (profile?.is_premium) isUserPremium = true;
   }
 
@@ -34,10 +33,8 @@ export default async function DashboardPage() {
         <p className="mt-3 text-lg text-gray-600">Jouw dagelijkse dosis kunst en inspiratie.</p>
       </header>
 
-      {/* Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        
-        {/* TOUR CARD */}
+        {/* TOUR */}
         {tour ? (
           <DayCard 
             type="tour"
@@ -52,7 +49,7 @@ export default async function DashboardPage() {
           <div className="rounded-xl border border-dashed p-10 text-center text-gray-400">Geen tour vandaag</div>
         )}
 
-        {/* GAME CARD */}
+        {/* GAME */}
         {game ? (
           <DayCard 
             type="game"
@@ -66,7 +63,7 @@ export default async function DashboardPage() {
           <div className="rounded-xl border border-dashed p-10 text-center text-gray-400">Geen game vandaag</div>
         )}
 
-        {/* FOCUS CARD */}
+        {/* FOCUS */}
         {focus ? (
           <DayCard 
             type="focus"
@@ -80,7 +77,6 @@ export default async function DashboardPage() {
         ) : (
           <div className="rounded-xl border border-dashed p-10 text-center text-gray-400">Geen focus item vandaag</div>
         )}
-
       </div>
     </main>
   );
