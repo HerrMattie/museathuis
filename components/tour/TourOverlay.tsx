@@ -188,7 +188,7 @@ const TourOverlay = ({
               <img
                 src={currentImage}
                 alt={currentTitle}
-                className="max-h-[70vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+                className="max-h-[80vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
               />
             ) : (
               <div className="flex h-64 w-full max-w-3xl items-center justify-center rounded-xl border border-dashed border-slate-700 bg-black/30 text-sm text-slate-400">
