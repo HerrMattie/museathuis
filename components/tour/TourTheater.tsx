@@ -19,6 +19,8 @@ type TourMeta = {
   title: string;
   subtitle?: string | null;
   intro?: string | null;
+  detail_intro?: string | null;
+  user_hints?: string | null;
 };
 
 type TourDetailOk = {
@@ -146,6 +148,9 @@ export function TourTheater({ tourId }: Props) {
   const progressPercent = total > 1 ? (position / total) * 100 : 100;
   const isOnLastWork = position === total;
 
+  const introText = meta.detail_intro ?? meta.intro ?? null;
+  const hintsText = meta.user_hints ?? null;
+
   return (
     <main className="min-h-screen px-4 py-8 flex flex-col items-center">
       <div className="w-full max-w-5xl flex flex-col gap-6">
@@ -159,12 +164,19 @@ export function TourTheater({ tourId }: Props) {
           {meta.subtitle && (
             <p className="text-sm text-gray-400">{meta.subtitle}</p>
           )}
-          {meta.intro && (
-            <p className="mt-2 text-sm md:text-base text-gray-300 max-w-3xl">
-              {meta.intro}
+          {introText && (
+            <p className="mt-2 text-sm md:text-base text-gray-300 max-w-3xl whitespace-pre-line">
+              {introText}
             </p>
           )}
         </header>
+
+        {hintsText && (
+          <section className="rounded-2xl border border-gray-800 bg-[#050816] px-4 py-3 text-xs text-gray-200 max-w-3xl">
+            <p className="font-medium mb-1">Praktische tips</p>
+            <p className="whitespace-pre-line">{hintsText}</p>
+          </section>
+        )}
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">

@@ -8,6 +8,7 @@ type TourSlotSummary = {
   id: string;
   title: string;
   intro?: string | null;
+  overview_intro?: string | null;
   is_premium: boolean;
   slot_key: string | null;
 };
@@ -117,37 +118,41 @@ export function TourOverview() {
         </header>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {items.map((tour) => (
-            <Link
-              key={tour.id + String(tour.slot_key ?? "")}
-              href={`/tour/${tour.id}`}
-              className="group rounded-2xl border border-gray-800 bg-[#020617] p-4 flex flex-col justify-between hover:border-yellow-400 hover:bg-[#050816] transition-colors"
-            >
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold px-2 py-1 rounded-full border border-gray-700 text-gray-300">
-                    {tour.is_premium ? "Premium" : "Gratis"}
-                  </span>
-                  {tour.slot_key && (
-                    <span className="text-xs text-gray-500">
-                      Slot {tour.slot_key}
+          {items.map((tour) => {
+            const teaser = tour.overview_intro ?? tour.intro;
+
+            return (
+              <Link
+                key={tour.id + String(tour.slot_key ?? "")}
+                href={`/tour/${tour.id}`}
+                className="group rounded-2xl border border-gray-800 bg-[#020617] p-4 flex flex-col justify-between hover:border-yellow-400 hover:bg-[#050816] transition-colors"
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full border border-gray-700 text-gray-300">
+                      {tour.is_premium ? "Premium" : "Gratis"}
                     </span>
+                    {tour.slot_key && (
+                      <span className="text-xs text-gray-500">
+                        Slot {tour.slot_key}
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-lg font-semibold leading-snug group-hover:text-yellow-300">
+                    {tour.title}
+                  </h2>
+                  {teaser && (
+                    <p className="text-xs text-gray-400 line-clamp-3">
+                      {teaser}
+                    </p>
                   )}
                 </div>
-                <h2 className="text-lg font-semibold leading-snug group-hover:text-yellow-300">
-                  {tour.title}
-                </h2>
-                {tour.intro && (
-                  <p className="text-xs text-gray-400 line-clamp-3">
-                    {tour.intro}
-                  </p>
-                )}
-              </div>
-              <div className="mt-3 text-xs text-yellow-300">
-                Bekijk tour
-              </div>
-            </Link>
-          ))}
+                <div className="mt-3 text-xs text-yellow-300">
+                  Bekijk tour
+                </div>
+              </Link>
+            );
+          })}
         </section>
       </div>
     </main>

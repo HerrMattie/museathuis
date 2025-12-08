@@ -6,6 +6,7 @@ type TourSlotSummary = {
   id: string;
   title: string;
   intro?: string | null;
+  overview_intro?: string | null;
   is_premium: boolean;
   slot_key: string | null;
 };
@@ -78,10 +79,10 @@ export async function GET() {
     return NextResponse.json(body);
   }
 
-  // 2. Bijbehorende tours ophalen
+  // 2. Bijbehorende tours ophalen (met extra tekstvelden)
   const { data: tours, error: tourError } = await supabase
     .from("tours")
-    .select("id, title, intro")
+    .select("id, title, intro, overview_intro")
     .in("id", tourIds);
 
   if (tourError) {
@@ -93,7 +94,10 @@ export async function GET() {
     return NextResponse.json(body, { status: 500 });
   }
 
-  const tourMap = new Map<string, { id: string; title: string; intro?: string | null }>();
+  const tourMap = new Map<
+    string,
+    { id: string; title: string; intro?: string | null; overview_intro?: string | null }
+  >();
   (tours ?? []).forEach((t: any) => {
     tourMap.set(t.id, t);
   });
@@ -107,6 +111,7 @@ export async function GET() {
         id: t.id,
         title: t.title,
         intro: t.intro ?? null,
+        overview_intro: t.overview_intro ?? null,
         is_premium: Boolean(slot.is_premium),
         slot_key: slot.slot_key ?? null,
       } as TourSlotSummary;
