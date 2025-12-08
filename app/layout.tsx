@@ -1,19 +1,24 @@
-import "./globals.css";
 import type { Metadata } from "next";
-import { ReactNode } from "react";
-import { PageShell } from "@/components/layout/PageShell";
+import { Inter } from "next/font/google";
+import "./globals.css"; // <--- CRUCIAAL: Dit koppelt stap 1
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MuseaThuis - Museale beleving thuis",
-  description:
-    "Dagelijkse kunsttours, spellen, focusmomenten, Salon en Academie. Museale beleving voor kunstliefhebbers thuis.",
+  title: "MuseaThuis",
+  description: "Kunst voor iedereen, gewoon thuis.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="nl">
-      <body className="min-h-screen bg-slate-950 text-slate-50">
-        <PageShell>{children}</PageShell>
+      <body className={inter.className}>
+        {/* Hier kunnen we later een Navbar toevoegen die ALTIJD zichtbaar is */}
+        {children}
       </body>
     </html>
   );
