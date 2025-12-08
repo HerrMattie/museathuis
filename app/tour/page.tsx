@@ -65,10 +65,10 @@ export default async function TourListPage() {
   //    - Als er een dagprogramma is: alleen die tours.
   //    - Zo niet: alle gepubliceerde tours.
   // -----------------------------------------------------------
-  let query = supabase
-    .from("tours")
-    .select<TourRow>(
-      `
+ let query = supabase
+  .from("tours")
+  .select(
+    `
       id,
       title,
       intro,
@@ -78,8 +78,8 @@ export default async function TourListPage() {
       date,
       status
     `
-    )
-    .eq("status", "published");
+  )
+  .eq("status", "published");
 
   if (hasSchedule && scheduledTourIds.length > 0) {
     query = query.in("id", scheduledTourIds);
