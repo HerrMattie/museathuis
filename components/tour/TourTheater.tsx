@@ -21,49 +21,58 @@ type TourMeta = {
   intro?: string | null;
 };
 
-type TourTodayOk = {
+type TourDetailOk = {
   status: "ok";
   meta: TourMeta;
   items: TourItem[];
 };
 
-type TourTodayEmpty = {
-  status: "empty";
+type TourDetailNotFound = {
+  status: "not_found";
 };
 
-type TourTodayError = {
+type TourDetailError = {
   status: "error";
   error: string;
 };
 
-type TourTodayResponse = TourTodayOk | TourTodayEmpty | TourTodayError;
+type TourDetailResponse =
+  | TourDetailOk
+  | TourDetailNotFound
+  | TourDetailError;
 
-export function TourTheater() {
-  const [data, setData] = useState<TourTodayResponse | null>(null);
+interface Props {
+  tourId: string;
+}
+
+export function TourTheater({ tourId }: Props) {
+  const [data, setData] = useState<TourDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [index, setIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     async function load() {
       setIsLoading(true);
       try {
-        const res = await fetch("/api/tour/today", { cache: "no-store" });
-        const json: TourTodayResponse = await res.json();
+        const res = await fetch(`/api/tour/${tourId}`, { cache: "no-store" });
+        const json: TourDetailResponse = await res.json();
         setData(json);
-        setIndex(0);
+        setCurrentIndex(0);
       } catch (e) {
         console.error(e);
         setData({
           status: "error",
-          error: "Kon de tour van vandaag niet laden.",
+          error: "Kon deze tour niet laden.",
         });
       } finally {
         setIsLoading(false);
       }
     }
 
-    load();
-  }, []);
+    if (tourId) {
+      load();
+    }
+  }, [tourId]);
 
   if (isLoading) {
     return (
@@ -80,22 +89,22 @@ export function TourTheater() {
     return (
       <main className="min-h-screen px-4 py-8 flex flex-col items-center">
         <div className="max-w-3xl w-full border border-red-500 rounded-2xl p-4 bg-[#220000]">
-          <h1 className="text-2xl font-semibold mb-2">Tour van vandaag</h1>
+          <h1 className="text-2xl font-semibold mb-2">Tour</h1>
           <p className="text-sm text-red-200">
-            {(data as any)?.error ?? "Er ging iets mis bij het laden van de tour."}
+            {(data as any)?.error ?? "Er ging iets mis bij het laden van deze tour."}
           </p>
         </div>
       </main>
     );
   }
 
-  if (data.status === "empty") {
+  if (data.status === "not_found") {
     return (
       <main className="min-h-screen px-4 py-8 flex flex-col items-center">
         <div className="max-w-3xl w-full border border-gray-800 rounded-2xl p-4 bg-[#050816]">
-          <h1 className="text-2xl font-semibold mb-2">Tour van vandaag</h1>
+          <h1 className="text-2xl font-semibold mb-2">Tour niet gevonden</h1>
           <p className="text-sm text-gray-300">
-            Er is nog geen tour voor vandaag ingepland.
+            Deze tour kon niet worden gevonden. Mogelijk is hij verwijderd of nog niet gepubliceerd.
           </p>
         </div>
       </main>
@@ -113,7 +122,7 @@ export function TourTheater() {
     return (
       <main className="min-h-screen px-4 py-8 flex flex-col items-center">
         <div className="max-w-3xl w-full border border-gray-800 rounded-2xl p-4 bg-[#050816]">
-          <h1 className="text-2xl font-semibold mb-2">Tour van vandaag</h1>
+          <h1 className="text-2xl font-semibold mb-2">{meta.title}</h1>
           <p className="text-sm text-gray-300">
             Deze tour is nog niet gevuld met kunstwerken.
           </p>
@@ -122,7 +131,6 @@ export function TourTheater() {
     );
   }
 
-  const [currentIndex, setCurrentIndex] = useState(0);
   const current = works[Math.min(currentIndex, works.length - 1)];
   const total = works.length;
   const position = currentIndex + 1;
@@ -143,7 +151,7 @@ export function TourTheater() {
       <div className="w-full max-w-5xl flex flex-col gap-6">
         <header className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.2em] text-yellow-400">
-            Tour van vandaag
+            Tour
           </p>
           <h1 className="text-3xl md:text-4xl font-semibold">
             {meta.title}
