@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabaseServiceClient";
+import { supabaseServer } from "@/lib/supabaseClient";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ type DayprogramStatusResponse =
     };
 
 export async function GET() {
-  const supabase = createServiceClient();
+const supabase = supabaseServer();
 
   try {
     const { data, error } = await supabase
