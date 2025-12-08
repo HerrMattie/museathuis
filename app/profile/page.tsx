@@ -23,7 +23,7 @@ type ProfileForm = {
   favoritePeriod: string;
   favoriteMuseum: string;
   primaryDevice: string;
-  usesCasting: boolean;
+  museumPass: string; // "", "yes", "no"
 };
 
 export default function ProfilePage() {
@@ -36,7 +36,7 @@ export default function ProfilePage() {
     favoritePeriod: "",
     favoriteMuseum: "",
     primaryDevice: "",
-    usesCasting: false,
+    museumPass: "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">(
@@ -99,7 +99,12 @@ export default function ProfilePage() {
           favoritePeriod: p.favorite_period ?? "",
           favoriteMuseum: p.favorite_museum ?? "",
           primaryDevice: p.primary_device ?? "",
-          usesCasting: Boolean(p.uses_casting),
+          museumPass:
+            p.has_museum_pass === true
+              ? "yes"
+              : p.has_museum_pass === false
+              ? "no"
+              : "",
         });
       } catch (err) {
         console.error("Onverwachte fout in profiel", err);
@@ -151,79 +156,83 @@ export default function ProfilePage() {
     });
   }
 
-async function handleSaveProfile() {
-  if (state.status !== "logged_in") return;
+  async function handleSaveProfile() {
+    if (state.status !== "logged_in") return;
 
-  setIsSaving(true);
-  setSaveStatus("idle");
+    setIsSaving(true);
+    setSaveStatus("idle");
 
-  const supabase = supabaseBrowser();
+    const supabase = supabaseBrowser();
 
-  const payload = {
-    user_id: state.userId,
-    display_name: profileForm.displayName || null,
-    age_group: profileForm.ageGroup || null,
-    museum_visit: profileForm.museumVisit || null,
-    art_interest_level: profileForm.artInterestLevel || null,
-    favorite_period: profileForm.favoritePeriod || null,
-    favorite_museum: profileForm.favoriteMuseum || null,
-    primary_device: profileForm.primaryDevice || null,
-    uses_casting: profileForm.usesCasting,
-    data_consent: true,
-  };
+    // mapping ja/nee/leeg -> boolean/null
+    const hasMuseumPass =
+      profileForm.museumPass === "yes"
+        ? true
+        : profileForm.museumPass === "no"
+        ? false
+        : null;
 
-  try {
-    let error = null;
+    const payload: any = {
+      user_id: state.userId,
+      display_name: profileForm.displayName || null,
+      age_group: profileForm.ageGroup || null,
+      museum_visit: profileForm.museumVisit || null,
+      art_interest_level: profileForm.artInterestLevel || null,
+      favorite_period: profileForm.favoritePeriod || null,
+      favorite_museum: profileForm.favoriteMuseum || null,
+      primary_device: profileForm.primaryDevice || null,
+      has_museum_pass: hasMuseumPass,
+      data_consent: true,
+    };
 
-    if (state.profile) {
-      // profiel bestaat al → bijwerken
-      const { error: updateError } = await supabase
-        .from("user_profiles")
-        .update({
-          ...payload,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", state.userId);
+    try {
+      let error = null;
 
-      error = updateError ?? null;
-    } else {
-      // nog geen profiel → nieuw record aanmaken
-      const { error: insertError } = await supabase
-        .from("user_profiles")
-        .insert({
-          ...payload,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-      error = insertError ?? null;
-    }
-
-    if (error) {
-      console.error("Fout bij opslaan profiel", error);
-      setSaveStatus("error");
-    } else {
-      setSaveStatus("success");
-      // lokaal profiel updaten zodat de UI klopt
-      setState((prev) => {
-        if (prev.status !== "logged_in") return prev;
-        return {
-          ...prev,
-          profile: {
-            ...(prev.profile ?? {}),
+      if (state.profile) {
+        const { error: updateError } = await supabase
+          .from("user_profiles")
+          .update({
             ...payload,
-          },
-        };
-      });
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", state.userId);
+
+        error = updateError ?? null;
+      } else {
+        const { error: insertError } = await supabase
+          .from("user_profiles")
+          .insert({
+            ...payload,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        error = insertError ?? null;
+      }
+
+      if (error) {
+        console.error("Fout bij opslaan profiel", error);
+        setSaveStatus("error");
+      } else {
+        setSaveStatus("success");
+        setState((prev) => {
+          if (prev.status !== "logged_in") return prev;
+          return {
+            ...prev,
+            profile: {
+              ...(prev.profile ?? {}),
+              ...payload,
+            },
+          };
+        });
+      }
+    } catch (err) {
+      console.error("Onverwachte fout bij opslaan profiel", err);
+      setSaveStatus("error");
     }
-  } catch (err) {
-    console.error("Onverwachte fout bij opslaan profiel", err);
-    setSaveStatus("error");
+
+    setIsSaving(false);
   }
-
-  setIsSaving(false);
-}
-
 
   // UI states
 
@@ -320,7 +329,6 @@ async function handleSaveProfile() {
     );
   }
 
-  // vanaf hier: zeker dat we ingelogd zijn
   if (state.status !== "logged_in") {
     return null;
   }
@@ -447,6 +455,27 @@ async function handleSaveProfile() {
                 </select>
               </div>
 
+              {/* Museumkaart */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400">
+                  Heeft u een Museumkaart
+                </label>
+                <select
+                  value={profileForm.museumPass}
+                  onChange={(e) =>
+                    setProfileForm((f) => ({
+                      ...f,
+                      museumPass: e.target.value,
+                    }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-400"
+                >
+                  <option value="">Liever niet zeggen / onbekend</option>
+                  <option value="yes">Ja, ik heb een Museumkaart</option>
+                  <option value="no">Nee, ik heb geen Museumkaart</option>
+                </select>
+              </div>
+
               {/* Interesse in kunst */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400">
@@ -516,7 +545,7 @@ async function handleSaveProfile() {
                 />
               </div>
 
-              {/* Apparaat en casting */}
+              {/* Apparaat */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400">
                   Welk apparaat gebruikt u meestal voor MuseaThuis
@@ -536,29 +565,8 @@ async function handleSaveProfile() {
                   <option value="tablet">Tablet</option>
                   <option value="laptop">Laptop</option>
                   <option value="desktop">Computer</option>
-                  <option value="tv">Televisie met casting</option>
+                  <option value="tv">Televisie (bijvoorbeeld via browser)</option>
                 </select>
-              </div>
-
-              <div className="mt-1 flex items-start gap-2">
-                <input
-                  id="usesCasting"
-                  type="checkbox"
-                  checked={profileForm.usesCasting}
-                  onChange={(e) =>
-                    setProfileForm((f) => ({
-                      ...f,
-                      usesCasting: e.target.checked,
-                    }))
-                  }
-                  className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-amber-400"
-                />
-                <label
-                  htmlFor="usesCasting"
-                  className="text-xs text-slate-400 leading-snug"
-                >
-                  Ik gebruik soms of vaak casting naar televisie voor MuseaThuis.
-                </label>
               </div>
 
               {/* Opslaan */}
