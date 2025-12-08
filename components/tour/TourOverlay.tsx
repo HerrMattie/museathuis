@@ -7,12 +7,12 @@ type ContentType = "tour" | "game" | "focus";
 
 type TourOverlayProps = {
   tourTitle: string;
-  items: any[]; // bewust ruim: werkt met huidige en toekomstige item-vormen
+  items: any[];
   contentType?: ContentType;
   contentId: string;
   initialIndex?: number;
-  open?: void;          // optioneel: default = true (zoals nu)
-  onClose?: () => history.back();    // optioneel: bij ontbreken doen we history.back()
+  open?: boolean;       // optioneel: als je hem van buiten wilt aansturen
+  onClose?: () => void; // optioneel: als je hem van buiten wilt sluiten
 };
 
 function getImageUrl(item: any): string | null {
@@ -69,7 +69,18 @@ const TourOverlay = ({
 }: TourOverlayProps) => {
   const [index, setIndex] = useState(initialIndex);
 
-  const isOpen = open ?? true;
+  // interne open-state als er geen open prop wordt meegegeven
+  const [internalOpen, setInternalOpen] = useState<boolean>(open ?? true);
+
+  // als open prop verandert, sync de interne state
+  useEffect(() => {
+    if (open !== undefined) {
+      setInternalOpen(open);
+    }
+  }, [open]);
+
+  const isOpen = open !== undefined ? open : internalOpen;
+
   const total = items?.length ?? 0;
 
   const currentItem = useMemo(
@@ -81,7 +92,7 @@ const TourOverlay = ({
     setIndex(initialIndex);
   }, [initialIndex]);
 
-  // sluiting via ESC
+  // toetsbesturing
   useEffect(() => {
     if (!isOpen) return;
 
@@ -99,7 +110,7 @@ const TourOverlay = ({
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  });
+  }, [isOpen, total]); // dependencies toegevoegd
 
   if (!isOpen || !currentItem) return null;
 
@@ -117,13 +128,13 @@ const TourOverlay = ({
 
   function handleClose() {
     if (onClose) {
+      // volledig gecontroleerd van buitenaf
       onClose();
-    } else {
-      // fallback wanneer geen onClose is meegegeven
-      if (typeof window !== "undefined" && window.history.length > 1) {
-        window.history.back();
-      }
+      return;
     }
+
+    // standaardgedrag: overlay zelf verbergen
+    setInternalOpen(false);
   }
 
   function handleNext() {
@@ -209,7 +220,6 @@ const TourOverlay = ({
 
           {/* TEKST + AUDIO OVER DE HELE BREEDTE */}
           <div className="mt-6 w-full max-w-4xl space-y-4 text-slate-100">
-            {/* Audioblok (voor nu optioneel, al voorbereid voor premium) */}
             <div className="rounded-xl bg-black/40 px-4 py-3 text-sm">
               <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
                 Audiotoelichting
@@ -228,7 +238,6 @@ const TourOverlay = ({
               )}
             </div>
 
-            {/* Titel + jaar + begeleidende tekst (wordt door audio voorgelezen) */}
             <div className="rounded-xl bg-black/40 px-4 py-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-lg font-semibold sm:text-xl">
