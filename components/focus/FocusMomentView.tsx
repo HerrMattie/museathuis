@@ -183,7 +183,7 @@ export function FocusMomentView() {
     );
   }
 
-  const recommendedMinutes = meta.duration_min ?? Math.round(initialDuration / 60) || 5;
+  const recommendedMinutes = (meta.duration_min ?? Math.round(initialDuration / 60)) || 5;
   const timerLabel =
     remaining === 0 && initialDuration > 0
       ? "Rustmoment afgerond"
