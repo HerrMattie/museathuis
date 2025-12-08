@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabaseServiceClient";
+import { supabaseServer } from "@/lib/supabaseClient";
 import {
   DayprogramSlot,
   DayprogramTodayResponse,
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const supabase = createServiceClient();
+const supabase = supabaseServer();
 
   try {
     const { data: slots, error } = await supabase
