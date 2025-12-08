@@ -151,35 +151,60 @@ export default function ProfilePage() {
     });
   }
 
-  async function handleSaveProfile() {
-    if (state.status !== "logged_in") return;
+async function handleSaveProfile() {
+  if (state.status !== "logged_in") return;
 
-    setIsSaving(true);
-    setSaveStatus("idle");
-    const supabase = supabaseBrowser();
+  setIsSaving(true);
+  setSaveStatus("idle");
 
-    const payload = {
-      user_id: state.userId,
-      display_name: profileForm.displayName || null,
-      age_group: profileForm.ageGroup || null,
-      museum_visit: profileForm.museumVisit || null,
-      art_interest_level: profileForm.artInterestLevel || null,
-      favorite_period: profileForm.favoritePeriod || null,
-      favorite_museum: profileForm.favoriteMuseum || null,
-      primary_device: profileForm.primaryDevice || null,
-      uses_casting: profileForm.usesCasting,
-      data_consent: true, // technisch: profiel = toestemming
-    };
+  const supabase = supabaseBrowser();
 
-    const { error } = await supabase
-      .from("user_profiles")
-      .upsert([payload], { onConflict: "user_id" });
+  const payload = {
+    user_id: state.userId,
+    display_name: profileForm.displayName || null,
+    age_group: profileForm.ageGroup || null,
+    museum_visit: profileForm.museumVisit || null,
+    art_interest_level: profileForm.artInterestLevel || null,
+    favorite_period: profileForm.favoritePeriod || null,
+    favorite_museum: profileForm.favoriteMuseum || null,
+    primary_device: profileForm.primaryDevice || null,
+    uses_casting: profileForm.usesCasting,
+    data_consent: true,
+  };
+
+  try {
+    let error = null;
+
+    if (state.profile) {
+      // profiel bestaat al → bijwerken
+      const { error: updateError } = await supabase
+        .from("user_profiles")
+        .update({
+          ...payload,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", state.userId);
+
+      error = updateError ?? null;
+    } else {
+      // nog geen profiel → nieuw record aanmaken
+      const { error: insertError } = await supabase
+        .from("user_profiles")
+        .insert({
+          ...payload,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      error = insertError ?? null;
+    }
 
     if (error) {
       console.error("Fout bij opslaan profiel", error);
       setSaveStatus("error");
     } else {
       setSaveStatus("success");
+      // lokaal profiel updaten zodat de UI klopt
       setState((prev) => {
         if (prev.status !== "logged_in") return prev;
         return {
@@ -191,9 +216,14 @@ export default function ProfilePage() {
         };
       });
     }
-
-    setIsSaving(false);
+  } catch (err) {
+    console.error("Onverwachte fout bij opslaan profiel", err);
+    setSaveStatus("error");
   }
+
+  setIsSaving(false);
+}
+
 
   // UI states
 
