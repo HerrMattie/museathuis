@@ -70,7 +70,7 @@ const TourOverlay = ({
   const [index, setIndex] = useState(initialIndex);
 
   // interne open-state als er geen open prop wordt meegegeven
-  const [internalOpen, setInternalOpen] = useState<boolean>(open ?? true);
+  const [internalOpen, setInternalOpen] = useState<boolean>(open ?? false);
 
   // als open prop verandert, sync de interne state
   useEffect(() => {
