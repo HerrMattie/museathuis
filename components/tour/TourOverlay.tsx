@@ -11,8 +11,8 @@ type TourOverlayProps = {
   contentType?: ContentType;
   contentId: string;
   initialIndex?: number;
-  open?: boolean;          // optioneel: default = true (zoals nu)
-  onClose?: () => void;    // optioneel: bij ontbreken doen we history.back()
+  open?: void;          // optioneel: default = true (zoals nu)
+  onClose?: () => history.back();    // optioneel: bij ontbreken doen we history.back()
 };
 
 function getImageUrl(item: any): string | null {
