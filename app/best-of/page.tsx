@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import type { BestofResponse, BestofItem } from "@/lib/bestof";
-import { RatingStars } from "@/components/rating/RatingStars";
+import RatingStars from "@/components/rating/RatingStars";
 
 type SectionState = {
   isLoading: boolean;
