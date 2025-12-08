@@ -67,11 +67,7 @@ export default async function TourListPage() {
   // -----------------------------------------------------------
   let query = supabase
     .from("tours")
-    .select<
-      TourRow[
-        "id" | "title" | "intro" | "short_description" | "is_premium" | "duration_min" | "date" | "status"
-      ]
-    >(
+    .select<TourRow>(
       `
       id,
       title,
@@ -92,6 +88,7 @@ export default async function TourListPage() {
   const { data: toursData, error: toursError } = await query;
 
   const tours: TourRow[] = Array.isArray(toursData) ? toursData : [];
+
 
   // -----------------------------------------------------------
   // 4. UI
