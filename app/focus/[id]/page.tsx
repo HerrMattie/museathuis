@@ -5,9 +5,9 @@ import { useEffect, useState } from 'react';
 import { trackActivity } from '@/lib/tracking';
 import PremiumLock from '@/components/common/PremiumLock';
 import AddToCollectionButton from '@/components/collection/AddToCollectionButton';
+import StarRating from '@/components/common/StarRating'; // <--- NIEUW: Rating
 import Image from 'next/image';
 import Link from 'next/link';
-// HIER WAS DE FOUT: 'Play' is toegevoegd aan de import
 import { ChevronRight, Clock, Play } from 'lucide-react';
 
 export default function FocusDeepDivePage({ params }: { params: { id: string } }) {
@@ -45,12 +45,12 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
            if (!isUserPremium) setIsLocked(true);
         }
 
-        // TRACKING LOGICA (Badge Trigger)
+        // TRACKING LOGICA (Badge Trigger na 10 seconden)
         if (user && !hasTracked && !isLocked) {
             const timer = setTimeout(() => {
                 trackActivity(supabase, user.id, 'read_focus', params.id);
                 setHasTracked(true);
-            }, 10000); // 10 seconden
+            }, 10000); 
             
             return () => clearTimeout(timer);
         }
@@ -67,43 +67,57 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
     <PremiumLock isLocked={isLocked}>
       <div className="bg-midnight-950 min-h-screen text-gray-200 font-sans pb-20">
         
-        {/* HERO HEADER */}
-        <header className="relative h-[70vh] w-full overflow-hidden">
+        {/* HERO HEADER - MET FIX: Maximaal 80% van schermhoogte */}
+        <header className="relative w-full h-[80vh] bg-black">
            {focus.artwork.image_url && (
              <Image 
                src={focus.artwork.image_url} 
                alt={focus.title} 
                fill 
-               className="object-cover opacity-80"
+               className="object-contain opacity-90" // object-contain zorgt dat de hele afbeelding zichtbaar is zonder afsnijden
                priority
              />
            )}
-           <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/20 to-transparent" />
            
-           <div className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-between">
-             <Link href="/focus" className="inline-flex items-center gap-2 text-white/80 hover:text-white bg-black/30 backdrop-blur-md px-4 py-2 rounded-full transition-colors text-sm font-medium">
-               <ChevronRight className="rotate-180" size={16} /> Terug naar overzicht
+           {/* Subtiele gradient overlay voor leesbaarheid controls */}
+           <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-transparent to-transparent" />
+           
+           {/* Top Bar Navigation */}
+           <div className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-between items-start">
+             <Link href="/focus" className="inline-flex items-center gap-2 text-white/80 hover:text-white bg-black/40 backdrop-blur-md px-4 py-2 rounded-full transition-colors text-sm font-medium border border-white/10">
+               <ChevronRight className="rotate-180" size={16} /> Terug
              </Link>
              
-             {/* PLAATS DE KNOP IN DE TOP BAR */}
+             {/* Collectie Knop */}
              <AddToCollectionButton artworkId={focus.artwork.id} />
            </div>
 
-           <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 z-20 max-w-4xl">
-             <span className="inline-flex items-center gap-2 bg-museum-gold/20 text-museum-gold border border-museum-gold/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 backdrop-blur-md">
-               <Clock size={14} /> 10 Minuten Leestijd
-             </span>
-             <h1 className="font-serif text-5xl md:text-7xl text-white font-bold mb-4 leading-tight drop-shadow-2xl">
-               {focus.title}
-             </h1>
-             <p className="text-xl md:text-2xl text-gray-200 max-w-2xl leading-relaxed drop-shadow-lg">
-               {focus.intro}
-             </p>
+           {/* Titel & Intro (Onderin) */}
+           <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 z-20 max-w-5xl">
+             <div className="flex flex-col md:flex-row md:items-end gap-6 justify-between">
+                <div>
+                    <span className="inline-flex items-center gap-2 bg-museum-gold/20 text-museum-gold border border-museum-gold/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 backdrop-blur-md">
+                    <Clock size={14} /> 3 Minuten Focus
+                    </span>
+                    <h1 className="font-serif text-4xl md:text-6xl text-white font-bold mb-4 leading-tight drop-shadow-2xl">
+                    {focus.title}
+                    </h1>
+                    <p className="text-xl text-gray-200 max-w-2xl leading-relaxed drop-shadow-lg">
+                    {focus.intro}
+                    </p>
+                </div>
+
+                {/* NIEUW: Rating direct bij de titel */}
+                <div className="bg-black/40 backdrop-blur-md p-4 rounded-xl border border-white/10">
+                    <p className="text-xs text-gray-400 mb-1 font-bold uppercase">Uw waardering</p>
+                    <StarRating contentId={focus.id} />
+                </div>
+             </div>
            </div>
         </header>
 
         {/* CONTENT KOLOMMEN */}
-        <div className="container mx-auto px-6 md:px-12 -mt-10 relative z-30">
+        <div className="container mx-auto px-6 md:px-12 mt-12 relative z-30">
           <div className="bg-midnight-900 border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl">
             
             {/* Audio Speler Placeholder */}
