@@ -50,44 +50,28 @@ export default async function DashboardPage() {
         
         {/* A. HERO: DE TOUR (Grootste blok) */}
         {tour ? (
-          <Link 
-            href={`/tour/${tour.id}`}
-            className="group relative col-span-1 md:col-span-8 md:row-span-2 overflow-hidden rounded-3xl bg-midnight-900 border border-white/5 hover:border-museum-lime/50 transition-all duration-500 shadow-2xl"
-          >
-            {tour.hero_image_url ? (
-              <Image 
-                src={tour.hero_image_url} 
-                alt={tour.title} 
-                fill 
-                className="object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-60"
-              />
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-midnight-800 to-midnight-950" />
-            )}
-            
-            <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/40 to-transparent" />
-            
-            <div className="absolute bottom-0 left-0 p-8 w-full">
-              <div className="mb-4 flex items-center gap-3">
-                <span className="rounded bg-museum-lime px-3 py-1 text-xs font-bold text-black tracking-wide">TOUR VAN VANDAAG</span>
-                {tour.is_premium && !isUserPremium && (
-                  <span className="flex items-center gap-1 text-xs text-museum-gold font-bold uppercase tracking-wider">
-                    <Lock size={12} /> Premium
-                  </span>
-                )}
-              </div>
-              <h2 className="font-serif text-3xl md:text-5xl font-bold text-white mb-4 leading-tight max-w-2xl">
-                {tour.title}
-              </h2>
-              <p className="text-gray-200 text-lg line-clamp-2 max-w-xl mb-8 font-light">
-                {tour.intro}
-              </p>
-              <button className="flex items-center gap-3 rounded-full bg-white px-8 py-4 text-sm font-bold text-black transition-colors group-hover:bg-museum-lime">
-                <Play size={20} fill="currentColor" />
-                Start Rondleiding
-              </button>
-            </div>
-          </Link>
+         <Link 
+  href="/tour"  // <-- VERANDERD: Linkt nu naar de landingspagina
+  className="group relative col-span-1 md:col-span-8 md:row-span-2 overflow-hidden rounded-3xl bg-midnight-900 border border-white/5 hover:border-museum-lime/50 transition-all duration-500 shadow-2xl"
+>
+  {/* ... (Image code blijft hetzelfde) ... */}
+  
+  <div className="absolute bottom-0 left-0 p-8 w-full">
+    <div className="mb-4 flex items-center gap-3">
+      <span className="rounded bg-museum-lime px-3 py-1 text-xs font-bold text-black tracking-wide">UITGELICHT</span>
+    </div>
+    <h2 className="font-serif text-3xl md:text-5xl font-bold text-white mb-4 leading-tight max-w-2xl">
+      {tour.title}
+    </h2>
+    <p className="text-gray-200 text-lg line-clamp-2 max-w-xl mb-8 font-light">
+      {tour.intro}
+    </p>
+    <button className="flex items-center gap-3 rounded-full bg-white px-8 py-4 text-sm font-bold text-black transition-colors group-hover:bg-museum-lime">
+      <Play size={20} fill="currentColor" />
+      Bekijk Tours & Start {/* <-- VERANDERD: Tekst aangepast */}
+    </button>
+  </div>
+</Link>
         ) : (
           /* FALLBACK TOUR (Geen data) */
           <div className="group relative col-span-1 md:col-span-8 md:row-span-2 overflow-hidden rounded-3xl bg-midnight-900 border border-white/5 flex flex-col items-center justify-center text-center p-8">
