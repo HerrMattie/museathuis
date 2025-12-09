@@ -3,16 +3,16 @@
 import { createClient } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti'; 
 import { trackActivity } from '@/lib/tracking';
-import { ChevronRight, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import StarRating from '@/components/common/StarRating'; // <--- NIEUW: Rating
 
 export default function GamePage({ params }: { params: { id: string } }) {
   const [items, setItems] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
-  // Nieuwe state: 'already_played'
   const [gameState, setGameState] = useState<'loading' | 'playing' | 'feedback' | 'finished' | 'already_played'>('loading');
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const supabase = createClient();
@@ -31,21 +31,18 @@ export default function GamePage({ params }: { params: { id: string } }) {
             .eq('action_type', 'complete_game');
         
         if (logs && logs.length > 0) {
-            // Ja, al gespeeld. Haal score op uit metadata (als we dat opsloegen) of toon gewoon 'voltooid'
-            const previousScore = logs[0].meta_data?.scorePercent || 0;
-            // Je zou hier de score kunnen terugrekenen, voor nu tonen we de 'Al gespeeld' status
             setGameState('already_played');
-            return; // Stop hier, laad de vragen niet eens
+            return; 
         }
       }
 
-      // 2. Laad de vragen als nog niet gespeeld
+      // 2. Laad de vragen
       const { data } = await supabase.from('game_items').select('*').eq('game_id', params.id).order('order_index');
       if (data && data.length > 0) {
         setItems(data);
         setGameState('playing');
       } else {
-        setGameState('finished'); // Of error state
+        setGameState('finished'); // Of error state als er geen vragen zijn
       }
     }
     load();
@@ -83,7 +80,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
           await trackActivity(supabase, user.id, 'complete_game', params.id, { scorePercent: percentage });
         }
       }
-    }, 1500); // Iets sneller door
+    }, 1500); 
   };
 
   if (gameState === 'loading') return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">Laden...</div>;
@@ -92,7 +89,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
   if (gameState === 'already_played') {
       return (
         <main className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center">
-            <div className="bg-midnight-900 border border-white/10 p-8 rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="bg-midnight-900 border border-white/10 p-8 rounded-2xl max-w-md w-full shadow-2xl animate-fade-in-up">
                 <div className="w-16 h-16 bg-museum-gold/20 text-museum-gold rounded-full flex items-center justify-center mx-auto mb-6">
                     <Lock size={32} />
                 </div>
@@ -108,15 +105,25 @@ export default function GamePage({ params }: { params: { id: string } }) {
       )
   }
 
-  // VIEW: RESULTAAT
+  // VIEW: RESULTAAT (Hier voegen we de Rating toe)
   if (gameState === 'finished') {
      return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full">
-            <h1 className="text-4xl font-serif font-bold text-white mb-2">Quiz Voltooid!</h1>
-            <p className="text-6xl font-bold text-museum-gold mb-6">{score} / {items.length}</p>
+          <div className="max-w-md w-full bg-midnight-900 p-8 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden">
+            {/* Achtergrond gloed */}
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-museum-gold to-museum-lime" />
+            
+            <h1 className="text-3xl font-serif font-bold text-white mb-2">Quiz Voltooid!</h1>
+            <div className="text-6xl font-bold text-museum-gold mb-2">{score} / {items.length}</div>
             <p className="text-gray-400 mb-8">U heeft uw kunstkennis weer aangescherpt.</p>
-            <Link href="/" className="bg-white text-black px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">
+            
+            {/* NIEUW: RATING SECTIE */}
+            <div className="mb-8 flex flex-col items-center p-4 bg-white/5 rounded-xl border border-white/5">
+                <p className="text-sm text-gray-300 mb-2 font-bold uppercase tracking-wider">Geef uw mening</p>
+                <StarRating contentId={params.id} />
+            </div>
+
+            <Link href="/" className="block w-full bg-white text-black py-3 rounded-xl font-bold hover:bg-museum-lime transition-colors">
                 Terug naar Dashboard
             </Link>
           </div>
@@ -132,42 +139,3 @@ export default function GamePage({ params }: { params: { id: string } }) {
         {/* Progress Bar */}
         <div className="w-full max-w-2xl mx-auto p-6 pt-10 z-10">
           <div className="flex justify-between text-xs text-gray-500 mb-2 uppercase font-bold tracking-widest">
-              <span>Vraag {currentIndex + 1} / {items.length}</span>
-              <span>Score: {score}</span>
-          </div>
-          <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-            <motion.div className="h-full bg-museum-gold" animate={{ width: `${progress}%` }} transition={{ ease: "circOut" }} />
-          </div>
-        </div>
-
-      <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 max-w-2xl mx-auto w-full">
-            <h2 className="text-2xl md:text-3xl font-serif font-bold mb-8 text-center leading-relaxed">
-                {items[currentIndex].question}
-            </h2>
-            
-            <div className="grid gap-3 w-full">
-                {[...items[currentIndex].wrong_answers, items[currentIndex].correct_answer].sort().map((ans, idx) => {
-                    let btnClass = "bg-white/5 border-white/10 hover:bg-white/10 text-white"; // Standaard
-                    
-                    if (selectedAnswer) {
-                        if (ans === items[currentIndex].correct_answer) btnClass = "bg-green-500 border-green-500 text-black"; // Correct
-                        else if (ans === selectedAnswer) btnClass = "bg-red-500 border-red-500 text-white"; // Fout gekozen
-                        else btnClass = "bg-white/5 border-white/5 text-gray-500 opacity-50"; // De rest
-                    }
-
-                    return (
-                        <button 
-                            key={idx} 
-                            onClick={() => handleAnswer(ans)} 
-                            disabled={!!selectedAnswer} 
-                            className={`p-4 rounded-xl text-left border transition-all font-medium text-lg ${btnClass}`}
-                        >
-                            {ans}
-                        </button>
-                    )
-                })}
-            </div>
-      </div>
-    </main>
-  );
-}
