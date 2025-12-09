@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabaseClient } from '@/lib/supabaseClient'; // Gebruik je client-side Supabase instance
-import { Plus, List, CheckCircle, X } from 'lucide-react';
+import { createClient } from '@/lib/supabaseClient'; // Gebruik jouw client-side Supabase instance
+import { Plus, List, CheckCircle, X, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 type Collection = {
   id: string;
@@ -17,26 +18,29 @@ export default function AddToCollectionButton({ artworkId }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState<{ [key: string]: string }>({}); // Voor feedback per collectie
+  const [feedback, setFeedback] = useState<{ [key: string]: string }>({}); 
+  const supabase = createClient();
 
   useEffect(() => {
     if (isOpen) {
       fetchCollections();
+    } else {
+      // Reset feedback wanneer de modal sluit
+      setFeedback({});
     }
   }, [isOpen]);
 
   const fetchCollections = async () => {
     setLoading(true);
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
         setLoading(false);
-        // Eventueel een melding: log in om te verzamelen
+        // We verbergen de knop niet, maar tonen een login melding
         return;
     }
 
-    // Haal alle persoonlijke collecties van de gebruiker op
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from('user_collections')
       .select('id, title')
       .eq('user_id', user.id)
@@ -51,45 +55,38 @@ export default function AddToCollectionButton({ artworkId }: Props) {
   };
 
   const handleAddToCollection = async (collectionId: string) => {
-    setFeedback(prev => ({ ...prev, [collectionId]: 'Laden...' }));
+    setFeedback(prev => ({ ...prev, [collectionId]: 'Bezig...' }));
 
     // Voeg het artwork toe aan de user_collection_items tabel
-    const { error } = await supabaseClient
+    const { error } = await supabase
       .from('user_collection_items')
       .insert({
         collection_id: collectionId,
         artwork_id: artworkId,
       })
-      // Conflict vermijden: als het item er al in zit
       .onConflict(['collection_id', 'artwork_id'])
-      .doNothing(); 
+      .doNothing()
+      .select(); // Selecteer om te controleren of er iets is ingevoegd
       
-    if (error && error.code !== '23505') { // 23505 is unieke constraint fout (al in collectie)
+    if (error && error.code !== '23505') { 
       setFeedback(prev => ({ ...prev, [collectionId]: 'Fout' }));
-      console.error('Fout bij toevoegen item:', error);
     } else {
       setFeedback(prev => ({ ...prev, [collectionId]: 'Toegevoegd!' }));
-      // Optioneel: sluit de modal na een korte vertraging
-      setTimeout(() => setIsOpen(false), 1000); 
     }
   };
   
-  // Vroege Exit: Als de gebruiker nog geen collecties heeft aangemaakt (Level 15 niet gehaald of niet de stap genomen)
-  if (collections.length === 0 && !loading && isOpen) {
+  const handleClose = () => {
+      setIsOpen(false);
+      setFeedback({});
+  }
+  
+  if (!supabase.auth.getUser()) {
+       // Als de user niet eens ingelogd is, tonen we de knop, maar deze linkt naar login
        return (
-           <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-               <div className="bg-midnight-900 p-8 rounded-xl w-full max-w-md shadow-2xl border border-white/10">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="font-serif text-2xl text-white">Mijn Salon</h2>
-                        <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
-                    </div>
-                    <p className="text-gray-400 mb-6">U heeft nog geen persoonlijke collecties aangemaakt.</p>
-                    <p className="text-sm text-museum-gold">
-                       Word 'Verzamelaar' (Level 15) om uw eerste Salon te starten!
-                    </p>
-               </div>
-           </div>
-       )
+           <Link href="/login" className="flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-white/20 transition-colors border border-white/20">
+             <List size={18} /> Inloggen om te verzamelen
+           </Link>
+       );
   }
 
   return (
@@ -108,13 +105,23 @@ export default function AddToCollectionButton({ artworkId }: Props) {
           <div className="bg-midnight-900 p-8 rounded-xl w-full max-w-md shadow-2xl border border-white/10">
             <div className="flex justify-between items-center mb-6">
               <h2 className="font-serif text-2xl text-white">Selecteer Salon</h2>
-              <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
+              <button onClick={handleClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
             </div>
 
             {loading ? (
-              <div className="text-center text-gray-500 py-10">Laden van uw collecties...</div>
+              <div className="text-center text-gray-500 py-4 flex items-center justify-center gap-2">
+                 <Loader2 size={20} className="animate-spin" /> Collecties laden...
+              </div>
             ) : (
               <div className="space-y-3">
+                {collections.length === 0 && (
+                    <div className="text-center p-6 bg-white/5 rounded-lg border border-white/10">
+                         <p className="text-gray-400 mb-3">Nog geen collecties gevonden.</p>
+                         <Link href="/profile?tab=collections" className="text-sm font-bold text-museum-gold hover:text-museum-lime transition-colors underline">
+                           Maak je eerste Salon (Level 20)
+                         </Link>
+                    </div>
+                )}
                 {collections.map((col) => (
                   <button
                     key={col.id}
@@ -131,12 +138,6 @@ export default function AddToCollectionButton({ artworkId }: Props) {
                   </button>
                 ))}
                 
-                <div className="pt-4 border-t border-white/10 mt-4">
-                   {/* Hier zou een knop komen om een NIEUWE Salon te maken */}
-                   <Link href="/profile?tab=collections" className="w-full text-center block text-sm font-bold text-museum-gold hover:text-museum-lime transition-colors">
-                      + Beheer of Maak Nieuwe Salons
-                   </Link>
-                </div>
               </div>
             )}
           </div>
