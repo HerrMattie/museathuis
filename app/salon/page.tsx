@@ -1,84 +1,37 @@
-"use client";
+import { createClient } from '@/lib/supabaseServer';
+import { cookies } from 'next/headers';
+import Link from 'next/link';
+import { LayoutGrid, Lock } from 'lucide-react';
 
-export default function SalonPage() {
+export default async function SalonPage() {
+  const supabase = createClient(cookies());
+  const { data: sets } = await supabase.from('salon_sets').select('*').eq('is_public', true);
+
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8 text-sm text-slate-200">
-      <header className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.16em] text-amber-300">
-          Vandaag
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-          Salonpresentaties
-        </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          De salonmodus is bedoeld voor schermvullende presentaties van kunstwerken
-          per sfeer of thema. Eén gratis set per dag, twee premiumsets voor
-          abonnees. In een volgende fase koppelen we deze pagina aan de tabellen
-          <span className="font-mono"> salon_sets</span> en
-          <span className="font-mono"> salon_set_items</span>.
-        </p>
-      </header>
+    <main className="min-h-screen bg-midnight-950 px-6 py-12">
+      <div className="container mx-auto">
+        <h1 className="font-serif text-5xl text-white font-bold mb-2">De Salon</h1>
+        <p className="text-gray-400 mb-12 max-w-xl">Blader door gecureerde collecties. Ideaal voor op de achtergrond.</p>
 
-      <section className="grid gap-4 md:grid-cols-[2fr,1fr]">
-        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-            Gratis salon
-          </p>
-          <h2 className="text-lg font-semibold text-slate-50">
-            Voorbeeldtitel salonset
-          </h2>
-          <p className="text-xs text-slate-300">
-            Placeholder voor de gratis salon van vandaag. Straks wordt hier een
-            reeks werken uit de database getoond in fullscreen modus, met minimale
-            tekst en rustige overgangen.
-          </p>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-300">
-            <li>Eén sfeer of thema per set, herkenbaar benoemd.</li>
-            <li>Voor gebruik op televisie of groot scherm.</li>
-            <li>Basiskeuze komt uit het dagprogramma, maar is later ook los te starten.</li>
-          </ul>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sets?.map((set) => (
+            <div key={set.id} className="group relative aspect-video bg-midnight-900 rounded-2xl border border-white/5 overflow-hidden hover:border-museum-lime/50 transition-all">
+               {/* Placeholder gradient omdat we nog geen cover images hebben voor sets */}
+               <div className="absolute inset-0 bg-gradient-to-br from-midnight-800 to-black group-hover:scale-105 transition-transform duration-700" />
+               
+               <div className="absolute inset-0 p-8 flex flex-col justify-end">
+                 <div className="flex justify-between items-end">
+                   <div>
+                     <h3 className="font-serif text-2xl text-white font-bold">{set.title}</h3>
+                     <p className="text-sm text-gray-400 mt-1">{set.description}</p>
+                   </div>
+                   {set.is_premium && <Lock className="text-museum-gold mb-1" size={20} />}
+                 </div>
+               </div>
+            </div>
+          ))}
         </div>
-
-        <div className="space-y-4">
-          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Premium salon 1
-            </p>
-            <h3 className="text-sm font-semibold text-slate-50">
-              Verdiepende sfeerselectie
-            </h3>
-            <p className="text-xs text-slate-300">
-              Deze kaart is gereserveerd voor een premium salonset die inhoudelijk
-              aansluit bij het dagthema of een specifiek museum.
-            </p>
-          </div>
-          <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Premium salon 2
-            </p>
-            <h3 className="text-sm font-semibold text-slate-50">
-              Alternatieve sfeer of collectie
-            </h3>
-            <p className="text-xs text-slate-300">
-              Hier verschijnt straks een tweede premiumset, bijvoorbeeld een
-              collectie rond één kunstenaar of museum, op basis van dezelfde
-              salonstructuur.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <h2 className="text-base font-semibold text-slate-50">
-          Salonmodus als vierde pijler
-        </h2>
-        <p className="text-xs text-slate-300">
-          Salonsets worden straks net als tours en focusmomenten via het
-          dagprogramma geactiveerd. In de backend werken we met vaste sets,
-          gekoppeld aan artworks, waarbij de weergave vooral draait om ritme,
-          sfeer en afwisseling.
-        </p>
-      </section>
-    </div>
+      </div>
+    </main>
   );
 }
