@@ -9,7 +9,7 @@ export default async function TourPage({ params }: { params: { id: string } }) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  // 1. Haal de Tour op
+  // 1. Haal de Tour Titel
   const { data: tour } = await supabase
     .from('tours')
     .select('id, title')
@@ -18,8 +18,7 @@ export default async function TourPage({ params }: { params: { id: string } }) {
 
   if (!tour) return notFound();
 
-  // 2. Haal de Items op (Artworks gekoppeld aan de tour)
-  // Let op: we joinen hier met de 'artworks' tabel
+  // 2. Haal de Items en gekoppelde Artworks
   const { data: items } = await supabase
     .from('tour_items')
     .select(`
@@ -34,16 +33,15 @@ export default async function TourPage({ params }: { params: { id: string } }) {
     .eq('tour_id', tour.id)
     .order('position');
 
-  // Als er geen items zijn, tonen we een lege staat (of een foutmelding)
   if (!items || items.length === 0) {
     return (
       <div className="flex h-screen items-center justify-center bg-midnight-950 text-white">
-        <p>Deze tour heeft nog geen kunstwerken.</p>
+        <p>Deze tour wordt momenteel samengesteld.</p>
       </div>
     );
   }
 
-  // Casten van data om Typescript blij te maken (Supabase returns arrays soms complex)
+  // Flatten data structuur voor de component
   const formattedItems = items.map(item => ({
     ...item,
     artwork: Array.isArray(item.artwork) ? item.artwork[0] : item.artwork
