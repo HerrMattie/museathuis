@@ -2,11 +2,12 @@
 
 import { createClient } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
-import { trackActivity } from '@/lib/tracking'; // Importeer de tracker
+import { trackActivity } from '@/lib/tracking';
 import PremiumLock from '@/components/common/PremiumLock';
+import AddToCollectionButton from '@/components/collection/AddToCollectionButton'; // <-- NIEUW
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronRight, Play, Clock } from 'lucide-react';
+import { ChevronRight, Clock } from 'lucide-react';
 
 export default function FocusDeepDivePage({ params }: { params: { id: string } }) {
   const [focus, setFocus] = useState<any>(null);
@@ -19,16 +20,12 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // 1. Haal Focus Data op (inclusief artwork info)
       const { data: item } = await supabase
         .from('focus_items')
         .select(`
           *, 
           artwork:artworks (
-            *,
-            description_technical,
-            description_historical,
-            description_symbolism
+            id, title, artist, image_url, description_technical, description_historical, description_symbolism
           )
         `)
         .eq('id', params.id)
@@ -37,7 +34,7 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
       if (item) {
         setFocus(item);
         
-        // 2. Check Premium Status
+        // Check Premium Status
         if (item.is_premium) {
            let isUserPremium = false;
            if (user) {
@@ -47,14 +44,11 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
            if (!isUserPremium) setIsLocked(true);
         }
 
-        // 3. TRACKING LOGICA (Badge Trigger)
-        // Als de gebruiker 10 seconden op deze pagina blijft, telt het als 'gelezen'
-        if (user && !hasTracked && !isLocked) { // Alleen tracken als niet op slot!
+        // TRACKING LOGICA (Badge Trigger)
+        if (user && !hasTracked && !isLocked) {
             const timer = setTimeout(() => {
                 trackActivity(supabase, user.id, 'read_focus', params.id);
                 setHasTracked(true);
-                // Console log voor debugging (kun je later weghalen)
-                console.log("Activity tracked: read_focus");
             }, 10000); // 10 seconden
             
             return () => clearTimeout(timer);
@@ -66,7 +60,7 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
   }, [params.id, hasTracked, isLocked]);
 
   if (loading) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Laden...</div>;
-  if (!focus) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Niet gevonden</div>;
+  if (!focus || !focus.artwork) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Niet gevonden</div>;
 
   return (
     <PremiumLock isLocked={isLocked}>
@@ -74,7 +68,7 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
         
         {/* HERO HEADER */}
         <header className="relative h-[70vh] w-full overflow-hidden">
-           {focus.artwork?.image_url && (
+           {focus.artwork.image_url && (
              <Image 
                src={focus.artwork.image_url} 
                alt={focus.title} 
@@ -85,10 +79,13 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
            )}
            <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/20 to-transparent" />
            
-           <div className="absolute top-0 left-0 p-6 z-20">
+           <div className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-between">
              <Link href="/focus" className="inline-flex items-center gap-2 text-white/80 hover:text-white bg-black/30 backdrop-blur-md px-4 py-2 rounded-full transition-colors text-sm font-medium">
                <ChevronRight className="rotate-180" size={16} /> Terug naar overzicht
              </Link>
+             
+             {/* PLAATS DE KNOP IN DE TOP BAR */}
+             <AddToCollectionButton artworkId={focus.artwork.id} />
            </div>
 
            <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 z-20 max-w-4xl">
@@ -127,7 +124,7 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
                   <span className="text-museum-gold">I.</span> De Historische Context
                 </h2>
                 <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
-                  {focus.artwork?.description_historical || "De historische context wordt momenteel onderzocht door onze experts."}
+                  {focus.artwork.description_historical || "De historische context wordt momenteel onderzocht door onze experts."}
                 </div>
               </section>
 
@@ -138,7 +135,7 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
                   <span className="text-museum-gold">II.</span> Symboliek & Betekenis
                 </h2>
                 <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
-                  {focus.artwork?.description_symbolism || "De symboliek wordt geanalyseerd."}
+                  {focus.artwork.description_symbolism || "De symboliek wordt geanalyseerd."}
                 </div>
               </section>
 
@@ -149,10 +146,9 @@ export default function FocusDeepDivePage({ params }: { params: { id: string } }
                   <span className="text-museum-gold">III.</span> Techniek & Materiaal
                 </h2>
                 <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
-                  {focus.artwork?.description_technical || "Technische analyse volgt."}
+                  {focus.artwork.description_technical || "Technische analyse volgt."}
                 </div>
               </section>
-
             </div>
           </div>
         </div>
