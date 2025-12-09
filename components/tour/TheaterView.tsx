@@ -115,7 +115,8 @@ export default function TheaterView({ tourTitle, items }: { tourTitle: string; i
       <div className="absolute bottom-0 w-full z-50 p-6 md:p-12 bg-gradient-to-t from-black via-black/80 to-transparent">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-[1fr_auto] gap-8 items-end">
           
-          <div className="space-y-2">
+        <div className="space-y-2">
+           <div className="flex items-start gap-4 justify-between md:justify-start">
              <motion.h2 
                key={currentItem.artwork.title}
                initial={{ opacity: 0, y: 20 }}
@@ -124,8 +125,20 @@ export default function TheaterView({ tourTitle, items }: { tourTitle: string; i
              >
                {currentItem.artwork.title}
              </motion.h2>
-             <motion.p 
-               key={currentItem.artwork.artist}
+             
+             {/* HARTJE */}
+             <motion.div
+               initial={{ opacity: 0, scale: 0 }}
+               animate={{ opacity: 1, scale: 1 }}
+               transition={{ delay: 0.3 }}
+               className="mt-2"
+             >
+               <LikeButton artworkId={currentItem.artwork.id} size={32} />
+             </motion.div>
+           </div>
+        
+           <motion.p 
+             key={currentItem.artwork.artist}
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                transition={{ delay: 0.1 }}
