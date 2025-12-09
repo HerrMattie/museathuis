@@ -22,8 +22,9 @@ type TourItem = {
   };
 };
 
-export default function TheaterView({ tourTitle, items }: { tourTitle: string; items: TourItem[] }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+// Voeg tourId toe aan de Props
+export default function TheaterView({ tourId, tourTitle, items }: { tourId: string; tourTitle: string; items: TourItem[] }) {
+  // ... rest van de code ...  const [currentIndex, setCurrentIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
   
   const currentItem = items[currentIndex];
