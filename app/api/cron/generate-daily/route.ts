@@ -1,21 +1,24 @@
 import { createClient } from '@/lib/supabaseServer';
+import { cookies } from 'next/headers'; // <--- FIX 1: Importeer cookies
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
-// Vercel timeout instelling (optioneel, helpt bij tragere AI responses)
+// Vercel timeout instelling
 export const maxDuration = 60; 
 
 export async function GET() {
-  const supabase = createClient();
+  // FIX 2: Haal de cookie store op en geef hem mee
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
+  
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  // Gebruik flash voor snelheid/kosten, of 'gemini-pro' als je oude libraries hebt
+  // Zorg dat je 1.5-flash gebruikt als je package.json geupdate is, anders gemini-pro
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   try {
     // ---------------------------------------------------------
     // STAP A: HAAL CONTENT OP (Artworks)
     // ---------------------------------------------------------
-    // FIX: Hier hebben we 'image_url' toegevoegd aan de select!
     const { data: seedArtworks } = await supabase
       .from('artworks')
       .select('id, title, artist, description_primary, is_enriched, image_url') 
@@ -26,13 +29,13 @@ export async function GET() {
       return NextResponse.json({ error: "Te weinig verrijkte kunstwerken in de kluis!" }, { status: 500 });
     }
 
-    // Shuffle de artworks zodat we elke dag andere hebben
+    // Shuffle de artworks
     seedArtworks.sort(() => 0.5 - Math.random());
 
     const focusSelection = seedArtworks.slice(0, 3);
 
     // ---------------------------------------------------------
-    // STAP B: GENEREER 3 TOURS (1 Gratis, 2 Premium)
+    // STAP B: GENEREER 3 TOURS
     // ---------------------------------------------------------
     const createdTourIds: string[] = [];
     const tourSelection = seedArtworks.sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -47,7 +50,7 @@ export async function GET() {
           hero_image_url: art.image_url || 'https://images.unsplash.com/photo-1554907984-15263bfd63bd',
           status: 'published',
           is_premium: isPremium,
-          // Voeg hier artwork_id toe als je tabel die relatie heeft
+          // Pas aan als je een artwork_id kolom hebt in tours
        }).select().single();
 
        if (tour) createdTourIds.push(tour.id);
@@ -60,9 +63,8 @@ export async function GET() {
 
     for (let i = 0; i < 3; i++) {
       const art = focusSelection[i];
-      const isPremium = i > 0; // 1e gratis, rest premium
+      const isPremium = i > 0; 
 
-      // Vraag AI om een intro
       const prompt = `Schrijf een boeiende introductie (max 50 woorden) voor een "Deep Dive" artikel over het kunstwerk "${art.title}" van ${art.artist}. Focus op details.`;
       const aiResult = await model.generateContent(prompt);
       const aiText = aiResult.response.text();
@@ -79,7 +81,7 @@ export async function GET() {
     }
 
     // ---------------------------------------------------------
-    // STAP D: MAAK 3 GAMES (QUIZZES)
+    // STAP D: MAAK 3 GAMES
     // ---------------------------------------------------------
     const createdGameIds: string[] = [];
 
@@ -87,7 +89,6 @@ export async function GET() {
         const art = seedArtworks[i];
         const isPremium = i > 0;
 
-        // Vraag AI om 3 vragen
         const quizPrompt = `
           Maak 3 quizvragen over "${art.title}" van ${art.artist}.
           Format: JSON Array met objecten { question, correct_answer, wrong_answers: [string, string, string] }
@@ -108,7 +109,6 @@ export async function GET() {
 
             if (game) {
                 createdGameIds.push(game.id);
-                // Vragen opslaan
                 const quizItems = questions.map((q: any, idx: number) => ({
                     game_id: game.id,
                     question: q.question,
@@ -122,7 +122,7 @@ export async function GET() {
     }
 
     // ---------------------------------------------------------
-    // STAP E: HET DAGROOSTER UPDATEN
+    // STAP E: UPDATE ROOSTER
     // ---------------------------------------------------------
     const today = new Date().toISOString().split('T')[0];
 
@@ -140,7 +140,7 @@ export async function GET() {
         return NextResponse.json({ error: scheduleError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, date: today, tours: createdTourIds, focus: createdFocusIds, games: createdGameIds });
+    return NextResponse.json({ success: true, date: today });
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
