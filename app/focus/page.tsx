@@ -3,50 +3,75 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Eye, Lock, Clock, BookOpen, ChevronRight } from 'lucide-react';
+import { notFound } from 'next/navigation';
 
 export const revalidate = 60;
 
-export default async function FocusOverviewPage() {
+export default async function FocusOverviewPage({ searchParams }: { searchParams: { date?: string } }) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Check of user premium is
   let isUserPremium = false;
   if (user) {
     const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
     if (profile?.is_premium) isUserPremium = true;
   }
 
-  // Haal Focus items op (Gepubliceerd)
-  const { data: items } = await supabase
-    .from('focus_items')
-    .select('*, artwork:artworks(image_url, artist)')
-    .eq('status', 'published')
-    .order('created_at', { ascending: false }) // Nieuwste eerst
-    .limit(12);
+  const dateParam = searchParams.date;
+  let focusItems: any[] = [];
+  let headerText = "Alle Deep Dives";
+
+  if (dateParam) {
+    // SCENARIO 1: TIJDREIS MODUS (Toon alle 3 de scheduled Focus items)
+    const { data: schedule } = await supabase
+      .from('dayprogram_schedule')
+      .select('focus_ids')
+      .eq('day_date', dateParam)
+      .single();
+
+    if (schedule?.focus_ids && schedule.focus_ids.length > 0) {
+        // Haal alle Focus items op die in de array van die dag staan
+        const { data } = await supabase
+          .from('focus_items')
+          .select('*, artwork:artworks(image_url, artist)')
+          .in('id', schedule.focus_ids);
+        if (data) focusItems = data;
+    }
+    headerText = `Focus Selectie van ${new Date(dateParam).toLocaleDateString('nl-NL')}`;
+
+  } else {
+    // SCENARIO 2: STANDAARD MODUS (Archief)
+    const { data } = await supabase
+      .from('focus_items')
+      .select('*, artwork:artworks(image_url, artist)')
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+      .limit(12);
+    focusItems = data || [];
+  }
 
   return (
     <main className="min-h-screen bg-midnight-950 pb-20 pt-12 animate-fade-in-up">
       <div className="container mx-auto px-6">
         
-        <Link href="/" className="inline-flex items-center gap-2 text-museum-text-secondary hover:text-white mb-8 transition-colors text-sm font-medium">
+        <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white mb-8 transition-colors text-sm font-medium">
           <ChevronRight className="rotate-180" size={16} /> Terug naar Dashboard
         </Link>
 
-        <header className="mb-12 max-w-3xl">
+        <header className="mb-12 max-w-4xl">
           <p className="text-museum-gold text-xs font-bold uppercase tracking-[0.2em] mb-4">
-            Verdieping & Context
+            {dateParam ? 'Dagelijks Archief' : 'Verdieping & Context'}
           </p>
-          <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-6">Focus</h1>
-          <p className="text-xl text-museum-text-secondary leading-relaxed max-w-2xl">
-            Duik de diepte in. Een uitgebreide analyse van 10 minuten per kunstwerk. 
-            Ontdek de techniek, de historie en de verborgen symboliek.
+          <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-6">{headerText}</h1>
+          <p className="text-xl text-gray-400 leading-relaxed max-w-3xl">
+            {dateParam ? 'Dit was de volledige selectie voor deze datum.' : 'Duik in de diepte van de kunsthistorie.'}
           </p>
         </header>
 
+        {/* FOCUS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {items?.map((item) => {
+          {focusItems.map((item) => {
             const isLocked = item.is_premium && !isUserPremium;
 
             return (
@@ -74,7 +99,7 @@ export default async function FocusOverviewPage() {
                       </span>
                     ) : (
                       <span className="bg-museum-lime text-black px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                        VANDAAG GRATIS
+                        GRATIS
                       </span>
                     )}
                   </div>
@@ -88,28 +113,26 @@ export default async function FocusOverviewPage() {
                   <h3 className="font-serif text-2xl text-white font-bold mb-1 group-hover:text-museum-gold transition-colors">
                     {item.title}
                   </h3>
-                  <p className="text-sm text-museum-gold mb-4 italic">
-                    {item.artwork?.artist}
-                  </p>
-                  <p className="text-gray-400 text-sm line-clamp-3 mb-6 flex-1">
+                  <p className="text-sm text-gray-400 line-clamp-3 mb-6 flex-1">
                     {item.intro}
                   </p>
 
                   <div className="mt-auto">
-                    {isLocked ? (
-                      <div className="w-full py-3 text-center rounded-lg border border-museum-gold text-museum-gold font-bold text-sm uppercase tracking-wider hover:bg-museum-gold hover:text-black transition-all">
-                        Ontgrendel
-                      </div>
-                    ) : (
-                      <div className="w-full py-3 text-center rounded-lg bg-white/5 border border-white/10 text-white font-bold text-sm uppercase tracking-wider group-hover:bg-white group-hover:text-black transition-all flex items-center justify-center gap-2">
-                        <BookOpen size={16} /> Lees & Luister
-                      </div>
-                    )}
+                    {/* CTA BUTTONS (Ongeveer 10 min leestijd) */}
+                    <div className="w-full py-3 text-center rounded-lg bg-white/5 border border-white/10 text-white font-bold text-sm uppercase tracking-wider group-hover:bg-white group-hover:text-black transition-all flex items-center justify-center gap-2">
+                      <BookOpen size={16} /> {isLocked ? 'Ontgrendel' : 'Lees Verder'}
+                    </div>
                   </div>
                 </div>
               </Link>
             )
           })}
+          
+          {focusItems.length === 0 && (
+             <div className="col-span-full py-10 text-center text-gray-500">
+                Er zijn geen focus items gevonden voor deze datum.
+             </div>
+          )}
         </div>
       </div>
     </main>
