@@ -36,20 +36,31 @@ const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     const tourArt = shuffled[0];
     const focusArts = shuffled.slice(1, 4); // Werk 2, 3 en 4
 
+// ---------------------------------------------------------
+    // STAP B: GENEREER 3 TOURS (1 Gratis, 2 Premium)
     // ---------------------------------------------------------
-    // STAP B: GENEREER DE TOUR (Blijft 1x)
-    // ---------------------------------------------------------
-    // ... (Code voor tour generatie blijft hetzelfde, zie vorige stap) ...
-    // Voor de snelheid van dit voorbeeld slaan we de volledige tour prompt even over en maken we een dummy tour
-    // In het echt gebruik je hier de Gemini prompt.
-    const { data: tour } = await supabase.from('tours').insert({
-        title: `De wereld van ${tourArt.artist}`,
-        intro: `Een ontdekkingsreis geïnspireerd door ${tourArt.title}.`,
-        hero_image_url: 'https://images.unsplash.com/photo-1554907984-15263bfd63bd',
-        status: 'published',
-        is_premium: false // De dagtour is vaak gratis
-    }).select().single();
+    const createdTourIds: string[] = [];
+    // We gebruiken dezelfde 'shuffled' artiesten lijst van stap A, maar pakken index 4,5,6 (want 0-3 waren voor focus/tour1)
+    // Voor de veiligheid pakken we gewoon 3 willekeurige uit de seedArtworks
+    const tourSelection = seedArtworks.sort(() => 0.5 - Math.random()).slice(0, 3);
 
+    for (let i = 0; i < 3; i++) {
+       const art = tourSelection[i] || tourSelection[0]; // Fallback
+       const isPremium = i > 0; // 0=Gratis, 1,2=Premium
+
+       const { data: tour } = await supabase.from('tours').insert({
+          title: `Tour: ${art.title}`,
+          intro: `Een audiotour over de geheimen van ${art.artist}.`,
+          hero_image_url: art.image_url || 'https://images.unsplash.com/photo-1554907984-15263bfd63bd',
+          status: 'published',
+          is_premium: isPremium,
+          // Koppel aan artwork voor de images in de player
+          // Let op: je moet zorgen dat je tours tabel een 'artwork_id' kolom heeft, of relatie. 
+          // Voor nu doen we even dummy data insert, pas dit aan aan jouw tabel structuur!
+       }).select().single();
+
+       if (tour) createdTourIds.push(tour.id);
+    }
 
     // ---------------------------------------------------------
     // STAP C: GENEREER 3 FOCUS ITEMS (1 Gratis, 2 Premium)
