@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, X, Info, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from './AudioPlayer'; 
+import LikeButton from '@/components/common/LikeButton';
+import TourRatingSection from '@/components/rating/TourRatingSection';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Types matchen met de Supabase response
@@ -22,12 +24,22 @@ type TourItem = {
   };
 };
 
-// Voeg tourId toe aan de Props
-export default function TheaterView({ tourId, tourTitle, items }: { tourId: string; tourTitle: string; items: TourItem[] }) {
-  // ... rest van de code ...  const [currentIndex, setCurrentIndex] = useState(0);
+// Props interface uitgebreid met tourId
+type TheaterViewProps = {
+  tourId: string;
+  tourTitle: string;
+  items: TourItem[];
+};
+
+export default function TheaterView({ tourId, tourTitle, items }: TheaterViewProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
   
   const currentItem = items[currentIndex];
+  
+  // Veiligheidscheck
+  if (!currentItem) return <div className="text-white p-10">Laden...</div>;
+
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === items.length - 1;
 
@@ -73,7 +85,7 @@ export default function TheaterView({ tourId, tourTitle, items }: { tourId: stri
 
       {/* 3. UI OVERLAY (Top) */}
       <div className="absolute top-0 w-full z-50 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-        <Link href="/tour" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/40 backdrop-blur-md px-4 py-2 rounded-full">
+        <Link href="/" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/40 backdrop-blur-md px-4 py-2 rounded-full">
           <X size={20} />
           <span className="text-sm font-medium">Stoppen</span>
         </Link>
@@ -116,30 +128,30 @@ export default function TheaterView({ tourId, tourTitle, items }: { tourId: stri
       <div className="absolute bottom-0 w-full z-50 p-6 md:p-12 bg-gradient-to-t from-black via-black/80 to-transparent">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-[1fr_auto] gap-8 items-end">
           
-        <div className="space-y-2">
-           <div className="flex items-start gap-4 justify-between md:justify-start">
-             <motion.h2 
-               key={currentItem.artwork.title}
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="font-serif text-3xl md:text-5xl text-white font-bold leading-tight"
-             >
-               {currentItem.artwork.title}
-             </motion.h2>
-             
-             {/* HARTJE */}
-             <motion.div
-               initial={{ opacity: 0, scale: 0 }}
-               animate={{ opacity: 1, scale: 1 }}
-               transition={{ delay: 0.3 }}
-               className="mt-2"
-             >
-               <LikeButton artworkId={currentItem.artwork.id} size={32} />
-             </motion.div>
-           </div>
-        
-           <motion.p 
-             key={currentItem.artwork.artist}
+          <div className="space-y-2">
+             <div className="flex items-start gap-4 justify-between md:justify-start">
+               <motion.h2 
+                 key={currentItem.artwork.title}
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 className="font-serif text-3xl md:text-5xl text-white font-bold leading-tight"
+               >
+                 {currentItem.artwork.title}
+               </motion.h2>
+               
+               {/* HARTJE (Like Button) */}
+               <motion.div
+                 initial={{ opacity: 0, scale: 0 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 transition={{ delay: 0.3 }}
+                 className="mt-2 shrink-0"
+               >
+                 <LikeButton artworkId={currentItem.artwork.id} size={32} />
+               </motion.div>
+             </div>
+
+             <motion.p 
+               key={currentItem.artwork.artist}
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                transition={{ delay: 0.1 }}
@@ -148,27 +160,32 @@ export default function TheaterView({ tourId, tourTitle, items }: { tourId: stri
                {currentItem.artwork.artist}
              </motion.p>
              
-<AnimatePresence>
-  {showInfo && (
-    <motion.div 
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="mt-4 bg-black/60 p-6 rounded-2xl border border-white/10 backdrop-blur-xl"
-    >
-      {/* De beschrijving */}
-      <p className="text-gray-300 text-sm md:text-base leading-relaxed mb-4">
-        {currentItem.text_short || currentItem.artwork.description_primary}
-      </p>
+             {/* INFO PANEEL (Met Rating & Disclaimer) */}
+             <AnimatePresence>
+               {showInfo && (
+                 <motion.div 
+                   initial={{ opacity: 0, height: 0 }}
+                   animate={{ opacity: 1, height: 'auto' }}
+                   exit={{ opacity: 0, height: 0 }}
+                   className="mt-4 bg-black/80 p-6 rounded-2xl border border-white/10 backdrop-blur-xl overflow-hidden max-h-[60vh] overflow-y-auto"
+                 >
+                   <p className="text-gray-300 text-sm md:text-base leading-relaxed mb-6">
+                     {currentItem.text_short || currentItem.artwork.description_primary}
+                   </p>
 
-      {/* JURIDISCHE VERMELDING (Hier toegevoegd) */}
-      <p className="text-[10px] text-gray-500 border-t border-white/10 pt-2 opacity-70">
-        Bron beeld: Wikimedia Commons / Wikidata (Public Domain). 
-        MuseaThuis claimt geen auteursrecht op het getoonde beeldmateriaal.
-      </p>
-    </motion.div>
-  )}
-</AnimatePresence>
+                   {/* RATING SECTIE */}
+                   <div className="border-t border-white/10 pt-6 mb-4">
+                      <TourRatingSection tourId={tourId} />
+                   </div>
+
+                   {/* JURIDISCHE VERMELDING */}
+                   <p className="text-[10px] text-gray-500 pt-2 opacity-70">
+                     Bron beeld: Wikimedia Commons / Wikidata (Public Domain). 
+                     MuseaThuis claimt geen auteursrecht op het getoonde beeldmateriaal.
+                   </p>
+                 </motion.div>
+               )}
+             </AnimatePresence>
           </div>
 
           <div className="w-full md:w-[400px]">
