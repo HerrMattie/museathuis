@@ -64,4 +64,74 @@ export default async function TourOverviewPage() {
       <section className="container mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {tours && tours.map((tour) => {
-            const is
+            const isLocked = tour.is_premium && !isUserPremium;
+
+            return (
+              <Link 
+                href={isLocked ? '/premium' : `/tour/${tour.id}`} 
+                key={tour.id}
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-midnight-900 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${isLocked ? 'border-museum-gold/30' : 'border-white/10 hover:border-white/30'}`}
+              >
+                {/* Image */}
+                <div className="relative h-64 w-full overflow-hidden">
+                  {tour.hero_image_url && (
+                    <Image 
+                      src={tour.hero_image_url} 
+                      alt={tour.title || ''} 
+                      fill 
+                      className={`object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale opacity-60' : ''}`}
+                    />
+                  )}
+                  
+                  {/* Status Badge */}
+                  <div className="absolute top-4 left-4">
+                    {tour.is_premium ? (
+                      <span className="flex items-center gap-1 rounded bg-museum-gold px-2 py-1 text-xs font-bold text-black shadow-md">
+                        <Lock size={12} /> PREMIUM
+                      </span>
+                    ) : (
+                      <span className="rounded bg-museum-lime px-2 py-1 text-xs font-bold text-black shadow-md">
+                        VANDAAG
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Play Overlay */}
+                  {!isLocked && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 bg-black/40">
+                      <div className="rounded-full bg-white p-4 text-black shadow-xl transform scale-75 transition-transform group-hover:scale-100">
+                        <Play size={24} fill="currentColor" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex flex-1 flex-col p-6">
+                  <h3 className="mb-2 font-serif text-2xl font-bold text-white group-hover:text-museum-lime transition-colors">
+                    {tour.title}
+                  </h3>
+                  <p className="mb-6 text-sm text-gray-400 line-clamp-3 flex-1">
+                    {tour.intro}
+                  </p>
+
+                  <div className="mt-auto">
+                    {isLocked ? (
+                      <span className="block w-full rounded-lg bg-transparent border border-museum-gold py-3 text-center text-sm font-bold text-museum-gold hover:bg-museum-gold hover:text-black transition-colors">
+                        Ontgrendel met Premium
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2 w-full rounded-lg bg-white py-3 text-center text-sm font-bold text-black hover:bg-gray-200 transition-colors">
+                        Start Tour
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+    </main>
+  );
+}
