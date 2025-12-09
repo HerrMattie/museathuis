@@ -36,71 +36,50 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
   }, [params.id]);
 
   if (!tour) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center">Laden...</div>;
-
-  return (
+return (
     <PremiumLock isLocked={isLocked}>
-      <main className="min-h-screen bg-midnight-950 pb-32"> {/* Extra padding onderkant voor Audio Player */}
+      <div className="bg-midnight-950 min-h-screen text-gray-200 font-sans pb-20">
         
-        {/* Navigatie kruimel */}
-        <div className="container mx-auto px-6 py-6">
-           <Link href="/tour" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-sm font-medium">
-             <ChevronRight className="rotate-180" size={16} /> Terug naar overzicht
-           </Link>
-        </div>
+        {/* HERO HEADER - MET HOOGTE FIX (Max 80vh) */}
+        <header className="relative w-full h-[80vh] overflow-hidden">
+           {focus.artwork.image_url && (
+             <Image 
+               src={focus.artwork.image_url} 
+               alt={focus.title} 
+               fill 
+               className="object-contain bg-black/50" // object-contain zorgt dat alles zichtbaar is
+               priority
+             />
+           )}
+           
+           {/* Overlay voor leesbaarheid */}
+           <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-transparent to-transparent" />
 
-        <div className="container mx-auto px-6 flex flex-col lg:flex-row gap-12">
-            
-            {/* LINKER KOLOM: HET KUNSTWERK (80% Hoogte) */}
-            <div className="lg:w-2/3 relative flex flex-col items-center">
-                 {/* FIX: max-h-[80vh] zorgt dat het op het scherm past. 
-                     object-contain zorgt dat de hele afbeelding zichtbaar is.
-                 */}
-                 <div className="relative w-full h-[60vh] md:h-[80vh] bg-black/20 rounded-xl overflow-hidden border border-white/5">
-                    {tour.hero_image_url && (
-                        <Image 
-                            src={tour.hero_image_url} 
-                            alt={tour.title} 
-                            fill 
-                            className="object-contain" 
-                            priority
-                        />
-                    )}
-                 </div>
-                 
-                 {/* Rating direct onder het werk */}
-                 <div className="mt-4 flex w-full justify-between items-center">
-                    <StarRating contentId={tour.id} />
-                    <AddToCollectionButton artworkId={tour.artwork?.id} />
-                 </div>
-            </div>
+           <div className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-between">
+             <Link href="/focus" className="inline-flex items-center gap-2 text-white/80 hover:text-white bg-black/30 backdrop-blur-md px-4 py-2 rounded-full transition-colors text-sm font-medium">
+               <ChevronRight className="rotate-180" size={16} /> Terug
+             </Link>
+             <AddToCollectionButton artworkId={focus.artwork.id} />
+           </div>
 
-            {/* RECHTER KOLOM: INFO */}
-            <div className="lg:w-1/3 flex flex-col justify-center">
-                 <h1 className="font-serif text-4xl md:text-5xl text-white font-bold mb-4 leading-tight">
-                    {tour.title}
-                 </h1>
-                 <p className="text-xl text-museum-gold italic mb-8">
-                    {tour.artwork?.artist || "Onbekende Meester"}
-                 </p>
-                 
-                 <div className="prose prose-invert text-gray-300 leading-relaxed mb-8">
-                    {tour.intro}
-                 </div>
+           <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 z-20 max-w-4xl">
+             <h1 className="font-serif text-4xl md:text-6xl text-white font-bold mb-4 leading-tight drop-shadow-2xl">
+               {focus.title}
+             </h1>
+             
+             {/* HIER KOMT DE RATING */}
+             <div className="mb-6">
+                <StarRating contentId={focus.id} />
+             </div>
 
-                 <div className="p-6 bg-white/5 rounded-xl border border-white/10">
-                    <h3 className="font-bold text-white mb-2">Luister instructies</h3>
-                    <p className="text-sm text-gray-400">
-                        Zet uw koptelefoon op. De audio start automatisch zodra u op play drukt in de balk hieronder. 
-                        Kijk rustig naar het werk terwijl u luistert.
-                    </p>
-                 </div>
-            </div>
-        </div>
+             <p className="text-xl text-gray-200 max-w-2xl leading-relaxed drop-shadow-lg">
+               {focus.intro}
+             </p>
+           </div>
+        </header>
 
-        {/* HIGH END AUDIO PLAYER */}
-        <AudioPlayerFixed title={tour.title} />
+        {/* ... De rest van de content (I, II, III) ... */}
 
-      </main>
+      </div>
     </PremiumLock>
   );
-}
