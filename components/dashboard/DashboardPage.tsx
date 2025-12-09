@@ -48,7 +48,7 @@ export default async function DashboardPage({ user, date }: DashboardPageProps) 
 
   if (schedule) {
     // A. Haal de Tour (Enkelvoudig ID)
-    if (schedule.tour_id) {
+    if (schedule.tour_ids[0]) {
       const { data } = await supabase
         .from('tours')
         .select('*')
