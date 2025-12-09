@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
-import "./globals.css"; // CRUCIAAL
+import "@/app/globals.css";
 import { createClient } from "@/lib/supabaseClient"; 
 import Link from "next/link";
 
