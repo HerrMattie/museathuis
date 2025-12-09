@@ -9,21 +9,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Midnight Modern Palette
         midnight: {
-          950: '#0B1120', // Zeer diep blauw/zwart (Achtergrond)
-          900: '#0F172A', // Iets lichter (Kaarten/Panelen)
-          800: '#1E293B', // Hover states
+          950: '#050a14', // Iets dieper zwart-blauw
+          900: '#0f172a', // Rijke achtergrondkleur
+          800: '#1e293b', // Panelen / Cards
+          700: '#334155', // Borders
         },
         museum: {
-          gold: '#D4AF37', // Klassiek goud (voor details)
-          lime: '#CCF381', // Electric Lime (voor Call to Actions)
-          coral: '#FF6B6B', // Secundair accent
+          gold: '#C5A059', // Iets gedempter goud (chiquer)
+          lime: '#D9F99D', // Zachter lime voor accenten
+          text: {
+            primary: '#F1F5F9', // Off-white (leest rustiger)
+            secondary: '#94A3B8', // Muted text
+          }
         },
       },
       fontFamily: {
-        serif: ['var(--font-playfair)', 'serif'], // Voor koppen
-        sans: ['var(--font-inter)', 'sans-serif'], // Voor tekst
+        serif: ['var(--font-playfair)', 'serif'],
+        sans: ['var(--font-inter)', 'sans-serif'],
       },
     },
   },
