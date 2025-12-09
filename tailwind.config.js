@@ -8,19 +8,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // De donkere achtergrondkleuren
         midnight: {
           700: '#334155',
           800: '#1e293b',
           900: '#0f172a',
-          950: '#020617', // De diepe achtergrond
+          950: '#020617',
         },
-        // De accentkleuren
         museum: {
           gold: '#C5A059',
-          lime: '#D9F99D', // Een zachte lime
+          lime: '#D9F99D',
           text: {
-            secondary: '#9CA3AF', // Gray-400
+            secondary: '#9CA3AF',
           }
         }
       },
