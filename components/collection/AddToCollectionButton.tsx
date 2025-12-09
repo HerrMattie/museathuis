@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient'; // Gebruik jouw client-side Supabase instance
+import { createClient } from '@/lib/supabaseClient'; 
 import { Plus, List, CheckCircle, X, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -36,7 +36,6 @@ export default function AddToCollectionButton({ artworkId }: Props) {
     
     if (!user) {
         setLoading(false);
-        // We verbergen de knop niet, maar tonen een login melding
         return;
     }
 
@@ -57,19 +56,25 @@ export default function AddToCollectionButton({ artworkId }: Props) {
   const handleAddToCollection = async (collectionId: string) => {
     setFeedback(prev => ({ ...prev, [collectionId]: 'Bezig...' }));
 
-    // Voeg het artwork toe aan de user_collection_items tabel
+    // FIX: Gebruik upsert met ignoreDuplicates in plaats van insert().onConflict()
     const { error } = await supabase
       .from('user_collection_items')
-      .insert({
-        collection_id: collectionId,
-        artwork_id: artworkId,
-      })
-      .onConflict(['collection_id', 'artwork_id'])
-      .doNothing()
-      .select(); // Selecteer om te controleren of er iets is ingevoegd
+      .upsert(
+        {
+          collection_id: collectionId,
+          artwork_id: artworkId,
+        },
+        { 
+          onConflict: 'collection_id, artwork_id', 
+          ignoreDuplicates: true 
+        }
+      )
+      .select();
       
-    if (error && error.code !== '23505') { 
+    if (error) { 
+      // Upsert negeert duplicates, dus elke andere error is een echte fout
       setFeedback(prev => ({ ...prev, [collectionId]: 'Fout' }));
+      console.error(error);
     } else {
       setFeedback(prev => ({ ...prev, [collectionId]: 'Toegevoegd!' }));
     }
@@ -80,15 +85,9 @@ export default function AddToCollectionButton({ artworkId }: Props) {
       setFeedback({});
   }
   
-  if (!supabase.auth.getUser()) {
-       // Als de user niet eens ingelogd is, tonen we de knop, maar deze linkt naar login
-       return (
-           <Link href="/login" className="flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-white/20 transition-colors border border-white/20">
-             <List size={18} /> Inloggen om te verzamelen
-           </Link>
-       );
-  }
-
+  // We checken de sessie even snel inline (voor de UI weergave), 
+  // maar de echte check gebeurt in fetchCollections
+  
   return (
     <>
       {/* DE KNOP */}
@@ -118,7 +117,7 @@ export default function AddToCollectionButton({ artworkId }: Props) {
                     <div className="text-center p-6 bg-white/5 rounded-lg border border-white/10">
                          <p className="text-gray-400 mb-3">Nog geen collecties gevonden.</p>
                          <Link href="/profile?tab=collections" className="text-sm font-bold text-museum-gold hover:text-museum-lime transition-colors underline">
-                           Maak je eerste Salon (Level 20)
+                           Maak je eerste Salon (Level 15)
                          </Link>
                     </div>
                 )}
