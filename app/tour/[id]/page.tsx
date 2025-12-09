@@ -96,7 +96,8 @@ export default async function TourPlayerPage({ params }: { params: { id: string 
   // F. Render met Slotje
   return (
     <PremiumLock isLocked={isLocked}>
-       <TheaterView tourTitle={tour.title} items={formattedItems} />
+       {/* HIER GEVEN WE NU OOK tourId DOOR */}
+       <TheaterView tourId={tour.id} tourTitle={tour.title} items={formattedItems} />
     </PremiumLock>
   );
 }
