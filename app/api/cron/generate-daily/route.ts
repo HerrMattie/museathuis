@@ -1,52 +1,45 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 300; // 5 minuten tijd (want we genereren nu veel meer!)
-export const dynamic = 'force-dynamic';
+// Vercel timeout instelling (optioneel, helpt bij tragere AI responses)
+export const maxDuration = 60; 
 
-export async function GET(req: Request) {
-  // Beveiliging check (optioneel aanzetten in productie)
-  // const authHeader = req.headers.get('authorization');
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) return new NextResponse('Unauthorized', { status: 401 });
-
-  const supabase = createClient(cookies());
+export async function GET() {
+  const supabase = createClient();
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  // Gebruik flash voor snelheid/kosten, of 'gemini-pro' als je oude libraries hebt
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   try {
     // ---------------------------------------------------------
-    // STAP A: SELECTEER DE KUNSTWERKEN (We hebben er nu meer nodig)
+    // STAP A: HAAL CONTENT OP (Artworks)
     // ---------------------------------------------------------
-    // We hebben 1 werk voor de Tour nodig + 3 voor Focus
+    // FIX: Hier hebben we 'image_url' toegevoegd aan de select!
     const { data: seedArtworks } = await supabase
       .from('artworks')
-      .select('id, title, artist, description_primary, is_enriched')
-      .eq('is_enriched', true) // Alleen kwaliteitswerken!
-      .order('view_count', { ascending: true })
-      .limit(10); // Pak er 10, we kiezen er random een paar uit
+      .select('id, title, artist, description_primary, is_enriched, image_url') 
+      .eq('is_enriched', true)
+      .limit(10);
 
     if (!seedArtworks || seedArtworks.length < 4) {
-      return NextResponse.json({ error: 'Te weinig verrijkte kunstwerken in de kluis!' }, { status: 400 });
+      return NextResponse.json({ error: "Te weinig verrijkte kunstwerken in de kluis!" }, { status: 500 });
     }
 
-    // Hussel de array
-    const shuffled = seedArtworks.sort(() => 0.5 - Math.random());
-    const tourArt = shuffled[0];
-    const focusArts = shuffled.slice(1, 4); // Werk 2, 3 en 4
+    // Shuffle de artworks zodat we elke dag andere hebben
+    seedArtworks.sort(() => 0.5 - Math.random());
 
-// ---------------------------------------------------------
+    const focusSelection = seedArtworks.slice(0, 3);
+
+    // ---------------------------------------------------------
     // STAP B: GENEREER 3 TOURS (1 Gratis, 2 Premium)
     // ---------------------------------------------------------
     const createdTourIds: string[] = [];
-    // We gebruiken dezelfde 'shuffled' artiesten lijst van stap A, maar pakken index 4,5,6 (want 0-3 waren voor focus/tour1)
-    // Voor de veiligheid pakken we gewoon 3 willekeurige uit de seedArtworks
     const tourSelection = seedArtworks.sort(() => 0.5 - Math.random()).slice(0, 3);
 
     for (let i = 0; i < 3; i++) {
-       const art = tourSelection[i] || tourSelection[0]; // Fallback
-       const isPremium = i > 0; // 0=Gratis, 1,2=Premium
+       const art = tourSelection[i] || tourSelection[0];
+       const isPremium = i > 0;
 
        const { data: tour } = await supabase.from('tours').insert({
           title: `Tour: ${art.title}`,
@@ -54,77 +47,100 @@ const model = genAI.getGenerativeModel({ model: "gemini-pro" });
           hero_image_url: art.image_url || 'https://images.unsplash.com/photo-1554907984-15263bfd63bd',
           status: 'published',
           is_premium: isPremium,
-          // Koppel aan artwork voor de images in de player
-          // Let op: je moet zorgen dat je tours tabel een 'artwork_id' kolom heeft, of relatie. 
-          // Voor nu doen we even dummy data insert, pas dit aan aan jouw tabel structuur!
+          // Voeg hier artwork_id toe als je tabel die relatie heeft
        }).select().single();
 
        if (tour) createdTourIds.push(tour.id);
     }
 
     // ---------------------------------------------------------
-    // STAP C: GENEREER 3 FOCUS ITEMS (1 Gratis, 2 Premium)
+    // STAP C: MAAK 3 FOCUS ITEMS
     // ---------------------------------------------------------
     const createdFocusIds: string[] = [];
 
     for (let i = 0; i < 3; i++) {
-      const art = focusArts[i];
-      const isPremium = i > 0; // Eerste (0) is gratis, rest (1,2) is premium
+      const art = focusSelection[i];
+      const isPremium = i > 0; // 1e gratis, rest premium
 
-      // Vraag Gemini om een deep dive intro
-      const prompt = `Schrijf een boeiende, diepgravende introductie (150 woorden) voor een "Deep Dive" focus sessie over het kunstwerk "${art.title}" van ${art.artist}. Focus op details en verwondering.`;
-      const res = await model.generateContent(prompt);
-      const introText = res.response.text();
+      // Vraag AI om een intro
+      const prompt = `Schrijf een boeiende introductie (max 50 woorden) voor een "Deep Dive" artikel over het kunstwerk "${art.title}" van ${art.artist}. Focus op details.`;
+      const aiResult = await model.generateContent(prompt);
+      const aiText = aiResult.response.text();
 
-      const { data: newFocus } = await supabase.from('focus_items').insert({
+      const { data: focus } = await supabase.from('focus_items').insert({
+        title: `Deep Dive: ${art.title}`,
+        intro: aiText.replace(/\*\*/g, '').trim(),
         artwork_id: art.id,
-        title: `Focus: ${art.title}`,
-        intro: introText,
-        status: 'published',
-        is_premium: isPremium // <--- HIER WORDT HET BEPAALD
-      }).select().single();
-      
-      if (newFocus) createdFocusIds.push(newFocus.id);
-    }
-
-    // ---------------------------------------------------------
-    // STAP D: GENEREER 3 GAMES (1 Gratis, 2 Premium)
-    // ---------------------------------------------------------
-    const createdGameIds: string[] = [];
-    const themes = ["Licht & Donker", "Symboliek", "De Meester"]; // Thema's per slot
-
-    for (let i = 0; i < 3; i++) {
-      const isPremium = i > 0;
-      
-      const { data: newGame } = await supabase.from('games').insert({
-        title: `Quiz: ${themes[i]}`,
-        short_description: `Test je kennis over ${themes[i]} in de kunst.`,
         status: 'published',
         is_premium: isPremium
       }).select().single();
 
-      // (Hier zou je ook game_items toevoegen via Gemini, dat slaan we even over voor beknoptheid)
-      if (newGame) createdGameIds.push(newGame.id);
+      if (focus) createdFocusIds.push(focus.id);
     }
 
     // ---------------------------------------------------------
-    // STAP E: HET SCHEMA BIJWERKEN (De Grote Finale)
+    // STAP D: MAAK 3 GAMES (QUIZZES)
+    // ---------------------------------------------------------
+    const createdGameIds: string[] = [];
+
+    for (let i = 0; i < 3; i++) {
+        const art = seedArtworks[i];
+        const isPremium = i > 0;
+
+        // Vraag AI om 3 vragen
+        const quizPrompt = `
+          Maak 3 quizvragen over "${art.title}" van ${art.artist}.
+          Format: JSON Array met objecten { question, correct_answer, wrong_answers: [string, string, string] }
+          Geen markdown, alleen pure JSON.
+        `;
+        const quizRes = await model.generateContent(quizPrompt);
+        const quizText = quizRes.response.text().replace(/```json|```/g, '').trim();
+        let questions = [];
+        try { questions = JSON.parse(quizText); } catch(e) { console.error("JSON Parse Error", e); }
+
+        if (questions.length > 0) {
+            const { data: game } = await supabase.from('games').insert({
+                title: `Ken jij ${art.artist}?`,
+                short_description: `Test je kennis over ${art.title}.`,
+                status: 'published',
+                is_premium: isPremium
+            }).select().single();
+
+            if (game) {
+                createdGameIds.push(game.id);
+                // Vragen opslaan
+                const quizItems = questions.map((q: any, idx: number) => ({
+                    game_id: game.id,
+                    question: q.question,
+                    correct_answer: q.correct_answer,
+                    wrong_answers: q.wrong_answers,
+                    order_index: idx
+                }));
+                await supabase.from('game_items').insert(quizItems);
+            }
+        }
+    }
+
+    // ---------------------------------------------------------
+    // STAP E: HET DAGROOSTER UPDATEN
     // ---------------------------------------------------------
     const today = new Date().toISOString().split('T')[0];
-    
-    await supabase.from('dayprogram_schedule').upsert({
-      day_date: today,
-      tour_id: tour?.id,
-      focus_ids: createdFocusIds, // <--- DE ARRAY!
-      game_ids: createdGameIds    // <--- DE ARRAY!
-    });
 
-    return NextResponse.json({ 
-      success: true, 
-      tour: tour?.id, 
-      focus_items: createdFocusIds.length, 
-      games: createdGameIds.length 
-    });
+    const { error: scheduleError } = await supabase.from('dayprogram_schedule').upsert({
+      day_date: today,
+      tour_ids: createdTourIds,
+      focus_ids: createdFocusIds,
+      game_ids: createdGameIds,
+      theme_title: "Meesters van het Licht", 
+      theme_description: "Vandaag onderzoeken we hoe lichtinval de sfeer bepaalt."
+    }, { onConflict: 'day_date' });
+
+    if (scheduleError) {
+        console.error(scheduleError);
+        return NextResponse.json({ error: scheduleError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, date: today, tours: createdTourIds, focus: createdFocusIds, games: createdGameIds });
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
