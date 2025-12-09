@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react';
 import Link from 'next/link';
@@ -8,6 +8,8 @@ import AudioPlayer from './AudioPlayer';
 import LikeButton from '@/components/common/LikeButton';
 import TourRatingSection from '@/components/rating/TourRatingSection';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createClient } from '@/lib/supabaseClient';
+import { trackActivity } from '@/lib/tracking'; // Importeer tracker
 
 // Types matchen met de Supabase response
 type TourItem = {
@@ -24,7 +26,6 @@ type TourItem = {
   };
 };
 
-// Props interface uitgebreid met tourId
 type TheaterViewProps = {
   tourId: string;
   tourTitle: string;
@@ -34,10 +35,29 @@ type TheaterViewProps = {
 export default function TheaterView({ tourId, tourTitle, items }: TheaterViewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
+  const [hasTracked, setHasTracked] = useState(false);
+  const supabase = createClient();
   
   const currentItem = items[currentIndex];
+
+  // --- TRACKING LOGICA ---
+  // Als de gebruiker > 30 seconden in de tour zit, telt hij als "voltooid"
+  useEffect(() => {
+    if (hasTracked || !tourId) return;
+
+    const timer = setTimeout(async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await trackActivity(supabase, user.id, 'complete_tour', tourId);
+        setHasTracked(true);
+        console.log("Activity tracked: complete_tour");
+      }
+    }, 30000); // 30 seconden
+
+    return () => clearTimeout(timer);
+  }, [tourId, hasTracked]);
+  // -----------------------
   
-  // Veiligheidscheck
   if (!currentItem) return <div className="text-white p-10">Laden...</div>;
 
   const isFirst = currentIndex === 0;
@@ -46,13 +66,13 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
   const nextSlide = () => !isLast && setCurrentIndex(prev => prev + 1);
   const prevSlide = () => !isFirst && setCurrentIndex(prev => prev - 1);
 
-  // Fallback audio als de database leeg is op dit veld
+  // Fallback audio
   const activeAudio = currentItem.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
   return (
     <div className="relative h-screen w-full bg-black overflow-hidden flex flex-col">
       
-      {/* 1. ACHTERGROND (Ambiance) */}
+      {/* 1. ACHTERGROND */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 opacity-30 blur-[100px] scale-125 transition-all duration-1000">
            {currentItem.artwork.image_url && (
@@ -83,7 +103,7 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
         </AnimatePresence>
       </div>
 
-      {/* 3. UI OVERLAY (Top) */}
+      {/* 3. UI OVERLAY */}
       <div className="absolute top-0 w-full z-50 p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
         <Link href="/" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/40 backdrop-blur-md px-4 py-2 rounded-full">
           <X size={20} />
@@ -112,7 +132,7 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
         </button>
       </div>
 
-      {/* 4. NAVIGATIE CONTROLS */}
+      {/* 4. NAVIGATIE */}
       {!isFirst && (
         <button onClick={prevSlide} className="absolute left-6 top-1/2 -translate-y-1/2 z-40 p-4 rounded-full bg-black/20 text-white hover:bg-white/10 backdrop-blur-md transition-all hover:scale-110 border border-white/5">
           <ChevronLeft size={32} />
@@ -124,7 +144,7 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
         </button>
       )}
 
-      {/* 5. BOTTOM BAR (Info & Player) */}
+      {/* 5. BOTTOM BAR */}
       <div className="absolute bottom-0 w-full z-50 p-6 md:p-12 bg-gradient-to-t from-black via-black/80 to-transparent">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-[1fr_auto] gap-8 items-end">
           
@@ -139,7 +159,6 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
                  {currentItem.artwork.title}
                </motion.h2>
                
-               {/* HARTJE (Like Button) */}
                <motion.div
                  initial={{ opacity: 0, scale: 0 }}
                  animate={{ opacity: 1, scale: 1 }}
@@ -160,7 +179,7 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
                {currentItem.artwork.artist}
              </motion.p>
              
-             {/* INFO PANEEL (Met Rating & Disclaimer) */}
+             {/* INFO & RATING PANEEL */}
              <AnimatePresence>
                {showInfo && (
                  <motion.div 
@@ -173,12 +192,10 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
                      {currentItem.text_short || currentItem.artwork.description_primary}
                    </p>
 
-                   {/* RATING SECTIE */}
                    <div className="border-t border-white/10 pt-6 mb-4">
                       <TourRatingSection tourId={tourId} />
                    </div>
 
-                   {/* JURIDISCHE VERMELDING */}
                    <p className="text-[10px] text-gray-500 pt-2 opacity-70">
                      Bron beeld: Wikimedia Commons / Wikidata (Public Domain). 
                      MuseaThuis claimt geen auteursrecht op het getoonde beeldmateriaal.
