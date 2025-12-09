@@ -3,12 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
+  --foreground-rgb: 241, 245, 249; /* Off-white */
+  --background-start-rgb: 5, 10, 20; /* Midnight 950 */
+  --background-end-rgb: 15, 23, 42; /* Midnight 900 */
 }
 
 body {
-  background: #050a14; /* Midnight 950 */
-  color: #F1F5F9;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      rgb(var(--background-start-rgb)),
+      rgb(var(--background-end-rgb))
+    );
+  min-height: 100vh;
   font-family: var(--font-inter);
 }
 
@@ -16,6 +23,7 @@ body {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #050a14; }
 ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
 
 /* Animaties */
 @keyframes fadeInUp {
