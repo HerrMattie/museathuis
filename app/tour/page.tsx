@@ -1,212 +1,141 @@
-// app/tour/page.tsx
-import Link from "next/link";
-import { supabaseServer } from "@/lib/supabaseClient";
+import { createClient } from '@/lib/supabaseServer';
+import { cookies } from 'next/headers';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Play, Lock, Headphones, Clock, Info } from 'lucide-react';
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
-type TourRow = {
-  id: string;
-  title: string;
-  intro: string | null;
-  short_description: string | null;
-  is_premium: boolean | null;
-  duration_min: number | null;
-  date: string | null;
-  status: string | null;
-};
+export default async function TourOverviewPage() {
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
 
-export default async function TourListPage() {
-  const supabase = supabaseServer();
-
-  // -----------------------------------------------------------
-  // 1. Bepaal "vandaag" (ISO date) voor dagprogramma
-  // -----------------------------------------------------------
-  const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
-
-  const dateLabel = new Intl.DateTimeFormat("nl-NL", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(today);
-
-  // -----------------------------------------------------------
-  // 2. Probeer het dagprogramma voor vandaag op te halen
-  //    Let op: als de tabel/kolommen anders heten krijg je alleen
-  //    een Supabase-error, maar de pagina valt dan terug op
-  //    alle gepubliceerde tours.
-  // -----------------------------------------------------------
-  let scheduledTourIds: string[] = [];
-  let hasSchedule = false;
-
-  try {
-    const { data: slotRows, error: slotError } = await supabase
-      .from("day_program_slots") // <- als dit anders heet, blijft alles gewoon werken via de fallback
-      .select("content_id, content_type, slot_type")
-      .eq("program_date", todayIso)
-      .eq("content_type", "tour")
-      .order("slot_type", { ascending: true });
-
-    if (!slotError && slotRows && slotRows.length > 0) {
-      scheduledTourIds = slotRows
-        .map((row: any) => row.content_id)
-        .filter((id: any): id is string => typeof id === "string");
-      hasSchedule = scheduledTourIds.length > 0;
-    }
-  } catch {
-    // Geen harde error gooien; gewoon fallback gebruiken
-    hasSchedule = false;
-    scheduledTourIds = [];
+  // 1. Haal User op (voor premium check)
+  const { data: { user } } = await supabase.auth.getUser();
+  let isUserPremium = false;
+  if (user) {
+    const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
+    if (profile?.is_premium) isUserPremium = true;
   }
 
-  // -----------------------------------------------------------
-  // 3. Haal tours op
-  //    - Als er een dagprogramma is: alleen die tours.
-  //    - Zo niet: alle gepubliceerde tours.
-  // -----------------------------------------------------------
- let query = supabase
-  .from("tours")
-  .select(
-    `
-      id,
-      title,
-      intro,
-      short_description,
-      is_premium,
-      duration_min,
-      date,
-      status
-    `
-  )
-  .eq("status", "published");
+  // 2. Haal 3 recente tours op (1 gratis, de rest premium voor de demo)
+  // In de toekomst filter je hier op 'day_date' of 'featured'
+  const { data: tours } = await supabase
+    .from('tours')
+    .select('id, title, intro, is_premium, hero_image_url, duration_minutes')
+    .eq('status', 'published')
+    .order('created_at', { ascending: false })
+    .limit(3);
 
-  if (hasSchedule && scheduledTourIds.length > 0) {
-    query = query.in("id", scheduledTourIds);
-  }
-
-  const { data: toursData, error: toursError } = await query;
-
-  const tours: TourRow[] = Array.isArray(toursData) ? toursData : [];
-
-
-  // -----------------------------------------------------------
-  // 4. UI
-  // -----------------------------------------------------------
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
-      {/* HEADER */}
-      <header className="flex flex-col gap-2">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">
-          Tours
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-2xl font-semibold text-slate-50 sm:text-3xl">
-            Ontdek de tours van vandaag
+    <main className="min-h-screen bg-midnight-950 pb-20 pt-10">
+      
+      {/* HEADER SECTIE: Wat is een tour? */}
+      <section className="container mx-auto px-6 mb-16">
+        <div className="max-w-3xl">
+          <p className="text-museum-gold text-xs font-bold uppercase tracking-[0.2em] mb-4">
+            Dagelijks Programma
+          </p>
+          <h1 className="font-serif text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
+            Ontdek de kunstwereld vanuit uw woonkamer.
           </h1>
-          <div className="text-right text-xs text-slate-400 sm:text-sm">
-            <div className="font-medium text-slate-200">Dagprogramma voor</div>
-            <div>{dateLabel}</div>
-            {hasSchedule && (
-              <div className="text-[11px] text-emerald-400">
-                Tours uit het CRM-dagprogramma
-              </div>
-            )}
-            {!hasSchedule && (
-              <div className="text-[11px] text-slate-500">
-                Geen dagprogramma gevonden, alle gepubliceerde tours
-              </div>
-            )}
+          <p className="text-xl text-museum-text-secondary leading-relaxed mb-8">
+            Onze tours zijn interactieve audio-visuele ervaringen. In circa 15 minuten nemen we u mee langs een reeks meesterwerken, verbonden door een thema.
+          </p>
+          
+          <div className="flex flex-wrap gap-6 text-sm text-white font-medium">
+            <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+              <Headphones size={18} className="text-museum-lime" />
+              <span>Audio Gids</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+              <Clock size={18} className="text-museum-lime" />
+              <span>~15 Minuten</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+              <Info size={18} className="text-museum-lime" />
+              <span>Thematische Diepgang</span>
+            </div>
           </div>
         </div>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Elke tour is een korte ontdekkingstocht langs ongeveer acht kunstwerken
-          rond een thema, met toelichting in heldere museale taal. Kies een tour
-          die past bij uw stemming of beschikbare tijd.
-        </p>
+      </section>
 
-        {/* Static badges (voor nu alleen visueel) */}
-        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-emerald-300">
-            ● Gratis tours
-          </span>
-          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-amber-300">
-            ● Premiumtours
-          </span>
-          <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-slate-300">
-            ● Gemiddeld 20–25 minuten per tour
-          </span>
-        </div>
-      </header>
+      {/* TOUR GRID */}
+      <section className="container mx-auto px-6">
+        <h2 className="text-2xl font-serif text-white mb-8 border-b border-white/10 pb-4">
+          Selectie van Vandaag
+        </h2>
 
-      {/* GEEN TOURS */}
-      {(toursError || tours.length === 0) && (
-        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-6 text-sm text-slate-300">
-          Er zijn vandaag nog geen tours beschikbaar. Controleer in het
-          CRM-dagprogramma of er tours zijn gekoppeld, of publiceer nieuwe
-          tours in het CRM.
-        </div>
-      )}
-
-      {/* TOURKAARTEN */}
-      {tours.length > 0 && (
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tours.map((tour) => {
-            const isPremium = !!tour.is_premium;
-            const durationLabel =
-              tour.duration_min != null
-                ? `Ongeveer ${tour.duration_min} minuten • ca. 8 werken`
-                : "Ongeveer 20–25 minuten • ca. 8 werken";
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {tours && tours.map((tour) => {
+            const isLocked = tour.is_premium && !isUserPremium;
 
             return (
-              <article
+              <Link 
+                href={isLocked ? '/premium' : `/tour/${tour.id}`} 
                 key={tour.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-4 shadow-sm"
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-midnight-900 transition-all duration-300 hover:-translate-y-2 ${isLocked ? 'border-museum-gold/30' : 'border-white/10 hover:border-white/30'}`}
               >
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-slate-400">
-                    <span
-                      className={
-                        isPremium
-                          ? "rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300"
-                          : "rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300"
-                      }
-                    >
-                      {isPremium ? "Premium" : "Gratis"}
-                    </span>
-                    <span>Dagelijkse tour</span>
+                {/* Image Area */}
+                <div className="relative h-64 w-full overflow-hidden">
+                  {tour.hero_image_url && (
+                    <Image 
+                      src={tour.hero_image_url} 
+                      alt={tour.title || ''} 
+                      fill 
+                      className={`object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale opacity-50' : ''}`}
+                    />
+                  )}
+                  
+                  {/* Badges */}
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    {tour.is_premium ? (
+                      <span className="flex items-center gap-1 rounded bg-museum-gold px-2 py-1 text-xs font-bold text-black shadow-md">
+                        <Lock size={12} /> PREMIUM
+                      </span>
+                    ) : (
+                      <span className="rounded bg-museum-lime px-2 py-1 text-xs font-bold text-black shadow-md">
+                        GRATIS
+                      </span>
+                    )}
                   </div>
 
-                  <h2 className="text-base font-semibold text-slate-50 sm:text-lg">
+                  {/* Play Button Overlay (Alleen als niet locked) */}
+                  {!isLocked && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 bg-black/40">
+                      <div className="rounded-full bg-white p-4 text-black shadow-xl transform scale-75 transition-transform group-hover:scale-100">
+                        <Play size={24} fill="currentColor" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content Area */}
+                <div className="flex flex-1 flex-col p-6">
+                  <h3 className="mb-2 font-serif text-2xl font-bold text-white group-hover:text-museum-lime transition-colors">
                     {tour.title}
-                  </h2>
-
-                  <p className="line-clamp-3 text-sm text-slate-300">
-                    {tour.short_description || tour.intro || "Korte tourbeschrijving volgt."}
+                  </h3>
+                  <p className="mb-6 text-sm text-gray-400 line-clamp-3 flex-1">
+                    {tour.intro}
                   </p>
-                </div>
 
-                <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-400">
-                  <span>{durationLabel}</span>
-                  <Link
-                    href={`/tour/${tour.id}`}
-                    className="text-xs font-semibold text-amber-300 hover:text-amber-200"
-                  >
-                    Bekijk tour →
-                  </Link>
+                  <div className="mt-auto">
+                    {isLocked ? (
+                      <span className="block w-full rounded-lg bg-transparent border border-museum-gold py-3 text-center text-sm font-bold text-museum-gold hover:bg-museum-gold hover:text-black transition-colors">
+                        Ontgrendel met Premium
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2 w-full rounded-lg bg-white py-3 text-center text-sm font-bold text-black hover:bg-gray-200 transition-colors">
+                        Start Tour <Play size={14} />
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </article>
+              </Link>
             );
           })}
-        </section>
-      )}
-
-      {/* VOETTEKST */}
-      <footer className="mt-4 text-xs text-slate-500">
-        In een latere fase koppelen we deze pagina 1-op-1 aan het
-        dagprogramma-schema, zodat u hier exact ziet welke tours vandaag in het
-        dagprogramma zijn opgenomen.
-      </footer>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }
