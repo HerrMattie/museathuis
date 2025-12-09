@@ -2,88 +2,75 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 60; // Wikidata kan soms traag zijn
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const supabase = createClient(cookies());
 
   try {
-    // 1. De SPARQL Query
-    // Vraagt om: Schilderijen (Q3305213), met afbeelding (P18), 
-    // Maker (P170), Titel (L of label), Beschrijving (D).
-    // FILTER: Alleen werken die in de 'public domain' vallen of oud genoeg zijn.
-    // LIMIT: 5 per keer (om timeouts te voorkomen).
+    // DE STRENGE CURATOR QUERY
+    // 1. P31 Q3305213 = Het is een schilderij (geen schets/beeld/munt)
+    // 2. P18 = Heeft een afbeelding
+    // 3. P570 = Overlijdensdatum (moet < 1954 zijn voor copyright)
+    // 4. Sitelinks = Populariteitsmeter
+    
     const sparqlQuery = `
-      SELECT ?item ?itemLabel ?artistLabel ?image ?description WHERE {
-        ?item wdt:P31 wd:Q3305213;  # Is een schilderij
-              wdt:P18 ?image;       # Heeft een afbeelding
-              wdt:P170 ?artist.     # Heeft een maker
+      SELECT ?item ?itemLabel ?artistLabel ?image ?deathDate ?sitelinks WHERE {
+        ?item wdt:P31 wd:Q3305213;
+              wdt:P18 ?image;
+              wdt:P170 ?artist;
+              wikibase:sitelinks ?sitelinks.
 
-        # Filter op "Beroemde" werken (kunstenaars met veel sitelinks)
-        ?artist wikibase:sitelinks ?links.
-        FILTER(?links > 20) 
+        ?artist wdt:P570 ?deathDate.
 
-        # Taalvoorkeur voor labels (Nederlands eerst, dan Engels)
+        # JURIDISCH FILTER: Maker langer dan 70 jaar dood (veiligheidsmarge: voor 1950)
+        FILTER(YEAR(?deathDate) < 1950)
+
+        # KWALITEIT FILTER 1: Minimaal in 3 talen op Wikipedia (filtert obscure rommel)
+        FILTER(?sitelinks > 3)
+
+        # TAAL: Nederlands of Engels label beschikbaar
         SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
-        
-        # Haal beschrijving op (indien aanwezig)
-        OPTIONAL { ?item schema:description ?description. FILTER(LANG(?description) = "nl") }
       }
-      ORDER BY RAND() # Volledig willekeurig
+      ORDER BY RAND() # Blijft willekeurig voor de mix
       LIMIT 5
     `;
 
-    // 2. Voer de query uit op Wikidata
     const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparqlQuery)}&format=json`;
     
-    // Wikidata vereist een User-Agent header
     const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'MuseaThuis/1.0 (mailto:jouw-email@voorbeeld.com)',
-        'Accept': 'application/json'
-      }
+      headers: { 'Accept': 'application/json' }
     });
-
-    if (!response.ok) {
-      throw new Error(`Wikidata error: ${response.statusText}`);
-    }
 
     const data = await response.json();
     const bindings = data.results.bindings;
-
     const importedWorks = [];
 
-    // 3. Verwerk resultaten en zet in Database
     for (const row of bindings) {
       const title = row.itemLabel?.value;
       const artist = row.artistLabel?.value;
       const imageUrl = row.image?.value;
-      const description = row.description?.value || `Een meesterwerk van ${artist}.`;
 
-      if (title && artist && imageUrl) {
-        // Upsert in Supabase (voorkom dubbelen op basis van image_url)
+      // Extra check: Sla geen werken op met 'Untitled' of rare namen
+      if (title && !title.startsWith("Q") && artist && imageUrl) {
+        
         const { data: inserted, error } = await supabase.from('artworks').upsert({
           title: title,
           artist: artist,
           image_url: imageUrl,
-          description_primary: description,
-          is_enriched: false // Moet nog door de AI-verrijker!
+          description_primary: `Publiek domein werk van ${artist}.`,
+          is_enriched: false,
+          // We voegen de juridische credit line toe
+          description_technical: "Image Source: Wikimedia Commons / Wikidata (Public Domain)",
         }, { onConflict: 'image_url' }).select().single();
 
-        if (!error && inserted) {
-          importedWorks.push(inserted);
-        }
+        if (!error && inserted) importedWorks.push(inserted);
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      count: importedWorks.length, 
-      works: importedWorks.map(w => w.title) 
-    });
+    return NextResponse.json({ success: true, count: importedWorks.length });
 
   } catch (error: any) {
-    console.error(error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
