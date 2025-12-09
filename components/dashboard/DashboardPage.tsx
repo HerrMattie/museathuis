@@ -3,19 +3,43 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Play, Brain, Eye, Lock, ArrowRight } from 'lucide-react';
+import TimeTravelControls from './TimeTravelControls'; // Zorg dat je deze hebt aangemaakt in stap 3
 
-export default async function DashboardPage({ user }: { user: any }) {
+type DashboardPageProps = {
+  user: any;
+  date: string; // YYYY-MM-DD string
+};
+
+export default async function DashboardPage({ user, date }: DashboardPageProps) {
   const supabase = createClient(cookies());
+  
+  // Is de opgevraagde datum vandaag?
   const today = new Date().toISOString().split('T')[0];
-  const dateString = new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+  const isToday = date === today;
+  
+  // Datum formatteren voor weergave (bijv. "maandag 12 oktober")
+  const dateString = new Date(date).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  // 1. HAAL HET SCHEMA OP
-  // We halen eerst het schema op. Omdat game_ids en focus_ids nu arrays zijn,
-  // kunnen we niet makkelijk in één keer 'joinen'. We doen het in stappen.
+  // ---------------------------------------------------------
+  // 1. LEVEL OPHALEN (Voor Time Travel Slotjes)
+  // ---------------------------------------------------------
+  let userLevel = 1;
+  if (user) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('level')
+      .eq('user_id', user.id)
+      .single();
+    if (profile) userLevel = profile.level;
+  }
+
+  // ---------------------------------------------------------
+  // 2. DAGPROGRAMMA OPHALEN
+  // ---------------------------------------------------------
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
     .select('*')
-    .eq('day_date', today)
+    .eq('day_date', date)
     .single();
 
   let tour = null;
@@ -33,43 +57,34 @@ export default async function DashboardPage({ user }: { user: any }) {
       tour = data;
     }
 
-    // B. Haal de Game (Eerste item uit de array game_ids)
+    // B. Haal de Game (We pakken de EERSTE uit de array -> De gratis daghap)
     if (schedule.game_ids && schedule.game_ids.length > 0) {
       const { data } = await supabase
         .from('games')
         .select('*')
-        .eq('id', schedule.game_ids[0]) // Pak de eerste (Gratis daghap)
+        .eq('id', schedule.game_ids[0])
         .single();
       game = data;
     }
 
-    // C. Haal het Focus Item (Eerste item uit de array focus_ids)
+    // C. Haal het Focus Item (Eerste uit de array)
     if (schedule.focus_ids && schedule.focus_ids.length > 0) {
       const { data } = await supabase
         .from('focus_items')
         .select('*, artwork:artworks(image_url)')
-        .eq('id', schedule.focus_ids[0]) // Pak de eerste (Gratis daghap)
+        .eq('id', schedule.focus_ids[0])
         .single();
       focus = data;
     }
   }
 
-  // 2. BEPAAL HEADER CONTENT (Gast vs Lid)
+  // ---------------------------------------------------------
+  // 3. HEADER CONTENT BEPALEN (Gast vs. Lid & Vandaag vs. Archief)
+  // ---------------------------------------------------------
   let headerContent;
   
-  if (user) {
-    // SCENARIO A: INGELOGD
-    const firstName = user.user_metadata?.full_name?.split(' ')[0] || 'Kunstliefhebber';
-    headerContent = (
-      <>
-        <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-2">{dateString}</p>
-        <h1 className="font-serif text-4xl md:text-5xl text-white font-bold leading-tight">
-          Goedemorgen, {firstName}
-        </h1>
-      </>
-    );
-  } else {
-    // SCENARIO B: GAST (Niet ingelogd)
+  if (!user) {
+    // SCENARIO A: GAST (Niet ingelogd) - Altijd welkom boodschap
     headerContent = (
       <div className="bg-gradient-to-r from-midnight-900 to-midnight-800 p-8 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
         <div>
@@ -88,12 +103,43 @@ export default async function DashboardPage({ user }: { user: any }) {
         </div>
       </div>
     );
+  } else {
+    // SCENARIO B: INGELOGD (Check of het vandaag is of verleden)
+    const firstName = user.user_metadata?.full_name?.split(' ')[0] || 'Kunstliefhebber';
+    
+    if (isToday) {
+      headerContent = (
+        <>
+          <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-2">{dateString}</p>
+          <h1 className="font-serif text-4xl md:text-5xl text-white font-bold leading-tight">
+            Goedemorgen, {firstName}
+          </h1>
+        </>
+      );
+    } else {
+      headerContent = (
+        <>
+          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">U kijkt terug in de tijd</p>
+          <h1 className="font-serif text-4xl md:text-5xl text-white font-bold leading-tight">
+            Archief: {dateString}
+          </h1>
+        </>
+      );
+    }
   }
 
+  // ---------------------------------------------------------
+  // 4. DE RENDER
+  // ---------------------------------------------------------
   return (
     <main className="container mx-auto px-6 py-10 animate-fade-in-up">
+      
+      {/* TIME TRAVEL BALK (Alleen zichtbaar voor ingelogde users, of altijd zichtbaar met slotje) */}
+      {/* We geven userLevel mee zodat de component weet of de knoppen op slot moeten */}
+      <TimeTravelControls currentDate={date} userLevel={userLevel} />
+
       {/* HEADER */}
-      <header className="mb-10">
+      <header className="mb-10 mt-6">
         {headerContent}
       </header>
 
@@ -114,13 +160,13 @@ export default async function DashboardPage({ user }: { user: any }) {
             </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-gray-600 bg-midnight-900">
-                <p>Nog geen tour voor vandaag.</p>
+                <p>Nog geen tour beschikbaar voor deze datum.</p>
             </div>
           )}
           
           <div className="absolute bottom-0 left-0 p-8 w-full">
             <div className="flex gap-2 mb-3">
-               {tour && <span className="inline-block bg-museum-lime text-black text-xs font-bold px-2 py-1 rounded">TOUR VAN VANDAAG</span>}
+               {tour && <span className="inline-block bg-museum-lime text-black text-xs font-bold px-2 py-1 rounded">TOUR VAN DE DAG</span>}
                {tour?.is_premium && <span className="inline-flex items-center gap-1 bg-museum-gold text-black text-xs font-bold px-2 py-1 rounded"><Lock size={10} /> PREMIUM</span>}
             </div>
             
@@ -170,10 +216,21 @@ export default async function DashboardPage({ user }: { user: any }) {
           <div className="relative z-10">
             <h3 className="font-serif text-2xl text-white font-bold mb-2">{focus?.title || 'Geen focus'}</h3>
             <p className="text-sm text-gray-400 leading-relaxed">
-              Neem een moment van rust. Kijk 3 minuten langzaam.
+              Neem een moment van rust. Een deep-dive van 10 minuten.
             </p>
           </div>
         </Link>
+
+        {/* --- EMPTY STATE FALLBACK --- */}
+        {!tour && !game && !focus && (
+           <div className="col-span-12 row-span-2 flex flex-col items-center justify-center bg-white/5 rounded-3xl border border-white/10 text-gray-500 p-10">
+              <p className="text-lg font-bold text-white mb-2">Het museum was gesloten.</p>
+              <p>Geen programma gevonden voor {dateString}.</p>
+              {!isToday && (
+                 <Link href="/" className="mt-4 text-museum-gold underline">Terug naar vandaag</Link>
+              )}
+           </div>
+        )}
 
       </div>
     </main>
