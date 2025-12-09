@@ -1,33 +1,102 @@
-// components/dashboard/DashboardPage.tsx
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Play, Brain, Eye } from 'lucide-react';
 
-// Props toevoegen als je user info wilt doorgeven
 export default async function DashboardPage({ user }: { user: any }) {
   const supabase = createClient(cookies());
   const today = new Date().toISOString().split('T')[0];
 
-  // ... (De rest van je oude dashboard logica: data ophalen, grid renderen) ...
-  // ... Kopieer hier je OUDE app/page.tsx body ...
-  
-  // Zorg dat je onderaan het dashboard return statement hebt.
-  // Voorbeeld snippet van je oude code:
+  // Haal dagprogramma op met een 'Join' om de gekoppelde tour/game/focus op te halen
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
-    .select(`*, tour:tours(*), game:games(*), focus:focus_items(*, artwork:artworks(image_url))`)
+    .select(`
+      *,
+      tour:tours(*),
+      game:games(*),
+      focus:focus_items(*, artwork:artworks(image_url))
+    `)
     .eq('day_date', today)
     .single();
-    
+
+  // Haal de data uit het resultaat (of null als er niks is)
   const tour = schedule?.tour;
   const game = schedule?.game;
   const focus = schedule?.focus;
 
+  // Datum formatteren
+  const dateString = new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+  const firstName = user?.user_metadata?.full_name?.split(' ')[0] || 'Kunstliefhebber';
+
   return (
-     <main className="container mx-auto px-6 py-10 animate-fade-in-up">
-        {/* ... Je Dashboard HTML ... */}
-     </main>
-  )
+    <main className="container mx-auto px-6 py-10 animate-fade-in-up">
+      {/* HEADER */}
+      <header className="mb-10">
+        <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-2">{dateString}</p>
+        <h1 className="font-serif text-4xl md:text-5xl text-white font-bold leading-tight">
+          Goedemorgen, {firstName}
+        </h1>
+      </header>
+
+      {/* BENTO GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-12 md:grid-rows-2 gap-6 h-auto md:h-[600px]">
+        
+        {/* TOUR CARD (Groot) */}
+        <Link href={tour ? `/tour/${tour.id}` : '#'} className="group relative col-span-1 md:col-span-8 md:row-span-2 bg-midnight-900 rounded-3xl border border-white/5 overflow-hidden hover:border-museum-gold/30 transition-all shadow-2xl">
+          {tour?.hero_image_url ? (
+            <>
+              <Image 
+                src={tour.hero_image_url} 
+                alt={tour.title} 
+                fill 
+                className="object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-60"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/50 to-transparent" />
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-600 bg-midnight-900">
+                <p>Nog geen tour voor vandaag.</p>
+            </div>
+          )}
+          
+          <div className="absolute bottom-0 left-0 p-8 w-full">
+            {tour && <span className="inline-block bg-museum-lime text-black text-xs font-bold px-2 py-1 rounded mb-3">TOUR VAN VANDAAG</span>}
+            <h2 className="font-serif text-3xl md:text-4xl text-white font-bold mb-3 leading-tight">{tour?.title || 'De curatoren zijn bezig...'}</h2>
+            <p className="text-gray-200 line-clamp-2 max-w-xl mb-6 font-light text-lg">{tour?.intro || 'Kom later terug voor de dagelijkse selectie.'}</p>
+            {tour && (
+              <button className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-full font-bold group-hover:bg-museum-lime transition-colors">
+                <Play size={18} fill="black" /> Start Rondleiding
+              </button>
+            )}
+          </div>
+        </Link>
+
+        {/* GAME CARD (Klein) */}
+        <Link href={game ? `/game/${game.id}` : '#'} className="col-span-1 md:col-span-4 bg-midnight-900 rounded-3xl border border-white/5 p-6 hover:bg-midnight-800 transition-all flex flex-col justify-between group shadow-lg">
+          <div className="flex justify-between">
+            <div className="p-3 rounded-full bg-blue-500/10 text-blue-400 group-hover:bg-blue-500/20"><Brain size={24} /></div>
+          </div>
+          <div>
+            <h3 className="font-serif text-xl text-white font-bold mb-1">{game?.title || 'Geen game'}</h3>
+            <p className="text-sm text-gray-400">{game?.short_description || 'Check later terug.'}</p>
+          </div>
+        </Link>
+
+        {/* FOCUS CARD (Klein) */}
+        <Link href={focus ? `/focus/${focus.id}` : '#'} className="col-span-1 md:col-span-4 bg-midnight-900 rounded-3xl border border-white/5 p-6 hover:bg-midnight-800 transition-all flex flex-col justify-between relative overflow-hidden group shadow-lg">
+          {focus?.artwork?.image_url && (
+            <Image src={focus.artwork.image_url} alt="Focus" fill className="object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
+          )}
+          <div className="relative z-10 flex justify-between">
+            <div className="p-3 rounded-full bg-purple-500/10 text-purple-400 group-hover:bg-purple-500/20"><Eye size={24} /></div>
+          </div>
+          <div className="relative z-10">
+            <h3 className="font-serif text-xl text-white font-bold mb-1">{focus?.title || 'Geen focus'}</h3>
+            <p className="text-sm text-gray-400">Neem een moment van rust en verdieping.</p>
+          </div>
+        </Link>
+      </div>
+    </main>
+  );
 }
