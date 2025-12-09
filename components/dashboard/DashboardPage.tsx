@@ -9,23 +9,52 @@ export default async function DashboardPage({ user }: { user: any }) {
   const today = new Date().toISOString().split('T')[0];
   const dateString = new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  // 1. Haal dagprogramma op met gekoppelde content
+  // 1. HAAL HET SCHEMA OP
+  // We halen eerst het schema op. Omdat game_ids en focus_ids nu arrays zijn,
+  // kunnen we niet makkelijk in één keer 'joinen'. We doen het in stappen.
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
-    .select(`
-      *,
-      tour:tours(*),
-      game:games(*),
-      focus:focus_items(*, artwork:artworks(image_url))
-    `)
+    .select('*')
     .eq('day_date', today)
     .single();
 
-  const tour = schedule?.tour;
-  const game = schedule?.game;
-  const focus = schedule?.focus;
+  let tour = null;
+  let game = null;
+  let focus = null;
 
-  // 2. Bepaal de Header Content (Gast vs Lid)
+  if (schedule) {
+    // A. Haal de Tour (Enkelvoudig ID)
+    if (schedule.tour_id) {
+      const { data } = await supabase
+        .from('tours')
+        .select('*')
+        .eq('id', schedule.tour_id)
+        .single();
+      tour = data;
+    }
+
+    // B. Haal de Game (Eerste item uit de array game_ids)
+    if (schedule.game_ids && schedule.game_ids.length > 0) {
+      const { data } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', schedule.game_ids[0]) // Pak de eerste (Gratis daghap)
+        .single();
+      game = data;
+    }
+
+    // C. Haal het Focus Item (Eerste item uit de array focus_ids)
+    if (schedule.focus_ids && schedule.focus_ids.length > 0) {
+      const { data } = await supabase
+        .from('focus_items')
+        .select('*, artwork:artworks(image_url)')
+        .eq('id', schedule.focus_ids[0]) // Pak de eerste (Gratis daghap)
+        .single();
+      focus = data;
+    }
+  }
+
+  // 2. BEPAAL HEADER CONTENT (Gast vs Lid)
   let headerContent;
   
   if (user) {
