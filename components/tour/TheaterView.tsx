@@ -34,8 +34,7 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
   
   const currentItem = items[currentIndex];
 
-  // Veiligheidscheck
-  if (!currentItem) return <div className="text-white p-10">Geen items gevonden.</div>;
+  if (!currentItem) return <div className="text-white p-10">Laden...</div>;
 
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === items.length - 1;
@@ -43,21 +42,20 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
   const nextSlide = () => !isLast && setCurrentIndex(prev => prev + 1);
   const prevSlide = () => !isFirst && setCurrentIndex(prev => prev - 1);
 
-  // Mock audio URL (vervang later door item.audio_url uit database)
   const activeAudio = currentItem.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
   return (
     <div className="relative h-screen w-full bg-midnight-950 overflow-hidden flex flex-col">
       
-      {/* 1. ACHTERGROND (Blurred) */}
+      {/* 1. ACHTERGROND */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 z-0 opacity-20 blur-3xl scale-110">
+        <div className="absolute inset-0 z-0 opacity-30 blur-3xl scale-110">
            {currentItem.artwork.image_url && (
              <Image src={currentItem.artwork.image_url} alt="bg" fill className="object-cover" />
            )}
         </div>
         
-        {/* 2. MAIN IMAGE (Sharp) */}
+        {/* 2. MAIN IMAGE */}
         <AnimatePresence mode="wait">
           <motion.div 
             key={currentIndex}
@@ -68,7 +66,7 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
             className="relative h-full w-full z-10 flex items-center justify-center"
           >
             {currentItem.artwork.image_url && (
-              <div className="relative h-[60vh] w-full md:h-[70vh] max-w-5xl px-4">
+              <div className="relative h-[60vh] w-full md:h-[75vh] max-w-6xl px-4">
                 <Image 
                   src={currentItem.artwork.image_url} 
                   alt={currentItem.artwork.title || ''} 
@@ -93,7 +91,6 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
           <span className="text-xs uppercase tracking-widest text-museum-gold mb-1 shadow-black drop-shadow-md">
             {tourTitle}
           </span>
-          {/* Progress Dots */}
           <div className="flex gap-1">
             {items.map((_, idx) => (
               <div 
@@ -112,7 +109,7 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
         </button>
       </div>
 
-      {/* 4. SIDE NAVIGATIE */}
+      {/* 4. NAVIGATIE PIJLEN */}
       {!isFirst && (
         <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/20 text-white hover:bg-black/50 backdrop-blur-sm transition-all hover:scale-110">
           <ChevronLeft size={32} />
@@ -124,27 +121,25 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
         </button>
       )}
 
-      {/* 5. BOTTOM CONTROLS (Info & Audio) */}
+      {/* 5. BOTTOM CONTROLS */}
       <div className="absolute bottom-0 left-0 right-0 z-50 p-6 md:p-10 bg-gradient-to-t from-midnight-950 via-midnight-950/90 to-transparent">
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-end">
           
-          {/* Titel & Info */}
           <div className="transition-all duration-300">
-             <h2 className="font-serif text-3xl md:text-4xl text-white font-bold mb-1 leading-tight">
+             <h2 className="font-serif text-3xl md:text-5xl text-white font-bold mb-2 leading-tight drop-shadow-lg">
                {currentItem.artwork.title}
              </h2>
-             <p className="text-museum-gold text-lg font-serif italic mb-4">
+             <p className="text-museum-gold text-lg font-serif italic mb-4 drop-shadow-md">
                {currentItem.artwork.artist}
              </p>
              
-             {/* Info Panel (Toggle) */}
              <AnimatePresence>
                {showInfo && (
                  <motion.div 
                    initial={{ opacity: 0, height: 0 }}
                    animate={{ opacity: 1, height: 'auto' }}
                    exit={{ opacity: 0, height: 0 }}
-                   className="text-gray-300 text-sm md:text-base max-w-2xl leading-relaxed mb-4 bg-midnight-900/80 p-6 rounded-xl border border-white/10 backdrop-blur-md"
+                   className="text-gray-300 text-sm md:text-base max-w-2xl leading-relaxed mb-4 bg-midnight-900/90 p-6 rounded-xl border border-white/10 backdrop-blur-md shadow-2xl"
                  >
                    {currentItem.text_short || currentItem.artwork.description_primary || "Geen beschrijving beschikbaar."}
                  </motion.div>
@@ -152,7 +147,6 @@ export default function TheaterView({ tourTitle, items }: TheaterViewProps) {
              </AnimatePresence>
           </div>
 
-          {/* Audio Player Component */}
           <div className="w-full md:w-80">
             <AudioPlayer src={activeAudio} onEnded={() => !isLast && nextSlide()} />
           </div>
