@@ -9,7 +9,7 @@ export default async function TourPage({ params }: { params: { id: string } }) {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  // 1. Haal de Tour Titel
+  // 1. Haal de Tour
   const { data: tour } = await supabase
     .from('tours')
     .select('id, title')
@@ -18,7 +18,7 @@ export default async function TourPage({ params }: { params: { id: string } }) {
 
   if (!tour) return notFound();
 
-  // 2. Haal de Items en gekoppelde Artworks
+  // 2. Haal de Items
   const { data: items } = await supabase
     .from('tour_items')
     .select(`
@@ -36,12 +36,12 @@ export default async function TourPage({ params }: { params: { id: string } }) {
   if (!items || items.length === 0) {
     return (
       <div className="flex h-screen items-center justify-center bg-midnight-950 text-white">
-        <p>Deze tour wordt momenteel samengesteld.</p>
+        <p>Tour wordt geladen...</p>
       </div>
     );
   }
 
-  // Flatten data structuur voor de component
+  // 3. Flatten data structuur
   const formattedItems = items.map(item => ({
     ...item,
     artwork: Array.isArray(item.artwork) ? item.artwork[0] : item.artwork
