@@ -4,10 +4,11 @@ import { createClient } from '@/lib/supabaseClient';
 import { useEffect, useState } from 'react';
 import { trackActivity } from '@/lib/tracking';
 import PremiumLock from '@/components/common/PremiumLock';
-import AddToCollectionButton from '@/components/collection/AddToCollectionButton'; // <-- NIEUW
+import AddToCollectionButton from '@/components/collection/AddToCollectionButton';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronRight, Clock } from 'lucide-react';
+// HIER WAS DE FOUT: 'Play' is toegevoegd aan de import
+import { ChevronRight, Clock, Play } from 'lucide-react';
 
 export default function FocusDeepDivePage({ params }: { params: { id: string } }) {
   const [focus, setFocus] = useState<any>(null);
