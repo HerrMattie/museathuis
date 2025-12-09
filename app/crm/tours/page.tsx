@@ -48,7 +48,9 @@ export default function ToursCRM() {
                 <td className="p-4 flex gap-3">
                   <Link href={`/tour/${tour.id}`} target="_blank" className="text-blue-400 hover:text-white"><Eye size={18}/></Link>
                   {/* Edit knop is placeholder voor volgende stap */}
-                  <button className="text-gray-500 cursor-not-allowed"><Edit size={18}/></button>
+                  <Link href={`/crm/tours/${tour.id}`} className="text-museum-gold hover:text-white transition-colors">
+  <Edit size={18}/>
+</Link>
                 </td>
               </tr>
             ))}
