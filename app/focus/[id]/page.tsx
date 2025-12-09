@@ -1,52 +1,78 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
+'use client';
+
+import { createClient } from '@/lib/supabaseClient';
+import { useEffect, useState } from 'react';
+import { trackActivity } from '@/lib/tracking'; // Importeer de tracker
+import PremiumLock from '@/components/common/PremiumLock';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronRight, Play, BookOpen, Clock, Info } from 'lucide-react';
-import PremiumLock from '@/components/common/PremiumLock';
-import { Metadata } from 'next';
+import { ChevronRight, Play, Clock } from 'lucide-react';
 
-// Metadata voor SEO
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const supabase = createClient(cookies());
-  const { data: focus } = await supabase.from('focus_items').select('title, intro').eq('id', params.id).single();
-  return { title: `Focus: ${focus?.title || 'Deep Dive'}` };
-}
+export default function FocusDeepDivePage({ params }: { params: { id: string } }) {
+  const [focus, setFocus] = useState<any>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [hasTracked, setHasTracked] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-export default async function FocusDeepDivePage({ params }: { params: { id: string } }) {
-  const supabase = createClient(cookies());
-  const { data: { user } } = await supabase.auth.getUser();
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. Haal Focus Data op (inclusief de 'Enriched' velden van het artwork!)
-  const { data: focus } = await supabase
-    .from('focus_items')
-    .select(`
-      *, 
-      artwork:artworks (
-        *,
-        description_technical,
-        description_historical,
-        description_symbolism
-      )
-    `)
-    .eq('id', params.id)
-    .single();
+      // 1. Haal Focus Data op (inclusief artwork info)
+      const { data: item } = await supabase
+        .from('focus_items')
+        .select(`
+          *, 
+          artwork:artworks (
+            *,
+            description_technical,
+            description_historical,
+            description_symbolism
+          )
+        `)
+        .eq('id', params.id)
+        .single();
 
-  if (!focus) return <div className="text-white p-10">Niet gevonden</div>;
+      if (item) {
+        setFocus(item);
+        
+        // 2. Check Premium Status
+        if (item.is_premium) {
+           let isUserPremium = false;
+           if (user) {
+             const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
+             if (profile?.is_premium) isUserPremium = true;
+           }
+           if (!isUserPremium) setIsLocked(true);
+        }
 
-  // 2. Check Premium
-  let isUserPremium = false;
-  if (user) {
-    const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
-    if (profile?.is_premium) isUserPremium = true;
-  }
-  const isLocked = focus.is_premium && !isUserPremium;
+        // 3. TRACKING LOGICA (Badge Trigger)
+        // Als de gebruiker 10 seconden op deze pagina blijft, telt het als 'gelezen'
+        if (user && !hasTracked && !isLocked) { // Alleen tracken als niet op slot!
+            const timer = setTimeout(() => {
+                trackActivity(supabase, user.id, 'read_focus', params.id);
+                setHasTracked(true);
+                // Console log voor debugging (kun je later weghalen)
+                console.log("Activity tracked: read_focus");
+            }, 10000); // 10 seconden
+            
+            return () => clearTimeout(timer);
+        }
+      }
+      setLoading(false);
+    }
+    load();
+  }, [params.id, hasTracked, isLocked]);
+
+  if (loading) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Laden...</div>;
+  if (!focus) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Niet gevonden</div>;
 
   return (
     <PremiumLock isLocked={isLocked}>
       <div className="bg-midnight-950 min-h-screen text-gray-200 font-sans pb-20">
         
-        {/* HERO HEADER (Parallax achtig) */}
+        {/* HERO HEADER */}
         <header className="relative h-[70vh] w-full overflow-hidden">
            {focus.artwork?.image_url && (
              <Image 
@@ -82,50 +108,47 @@ export default async function FocusDeepDivePage({ params }: { params: { id: stri
         <div className="container mx-auto px-6 md:px-12 -mt-10 relative z-30">
           <div className="bg-midnight-900 border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl">
             
-            {/* Audio Speler Placeholder (Voor later: Text-to-Speech integratie) */}
-            <div className="flex items-center gap-4 bg-black/40 p-4 rounded-xl mb-12 border border-white/5">
-              <button className="h-12 w-12 bg-museum-gold text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform">
-                <Play size={20} fill="black" className="ml-1"/>
+            {/* Audio Speler Placeholder */}
+            <div className="flex items-center gap-4 bg-black/40 p-4 rounded-xl mb-12 border border-white/5 opacity-50 cursor-not-allowed" title="Binnenkort beschikbaar">
+              <button className="h-12 w-12 bg-gray-700 text-black rounded-full flex items-center justify-center">
+                <Play size={20} fill="white" className="ml-1 text-white"/>
               </button>
               <div>
                 <p className="text-white font-bold text-sm">Luister naar dit artikel</p>
-                <p className="text-xs text-gray-500">Audio versie (AI Genereerd)</p>
+                <p className="text-xs text-gray-500">Audio versie (Binnenkort)</p>
               </div>
             </div>
 
             {/* De 3 Verdiepende Hoofdstukken */}
             <div className="space-y-16 max-w-3xl mx-auto">
               
-              {/* Deel 1: Historie */}
               <section>
                 <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
                   <span className="text-museum-gold">I.</span> De Historische Context
                 </h2>
-                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed">
+                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
                   {focus.artwork?.description_historical || "De historische context wordt momenteel onderzocht door onze experts."}
                 </div>
               </section>
 
               <hr className="border-white/10" />
 
-              {/* Deel 2: Symboliek */}
               <section>
                 <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
                   <span className="text-museum-gold">II.</span> Symboliek & Betekenis
                 </h2>
-                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed">
+                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
                   {focus.artwork?.description_symbolism || "De symboliek wordt geanalyseerd."}
                 </div>
               </section>
 
               <hr className="border-white/10" />
 
-              {/* Deel 3: Techniek */}
               <section>
                 <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
                   <span className="text-museum-gold">III.</span> Techniek & Materiaal
                 </h2>
-                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed">
+                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
                   {focus.artwork?.description_technical || "Technische analyse volgt."}
                 </div>
               </section>
@@ -133,7 +156,6 @@ export default async function FocusDeepDivePage({ params }: { params: { id: stri
             </div>
           </div>
         </div>
-
       </div>
     </PremiumLock>
   );
