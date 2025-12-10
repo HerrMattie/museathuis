@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Settings, CreditCard, LogOut, Heart, LayoutDashboard } from 'lucide-react';
 import ProfileHeader from '@/components/profile/ProfileHeader';
+import ProfileInterests from '@/components/profile/ProfileInterests'; // <--- IMPORT
 
 export const revalidate = 0;
 
@@ -34,9 +35,11 @@ export default async function ProfilePage() {
             <Link href="/" className="text-gray-400 hover:text-white text-sm">Terug naar Home</Link>
         </header>
 
-        {/* 1. INTERACTIEVE HEADER */}
-        <ProfileHeader profile={profile} user={user} />
+{/* 1. INTERACTIEVE HEADER */}
+    <ProfileHeader profile={profile} user={user} />
 
+    {/* 2. DATA COLLECTIE (NIEUW) */}
+    <ProfileInterests profile={profile} user={user} />  {/* <--- TOEVOEGEN */}
         {/* 2. MIJN COLLECTIE (NIEUW) */}
         <div className="mb-8">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
