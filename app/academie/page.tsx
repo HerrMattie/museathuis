@@ -1,103 +1,55 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Clock, BookOpen, Lock, ChevronRight } from 'lucide-react';
+import { GraduationCap, Lock } from 'lucide-react';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 export default async function AcademiePage() {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = createClient(cookies());
+  const { data: pageContent } = await supabase.from('page_content').select('*').eq('slug', 'academie').single();
 
-  let isUserPremium = false;
-  if (user) {
-    const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
-    if (profile?.is_premium) isUserPremium = true;
-  }
+  const title = pageContent?.title || "De Academie";
+  const subtitle = pageContent?.subtitle || "Verdieping & Studie";
+  const intro = pageContent?.intro_text || "Volg cursussen en masterclasses van experts.";
 
-  // Haal alle gepubliceerde cursussen op
-  const { data: courses } = await supabase
-    .from('courses')
-    .select('id, title, short_description, hero_image_url, is_premium, duration_weeks, course_lessons(count)')
-    .order('created_at', { ascending: false }); 
+  // Mock data (totdat je een 'courses' tabel hebt)
+  const courses = [
+      { id: 1, title: "De Gouden Eeuw in Vogelvlucht", modules: 4, status: 'coming_soon' },
+      { id: 2, title: "Kleurentheorie voor Beginners", modules: 6, status: 'coming_soon' },
+      { id: 3, title: "Meesters van het Licht", modules: 3, status: 'locked' },
+  ];
 
   return (
-    <main className="min-h-screen bg-midnight-950 pb-20 pt-12 animate-fade-in-up">
-      <div className="container mx-auto px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-12 px-6">
+      <div className="max-w-7xl mx-auto">
         
-        <header className="mb-16 max-w-4xl border-b border-white/10 pb-8">
-          <p className="text-museum-gold text-xs font-bold uppercase tracking-[0.2em] mb-4">
-            Gestructureerde Leerlijnen
-          </p>
-          <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-6">De Academie</h1>
-          <p className="text-xl text-museum-text-secondary leading-relaxed max-w-3xl">
-            Duik diep in een onderwerp. Onze cursussen zijn opgebouwd uit Focus-items om u een compleet historisch en technisch inzicht te geven.
-          </p>
-        </header>
+        {/* HEADER */}
+        <div className="relative py-16 mb-12 border-b border-white/10">
+             <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/20 to-transparent pointer-events-none rounded-3xl"></div>
+             <div className="relative z-10">
+                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-3">{subtitle}</p>
+                <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 text-white">{title}</h1>
+                <p className="text-xl text-gray-300 max-w-2xl leading-relaxed font-light">{intro}</p>
+             </div>
+        </div>
 
-        {/* CURSUSSEN GRID */}
-        <section>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {courses?.map((course: any) => {
-              const lessonCount = course.course_lessons?.[0]?.count || 0;
-              const isLocked = course.is_premium && !isUserPremium;
-              const linkUrl = isLocked ? '/pricing' : `/academie/${course.id}`;
-              
-              return (
-                <Link key={course.id} href={linkUrl} className="group relative flex flex-col h-[450px] rounded-2xl overflow-hidden shadow-2xl transition-all hover:scale-[1.02]">
-                  
-                  {/* Background Image */}
-                  {course.hero_image_url && (
-                    <Image 
-                      src={course.hero_image_url} 
-                      alt={course.title} 
-                      fill 
-                      className={`object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale opacity-70' : 'opacity-90'}`}
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent p-6 flex flex-col justify-end">
-                    
-                    {/* Meta Data */}
-                    <div className="flex items-center gap-3 text-sm font-bold mb-3 text-gray-400">
-                      <span className="flex items-center gap-1.5">
-                        <Clock size={14} /> {course.duration_weeks} Wk
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <BookOpen size={14} /> {lessonCount} Lessen
-                      </span>
+        {/* CONTENT */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {courses.map((course) => (
+                <div key={course.id} className="group bg-midnight-900 border border-white/10 rounded-2xl p-8 hover:border-museum-gold/40 transition-all opacity-75 hover:opacity-100 cursor-not-allowed">
+                    <div className="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center text-indigo-300 mb-6 group-hover:scale-110 transition-transform">
+                        <GraduationCap size={24}/>
                     </div>
-
-                    <h3 className="font-serif text-3xl text-white font-bold mb-2 drop-shadow-md">
-                      {course.title}
-                    </h3>
-                    <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-                       {course.short_description}
-                    </p>
+                    <h3 className="font-serif font-bold text-2xl mb-2 text-gray-300 group-hover:text-white">{course.title}</h3>
+                    <p className="text-sm text-gray-500 mb-6">{course.modules} Modules</p>
                     
-                    {/* CTA */}
-                    <div className="flex items-center gap-2 text-sm font-bold text-museum-gold group-hover:text-museum-lime transition-colors">
-                       {isLocked ? (
-                          <>Ontgrendel Cursus <Lock size={16} /></>
-                       ) : (
-                          <>Start Cursus <ChevronRight size={16} /></>
-                       )}
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-museum-gold bg-museum-gold/10 py-2 px-3 rounded w-fit">
+                        <Lock size={12}/> Binnenkort beschikbaar
                     </div>
-                  </div>
-                </Link>
-              );
-            })}
-            
-            {courses?.length === 0 && (
-                <div className="col-span-full py-10 text-center text-gray-500 border border-dashed border-white/10 rounded-xl">
-                   De Academie is nog in de opstartfase. Nieuwe cursussen volgen snel.
                 </div>
-            )}
-          </div>
-        </section>
-
+            ))}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
