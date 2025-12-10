@@ -1,173 +1,131 @@
-'use client';
-
-import { createClient } from '@/lib/supabaseClient';
-import { useEffect, useState } from 'react';
-import { trackActivity } from '@/lib/tracking';
-import PremiumLock from '@/components/common/PremiumLock';
-import AddToCollectionButton from '@/components/collection/AddToCollectionButton';
-import StarRating from '@/components/common/StarRating'; // <--- NIEUW: Rating
-import Image from 'next/image';
+import { createClient } from '@/lib/supabaseServer';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { ChevronRight, Clock, Play } from 'lucide-react';
+import Image from 'next/image';
+import { ChevronLeft, Clock, Headphones, BookOpen } from 'lucide-react';
+import ReactMarkdown from 'react-markdown'; // Zorg dat je deze in package.json zet!
 
-export default function FocusDeepDivePage({ params }: { params: { id: string } }) {
-  const [focus, setFocus] = useState<any>(null);
-  const [isLocked, setIsLocked] = useState(false);
-  const [hasTracked, setHasTracked] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+export const revalidate = 0;
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
+export default async function FocusDetailPage({ params }: { params: { id: string } }) {
+  const supabase = createClient(cookies());
+  const { data: { user } } = await supabase.auth.getUser();
 
-      const { data: item } = await supabase
-        .from('focus_items')
-        .select(`
-          *, 
-          artwork:artworks (
-            id, title, artist, image_url, description_technical, description_historical, description_symbolism
-          )
-        `)
-        .eq('id', params.id)
-        .single();
+  // Haal focus item op + artwork info
+  const { data: item } = await supabase
+    .from('focus_items')
+    .select('*, artwork:artworks(*)')
+    .eq('id', params.id)
+    .single();
 
-      if (item) {
-        setFocus(item);
-        
-        // Check Premium Status
-        if (item.is_premium) {
-           let isUserPremium = false;
-           if (user) {
-             const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
-             if (profile?.is_premium) isUserPremium = true;
-           }
-           if (!isUserPremium) setIsLocked(true);
-        }
+  if (!item) return <div className="text-white p-10">Item niet gevonden.</div>;
 
-        // TRACKING LOGICA (Badge Trigger na 10 seconden)
-        if (user && !hasTracked && !isLocked) {
-            const timer = setTimeout(() => {
-                trackActivity(supabase, user.id, 'read_focus', params.id);
-                setHasTracked(true);
-            }, 10000); 
-            
-            return () => clearTimeout(timer);
-        }
-      }
-      setLoading(false);
-    }
-    load();
-  }, [params.id, hasTracked, isLocked]);
-
-  if (loading) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Laden...</div>;
-  if (!focus || !focus.artwork) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">Niet gevonden</div>;
+  // Check Premium
+  let isLocked = false;
+  if (item.is_premium) {
+      const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user?.id).single();
+      if (!profile?.is_premium) isLocked = true;
+  }
 
   return (
-    <PremiumLock isLocked={isLocked}>
-      <div className="bg-midnight-950 min-h-screen text-gray-200 font-sans pb-20">
+    <div className="min-h-screen bg-midnight-950 text-gray-200 font-sans pb-20">
         
-        {/* HERO HEADER - MET FIX: Maximaal 80% van schermhoogte */}
-        <header className="relative w-full h-[80vh] bg-black">
-           {focus.artwork.image_url && (
+        {/* HERO IMAGE */}
+        <div className="relative w-full h-[60vh] lg:h-[70vh]">
+           {item.artwork?.image_url && (
              <Image 
-               src={focus.artwork.image_url} 
-               alt={focus.title} 
+               src={item.artwork.image_url} 
+               alt={item.title} 
                fill 
-               className="object-contain opacity-90" // object-contain zorgt dat de hele afbeelding zichtbaar is zonder afsnijden
+               className="object-contain bg-black/50"
                priority
              />
            )}
-           
-           {/* Subtiele gradient overlay voor leesbaarheid controls */}
            <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-transparent to-transparent" />
            
-           {/* Top Bar Navigation */}
-           <div className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-between items-start">
+           <div className="absolute top-6 left-6">
              <Link href="/focus" className="inline-flex items-center gap-2 text-white/80 hover:text-white bg-black/40 backdrop-blur-md px-4 py-2 rounded-full transition-colors text-sm font-medium border border-white/10">
-               <ChevronRight className="rotate-180" size={16} /> Terug
+               <ChevronLeft size={16} /> Terug
              </Link>
-             
-             {/* Collectie Knop */}
-             <AddToCollectionButton artworkId={focus.artwork.id} />
            </div>
 
-           {/* Titel & Intro (Onderin) */}
-           <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 z-20 max-w-5xl">
-             <div className="flex flex-col md:flex-row md:items-end gap-6 justify-between">
-                <div>
-                    <span className="inline-flex items-center gap-2 bg-museum-gold/20 text-museum-gold border border-museum-gold/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 backdrop-blur-md">
-                    <Clock size={14} /> 3 Minuten Focus
+           <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 max-w-4xl">
+             <div className="flex gap-3 mb-4">
+                <span className="inline-flex items-center gap-2 bg-museum-gold/20 text-museum-gold border border-museum-gold/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                    <Clock size={14} /> 10 Min Lezen
+                </span>
+                {item.audio_script_main && (
+                    <span className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-300 border border-blue-500/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                        <Headphones size={14} /> Audio Beschikbaar
                     </span>
-                    <h1 className="font-serif text-4xl md:text-6xl text-white font-bold mb-4 leading-tight drop-shadow-2xl">
-                    {focus.title}
-                    </h1>
-                    <p className="text-xl text-gray-200 max-w-2xl leading-relaxed drop-shadow-lg">
-                    {focus.intro}
-                    </p>
-                </div>
-
-                {/* NIEUW: Rating direct bij de titel */}
-                <div className="bg-black/40 backdrop-blur-md p-4 rounded-xl border border-white/10">
-                    <p className="text-xs text-gray-400 mb-1 font-bold uppercase">Uw waardering</p>
-                    <StarRating contentId={focus.id} />
-                </div>
+                )}
              </div>
+             <h1 className="font-serif text-4xl md:text-6xl text-white font-bold mb-4 leading-tight drop-shadow-2xl">
+               {item.title}
+             </h1>
+             <p className="text-xl text-gray-200 max-w-2xl leading-relaxed drop-shadow-lg">
+               {item.short_description || item.intro}
+             </p>
            </div>
-        </header>
-
-        {/* CONTENT KOLOMMEN */}
-        <div className="container mx-auto px-6 md:px-12 mt-12 relative z-30">
-          <div className="bg-midnight-900 border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl">
-            
-            {/* Audio Speler Placeholder */}
-            <div className="flex items-center gap-4 bg-black/40 p-4 rounded-xl mb-12 border border-white/5 opacity-50 cursor-not-allowed" title="Binnenkort beschikbaar">
-              <button className="h-12 w-12 bg-gray-700 text-black rounded-full flex items-center justify-center">
-                <Play size={20} fill="white" className="ml-1 text-white"/>
-              </button>
-              <div>
-                <p className="text-white font-bold text-sm">Luister naar dit artikel</p>
-                <p className="text-xs text-gray-500">Audio versie (Binnenkort)</p>
-              </div>
-            </div>
-
-            {/* De 3 Verdiepende Hoofdstukken */}
-            <div className="space-y-16 max-w-3xl mx-auto">
-              
-              <section>
-                <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
-                  <span className="text-museum-gold">I.</span> De Historische Context
-                </h2>
-                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
-                  {focus.artwork.description_historical || "De historische context wordt momenteel onderzocht door onze experts."}
-                </div>
-              </section>
-
-              <hr className="border-white/10" />
-
-              <section>
-                <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
-                  <span className="text-museum-gold">II.</span> Symboliek & Betekenis
-                </h2>
-                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
-                  {focus.artwork.description_symbolism || "De symboliek wordt geanalyseerd."}
-                </div>
-              </section>
-
-              <hr className="border-white/10" />
-
-              <section>
-                <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
-                  <span className="text-museum-gold">III.</span> Techniek & Materiaal
-                </h2>
-                <div className="prose prose-invert prose-lg text-gray-300 leading-relaxed whitespace-pre-line">
-                  {focus.artwork.description_technical || "Technische analyse volgt."}
-                </div>
-              </section>
-            </div>
-          </div>
         </div>
-      </div>
-    </PremiumLock>
+
+        {/* CONTENT */}
+        <div className="container mx-auto px-6 md:px-12 mt-12">
+          {isLocked ? (
+              <div className="bg-midnight-900 border border-museum-gold/30 p-10 rounded-2xl text-center max-w-2xl mx-auto">
+                  <h3 className="font-serif text-2xl text-museum-gold mb-4">Exclusief voor Leden</h3>
+                  <p className="text-gray-400 mb-6">Word lid om toegang te krijgen tot deze Deep Dive en de volledige collectie.</p>
+                  <Link href="/pricing" className="bg-museum-gold text-black px-8 py-3 rounded-full font-bold">Bekijk Lidmaatschap</Link>
+              </div>
+          ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                  
+                  {/* MAIN ARTICLE (Markdown Rendered) */}
+                  <div className="lg:col-span-8 prose prose-invert prose-lg max-w-none">
+                      {item.content_markdown ? (
+                          <ReactMarkdown 
+                            components={{
+                                h1: ({node, ...props}) => <h1 className="font-serif text-3xl text-museum-gold mt-8 mb-4" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="font-serif text-2xl text-white mt-10 mb-4 border-b border-white/10 pb-2" {...props} />,
+                                p: ({node, ...props}) => <p className="text-gray-300 leading-relaxed mb-6" {...props} />,
+                                strong: ({node, ...props}) => <strong className="text-white font-bold" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 mb-6 text-gray-300" {...props} />,
+                            }}
+                          >
+                              {item.content_markdown}
+                          </ReactMarkdown>
+                      ) : (
+                          <div className="text-gray-500 italic">
+                              Nog geen uitgebreid artikel beschikbaar. (Heeft de AI dit al gegenereerd?)
+                          </div>
+                      )}
+                  </div>
+
+                  {/* SIDEBAR (Facts & Audio) */}
+                  <div className="lg:col-span-4 space-y-8">
+                      {item.audio_script_main && (
+                          <div className="bg-white/5 border border-white/10 p-6 rounded-xl">
+                              <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Headphones size={20}/> Luistergids</h3>
+                              <p className="text-sm text-gray-400 mb-4">Laat u meenemen door het verhaal terwijl u kijkt.</p>
+                              {/* Hier zou de Audio Player komen die de gegenereerde tekst (TTS) afspeelt */}
+                              <button className="w-full bg-white text-black py-2 rounded-lg font-bold hover:bg-gray-200 transition-colors">
+                                  Start Audio (Binnenkort)
+                              </button>
+                          </div>
+                      )}
+
+                      <div className="bg-midnight-900 border border-white/10 p-6 rounded-xl">
+                          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><BookOpen size={20}/> Details</h3>
+                          <ul className="space-y-3 text-sm text-gray-400">
+                              <li><span className="block text-xs text-gray-500 uppercase">Kunstenaar</span> {item.artwork?.artist || 'Onbekend'}</li>
+                              <li><span className="block text-xs text-gray-500 uppercase">Techniek</span> {item.artwork?.description_technical || '-'}</li>
+                              <li><span className="block text-xs text-gray-500 uppercase">Periode</span> {item.artwork?.description_historical || '-'}</li>
+                          </ul>
+                      </div>
+                  </div>
+              </div>
+          )}
+        </div>
+    </div>
   );
 }
