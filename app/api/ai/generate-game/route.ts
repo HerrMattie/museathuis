@@ -1,77 +1,58 @@
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { topic } = await req.json();
     
-    // 1. Validatie API Key
-    const apiKey = process.env.GOOGLE_API_KEY;
-    if (!apiKey) {
+    if (!process.env.GOOGLE_API_KEY) {
         return NextResponse.json({ error: "Google API Key ontbreekt in .env" }, { status: 500 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-
-    // 2. Definieer het Schema voor de output
-    // Dit dwingt de AI om ALTIJD valide JSON terug te geven in precies dit formaat.
-    const gameSchema = {
-      type: SchemaType.OBJECT,
-      properties: {
-        title: {
-          type: SchemaType.STRING,
-          description: "Een pakkende titel voor de quiz.",
-        },
-        short_description: {
-          type: SchemaType.STRING,
-          description: "Een korte wervende tekst (max 150 tekens).",
-        },
-        questions: {
-          type: SchemaType.ARRAY,
-          items: {
-            type: SchemaType.OBJECT,
-            properties: {
-              question: { type: SchemaType.STRING, description: "De quizvraag." },
-              correct_answer: { type: SchemaType.STRING, description: "Het enige juiste antwoord." },
-              wrong_answers: {
-                type: SchemaType.ARRAY,
-                description: "Precies 3 foute antwoorden.",
-                items: { type: SchemaType.STRING }
-              }
-            },
-            required: ["question", "correct_answer", "wrong_answers"]
-          }
-        }
-      },
-      required: ["title", "short_description", "questions"]
-    };
-
-    // 3. Model Configuratie (Gebruik 1.5-flash voor snelheid en JSON support)
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: gameSchema,
-      }
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    
+    // We gebruiken 1.5-flash omdat die snel en goedkoop is voor JSON taken
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        // We gebruiken hier GEEN 'responseSchema' object om import errors te voorkomen.
+        // In plaats daarvan vertrouwen we op de prompt instructies ("JSON Mode via Prompt").
     });
 
     const prompt = `
       Je bent een museum curator en maakt een educatieve quiz over: "${topic}".
-      Maak 5 interessante vragen die de kennis van de speler testen.
+      
+      Jouw taak is om 5 interessante meerkeuzevragen te genereren.
+      
+      BELANGRIJK: Geef ALLEEN een valide JSON object terug. Geen markdown, geen uitleg.
+      
+      Het formaat moet exact zo zijn:
+      {
+        "title": "Een pakkende titel voor de quiz",
+        "short_description": "Een korte wervende tekst (max 150 tekens)",
+        "questions": [
+          {
+            "question": "De vraagstelling?",
+            "correct_answer": "Het juiste antwoord",
+            "wrong_answers": ["Fout antwoord 1", "Fout antwoord 2", "Fout antwoord 3"]
+          }
+        ]
+      }
+      
       Taal: Nederlands.
     `;
 
-    // 4. Genereer Content
     const result = await model.generateContent(prompt);
-    const jsonString = result.response.text();
+    const text = result.response.text();
 
-    // 5. Parse en stuur terug
+    // Schoonmaak (voor het geval de AI toch ```json toevoegt)
+    const cleanText = text.replace(/```json|```/g, '').trim();
+    
     let data;
     try {
-        data = JSON.parse(jsonString);
+        data = JSON.parse(cleanText);
     } catch (e) {
-        console.error("JSON Parse Error:", jsonString);
-        return NextResponse.json({ error: "AI gaf ongeldige data terug." }, { status: 500 });
+        console.error("JSON Parse Error:", cleanText);
+        return NextResponse.json({ error: "AI gaf geen geldige JSON terug." }, { status: 500 });
     }
 
     return NextResponse.json(data);
