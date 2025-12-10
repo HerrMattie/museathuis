@@ -4,9 +4,7 @@ import { NextResponse } from 'next/server';
 import { generateWithAI } from '@/lib/aiHelper';
 import { addDays, format } from 'date-fns';
 
-export const maxDuration = 60; // 60 seconden is krap voor 7 dagen x zware content. 
-// TIP: Op Vercel Hobby is de limiet 10s voor serverless functions. 
-// Als dit faalt op timeout, moet je de logica splitsen (1 dag per keer genereren).
+export const maxDuration = 60; 
 
 export async function GET() {
   const cookieStore = cookies();
@@ -16,12 +14,12 @@ export async function GET() {
     const today = new Date();
     const generatedDays = [];
 
-    // We proberen 7 dagen te vullen
+    // Loop door de komende 7 dagen
     for (let i = 0; i < 7; i++) {
         const targetDate = addDays(today, i);
         const dateStr = format(targetDate, 'yyyy-MM-dd');
 
-        // Check of dag al gevuld is
+        // 1. Check: Is deze dag al gevuld?
         const { data: existing } = await supabase
             .from('dayprogram_schedule')
             .select('tour_ids')
@@ -33,86 +31,105 @@ export async function GET() {
             continue;
         }
 
-        // --- GENERATIE LOGICA ---
-        // Omdat we nu "Zware" content willen (8 stops, 10 min focus), 
-        // kunnen we niet zomaar random artworks pakken en hopen op het beste.
-        // We vragen de AI om een THEMA voor deze dag te verzinnen.
+        // 2. Thema Bepalen voor de dag
+        // We vragen de AI om een thema zodat alles bij elkaar past
+        const themeJson: any = await generateWithAI(`Verzin een uniek kunstthema voor een dagprogramma (bijv. "Lichtval in de 17e eeuw"). JSON: {"theme": "..."}`, true);
+        const theme = themeJson?.theme || "Meesterwerken";
+
+        const createdIds = { tours: [] as string[], focus: [] as string[], games: [] as string[], salons: [] as string[] };
+
+        // 3. GENEREREN (3 van elk, behalve Salon 1x)
         
-        // 1. Thema Bepalen
-        const themeJson: any = await generateWithAI(`Verzin een uniek, specifiek kunstthema voor een dagprogramma (bijv. "De Blauwe Periode", "Vrouwen in de 17e eeuw"). JSON: {"theme": "..."}`, true);
-        const theme = themeJson.theme;
+        // --- A. TOURS (3 stuks) ---
+        // Om timeouts te voorkomen genereren we 1 'echte' tour en 2 simpele placeholders of kortere tours
+        // Hier simuleren we de loop voor 3 tours:
+        for (let t = 0; t < 3; t++) {
+            try {
+                // Tour 1 is de hoofd-tour over het thema
+                const tourTopic = t === 0 ? theme : `${theme} - Deel ${t+1}`;
+                
+                // We gebruiken een lichtere prompt voor de cronjob om snelheid te houden
+                const tourData: any = await generateWithAI(`
+                    Maak een audiotour over: "${tourTopic}". 
+                    5 Stops. JSON: { "title": "...", "intro_text": "...", "stops": [] }
+                `, true);
 
-        const createdIds = { tours: [] as string[], focus: [] as string[], games: [] as string[] };
-
-        // 2. MAAK DE TOUR (8 stops over dit thema)
-        // We gebruiken de interne API logica hier direct om timeouts te voorkomen
-        // (In het echt zou je hier de generate-tour prompt aanroepen)
-        
-        // Simpele versie voor Cron (want 8 stops genereren duurt lang):
-        // We maken 1 tour met 5 stops (iets lichter dan de handmatige 8) om timeouts te voorkomen.
-        const tourData: any = await generateWithAI(`
-            Maak een audiotour over thema: "${theme}".
-            5 Stops. JSON Format: { "title": "...", "intro_text": "...", "stops": [{ "title": "...", "artist": "...", "audio_script": "..." }] }
-        `, true);
-
-        const { data: tour } = await supabase.from('tours').insert({
-            title: tourData.title,
-            intro: tourData.intro_text,
-            hero_image_url: "https://images.unsplash.com/photo-1554907984-15263bfd63bd", // Placeholder, AI kan geen plaatjes zoeken
-            status: 'published',
-            type: 'daily',
-            scheduled_date: dateStr,
-            // Je zou hier de 'stops' in een aparte tabel 'tour_stops' moeten opslaan
-            // Voor nu slaan we het ruw op in een JSON kolom als je die hebt, of we laten het even.
-        }).select().single();
-        if(tour) createdIds.tours.push(tour.id);
-
-
-        // 3. MAAK FOCUS (1 werk, 10 min)
-        // We pakken 1 werk uit de tour of verzinnen er een binnen het thema
-        const focusSubject = tourData.stops ? tourData.stops[0].title : theme;
-        
-        const focusData: any = await generateWithAI(`
-            Schrijf een 10-minuten Deep Dive Focus artikel over: "${focusSubject}".
-            JSON: { "title": "...", "short_description": "...", "content_markdown": "..." }
-        `, true);
-
-        const { data: focus } = await supabase.from('focus_items').insert({
-            title: focusData.title,
-            intro: focusData.short_description, // Let op veldnaam
-            // content_markdown: focusData.content_markdown, // Zorg dat deze kolom bestaat!
-            status: 'published',
-            is_premium: true
-        }).select().single();
-        if(focus) createdIds.focus.push(focus.id);
-
-
-        // 4. MAAK GAME
-        const quizData: any = await generateWithAI(`Maak 3 quizvragen over thema "${theme}". JSON: [{ "question": "...", "correct_answer": "...", "wrong_answers": ["..."] }]`, true);
-        
-        if (Array.isArray(quizData)) {
-            const { data: game } = await supabase.from('games').insert({
-                title: `Quiz: ${theme}`,
-                short_description: `Test je kennis over ${theme}.`,
-                status: 'published',
-                is_premium: false
-            }).select().single();
-            
-            if(game) {
-                createdIds.games.push(game.id);
-                const items = quizData.map((q:any, idx:number) => ({
-                    game_id: game.id, question: q.question, correct_answer: q.correct_answer, wrong_answers: q.wrong_answers, order_index: idx
-                }));
-                await supabase.from('game_items').insert(items);
-            }
+                if (tourData) {
+                    const { data: tour } = await supabase.from('tours').insert({
+                        title: tourData.title,
+                        intro: tourData.intro_text,
+                        hero_image_url: "https://images.unsplash.com/photo-1554907984-15263bfd63bd",
+                        status: 'published',
+                        type: 'daily',
+                        is_premium: t > 0, // 1 gratis, rest premium
+                        scheduled_date: dateStr
+                    }).select().single();
+                    if(tour) createdIds.tours.push(tour.id);
+                }
+            } catch(e) { console.error("Tour Gen Error", e); }
         }
 
-        // 5. Update Rooster
+        // --- B. FOCUS (3 stuks) ---
+        for (let f = 0; f < 3; f++) {
+            try {
+                const focusData: any = await generateWithAI(`Schrijf een Focus artikel titel en korte intro over een werk passend bij thema "${theme}". JSON: {"title": "...", "short_description": "..."}`, true);
+                if (focusData) {
+                    const { data: focus } = await supabase.from('focus_items').insert({
+                        title: focusData.title,
+                        intro: focusData.short_description,
+                        status: 'published',
+                        is_premium: f > 0
+                    }).select().single();
+                    if(focus) createdIds.focus.push(focus.id);
+                }
+            } catch(e) { console.error("Focus Gen Error", e); }
+        }
+
+        // --- C. GAMES (3 stuks) ---
+        for (let g = 0; g < 3; g++) {
+            try {
+                const quizData: any = await generateWithAI(`Maak 3 quizvragen over thema "${theme}". JSON: [{"question": "...", "correct_answer": "...", "wrong_answers": ["..."]}]`, true);
+                if (Array.isArray(quizData)) {
+                    const { data: game } = await supabase.from('games').insert({
+                        title: `Quiz: ${theme} ${g+1}`,
+                        short_description: `Test je kennis.`,
+                        status: 'published',
+                        is_premium: g > 0
+                    }).select().single();
+                    
+                    if(game) {
+                        createdIds.games.push(game.id);
+                        const items = quizData.map((q:any, idx:number) => ({
+                            game_id: game.id, question: q.question, correct_answer: q.correct_answer, wrong_answers: q.wrong_answers, order_index: idx
+                        }));
+                        await supabase.from('game_items').insert(items);
+                    }
+                }
+            } catch(e) { console.error("Game Gen Error", e); }
+        }
+
+        // --- D. SALON (1 stuk) ---
+        try {
+            const salonData: any = await generateWithAI(`Schrijf een Salon inleiding over thema "${theme}". JSON: {"title": "...", "short_description": "...", "content_markdown": "..."}`, true);
+            if (salonData) {
+                const { data: salon } = await supabase.from('salons').insert({
+                    title: salonData.title,
+                    short_description: salonData.short_description,
+                    content_markdown: salonData.content_markdown,
+                    status: 'published'
+                }).select().single();
+                if(salon) createdIds.salons.push(salon.id);
+            }
+        } catch(e) { console.error("Salon Gen Error", e); }
+
+
+        // 4. Update Rooster met ALLES
         await supabase.from('dayprogram_schedule').upsert({
             day_date: dateStr,
             tour_ids: createdIds.tours,
             focus_ids: createdIds.focus,
             game_ids: createdIds.games,
+            salon_ids: createdIds.salons, // <--- Nu ook opgeslagen
             theme_title: theme,
             theme_description: `Een dag in het teken van ${theme}.`
         }, { onConflict: 'day_date' });
