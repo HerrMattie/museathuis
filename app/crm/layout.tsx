@@ -22,7 +22,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // We checken 'is_admin' (boolean)
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('is_admin')
@@ -54,8 +53,8 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
            <AdminLink href="/crm/artworks" icon={<ImageIcon size={20}/>} label="Kunstwerken" />
            
            <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Pagina's</div>
-           {/* FIX: DIT IS NU ENKELVOUD */}
-           <AdminLink href="/crm/salon" icon={<Brush size={20}/>} label="Salon" />
+           {/* FIX: Nu consistent meervoud */}
+           <AdminLink href="/crm/salons" icon={<Brush size={20}/>} label="Salons" />
            <AdminLink href="/crm/academie" icon={<BookOpen size={20}/>} label="Academie" />
 
            <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Systeem</div>
