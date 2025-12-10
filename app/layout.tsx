@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "@/app/globals.css"; 
-import { createClient } from "@/lib/supabaseServer"; // <--- FIX: Gebruik de SERVER versie
-import { cookies } from "next/headers"; // <--- FIX: Nodig voor cookies
+import { createClient } from "@/lib/supabaseServer"; 
+import { cookies } from "next/headers"; 
 import Link from "next/link";
 import { User, Menu } from "lucide-react";
 import Footer from "@/components/layout/Footer"; 
+
+// --- NIEUWE IMPORTS VOOR DATA TRACKING ---
+import { Suspense } from "react";
+import PageTracker from "@/components/analytics/PageTracker";
+// ----------------------------------------
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair", display: "swap" });
@@ -20,14 +25,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // FIX: Juiste manier om user op te halen in Server Component
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
-  
+   
   let user = null;
   try {
-     const { data } = await supabase.auth.getUser();
-     user = data.user;
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
   } catch (e) { 
       // Geen user is geen ramp, we renderen gewoon als gast
   }
@@ -36,6 +40,13 @@ export default async function RootLayout({
     <html lang="nl" className={`${inter.variable} ${playfair.variable}`}>
       <body className="bg-midnight-950 text-white font-sans antialiased min-h-screen flex flex-col">
         
+        {/* --- DE TRACKER (ONZICHTBAAR) --- */}
+        {/* We wrappen hem in Suspense om build-errors met useSearchParams te voorkomen */}
+        <Suspense fallback={null}>
+            <PageTracker />
+        </Suspense>
+        {/* -------------------------------- */}
+
         {/* GLOBAL HEADER */}
         <nav className="fixed top-0 w-full z-50 bg-midnight-950/90 backdrop-blur-md border-b border-white/10 h-16 transition-all">
           <div className="container mx-auto px-6 h-full flex justify-between items-center">
