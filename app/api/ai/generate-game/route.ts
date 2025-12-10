@@ -5,25 +5,24 @@ export async function POST(req: Request) {
   try {
     const { topic } = await req.json();
     
-    if (!process.env.GOOGLE_API_KEY) {
-        return NextResponse.json({ error: "Google API Key ontbreekt in .env" }, { status: 500 });
+    // 1. Check API Key
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+        return NextResponse.json({ error: "Google API Key ontbreekt" }, { status: 500 });
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    const genAI = new GoogleGenerativeAI(apiKey);
     
-    // We gebruiken 1.5-flash omdat die snel en goedkoop is voor JSON taken
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        // We gebruiken hier GEEN 'responseSchema' object om import errors te voorkomen.
-        // In plaats daarvan vertrouwen we op de prompt instructies ("JSON Mode via Prompt").
-    });
+    // 2. Gebruik Flash (Snel & Goedkoop)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+    // 3. De Prompt (Dwingt JSON af zonder moeilijke schema-objecten)
     const prompt = `
-      Je bent een museum curator en maakt een educatieve quiz over: "${topic}".
+      Je bent een museum curator. Maak een educatieve quiz over: "${topic}".
       
-      Jouw taak is om 5 interessante meerkeuzevragen te genereren.
+      Jouw taak: Genereer 5 meerkeuzevragen.
       
-      BELANGRIJK: Geef ALLEEN een valide JSON object terug. Geen markdown, geen uitleg.
+      BELANGRIJK: Geef ALLEEN een valide JSON object terug. Geen markdown opmaak, geen backticks, geen tekst eromheen.
       
       Het formaat moet exact zo zijn:
       {
@@ -41,18 +40,20 @@ export async function POST(req: Request) {
       Taal: Nederlands.
     `;
 
+    // 4. Uitvoeren
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const rawText = result.response.text();
 
-    // Schoonmaak (voor het geval de AI toch ```json toevoegt)
-    const cleanText = text.replace(/```json|```/g, '').trim();
+    // 5. Schoonmaak (Cruciaal voor stabiliteit)
+    // Soms geeft AI ```json ... ``` terug, dat filteren we eruit.
+    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
     
     let data;
     try {
-        data = JSON.parse(cleanText);
+        data = JSON.parse(cleanJson);
     } catch (e) {
-        console.error("JSON Parse Error:", cleanText);
-        return NextResponse.json({ error: "AI gaf geen geldige JSON terug." }, { status: 500 });
+        console.error("JSON Parse Fout. Ruwe tekst:", rawText);
+        return NextResponse.json({ error: "AI gaf geen geldige data terug." }, { status: 500 });
     }
 
     return NextResponse.json(data);
