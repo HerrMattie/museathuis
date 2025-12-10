@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { Trash2, Save, Loader2, Plus, CheckCircle, XCircle } from 'lucide-react';
+import { Trash2, Save, Loader2, Plus, CheckCircle, XCircle, Sparkles } from 'lucide-react'; // <--- Sparkles toegevoegd
 
 export default function EditGameForm({ initialGame }: { initialGame: any }) {
     const [game, setGame] = useState(initialGame);
     const [items, setItems] = useState<any[]>(initialGame.game_items || []);
     const [isSaving, setIsSaving] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false); // <--- Nieuwe state voor AI loader
     const [message, setMessage] = useState('');
     const supabase = createClient();
     const router = useRouter();
@@ -17,14 +18,12 @@ export default function EditGameForm({ initialGame }: { initialGame: any }) {
         setGame({ ...game, [e.target.name]: e.target.value });
     };
 
-    // VRAAG WIJZIGEN
     const handleItemChange = (index: number, field: string, value: any) => {
         const newItems = [...items];
         newItems[index] = { ...newItems[index], [field]: value };
         setItems(newItems);
     };
 
-    // ANTWOORD WIJZIGEN (Wrong answers array)
     const handleWrongAnswerChange = (itemIndex: number, wrongAnswerIndex: number, value: string) => {
         const newItems = [...items];
         const newWrong = [...newItems[itemIndex].wrong_answers];
@@ -48,6 +47,48 @@ export default function EditGameForm({ initialGame }: { initialGame: any }) {
         setItems(newItems);
     };
 
+    // --- NIEUWE FUNCTIE: AI GENERATIE ---
+    const handleAiGenerate = async () => {
+        const topic = prompt("Over welk onderwerp, kunstenaar of stijl moet de quiz gaan?");
+        if (!topic) return;
+
+        setIsGenerating(true);
+        setMessage("🤖 AI is aan het denken... dit duurt ongeveer 5-10 seconden.");
+
+        try {
+            const res = await fetch('/api/ai/generate-game', {
+                method: 'POST',
+                body: JSON.stringify({ topic }),
+            });
+
+            const data = await res.json();
+
+            if (data.error) throw new Error(data.error);
+
+            // Update het formulier met de AI data
+            setGame({ ...game, title: data.title, short_description: data.short_description });
+            
+            // Zet de vragen om naar het juiste formaat
+            const newItems = data.questions.map((q: any, idx: number) => ({
+                game_id: game.id,
+                question: q.question,
+                correct_answer: q.correct_answer,
+                wrong_answers: q.wrong_answers,
+                order_index: idx
+            }));
+            
+            setItems(newItems);
+            setMessage("✨ Succesvol gegenereerd! Controleer de vragen en klik op Opslaan.");
+
+        } catch (e: any) {
+            alert("Fout bij genereren: " + e.message);
+            setMessage("");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+    // ------------------------------------
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
@@ -70,28 +111,21 @@ export default function EditGameForm({ initialGame }: { initialGame: any }) {
             return;
         }
 
-        // 2. Sync Vragen (Simpele manier: Delete all & Re-insert is vaak makkelijker, maar Upsert is netter)
-        // Voor nu gebruiken we upsert per item. 
-        // Let op: items die verwijderd zijn uit de UI staan nog in de DB. 
-        // Echte productie code zou eerst alles verwijderen of ID's tracken.
-        // Voor MVP doen we simpel: update/insert wat we hebben.
-        
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            const payload = {
-                game_id: game.id,
-                question: item.question,
-                correct_answer: item.correct_answer,
-                wrong_answers: item.wrong_answers,
-                order_index: i
-            };
-            
-            // Als er een ID is, update. Anders insert.
-            if (item.id) {
-                await supabase.from('game_items').update(payload).eq('id', item.id);
-            } else {
-                await supabase.from('game_items').insert(payload);
-            }
+        // 2. Sync Vragen
+        // Eerst alles verwijderen (simpele reset) en dan opnieuw toevoegen
+        // Dit voorkomt dat oude vragen blijven hangen als de AI er minder genereert
+        await supabase.from('game_items').delete().eq('game_id', game.id);
+
+        const itemsToInsert = items.map((item, i) => ({
+            game_id: game.id,
+            question: item.question,
+            correct_answer: item.correct_answer,
+            wrong_answers: item.wrong_answers,
+            order_index: i
+        }));
+
+        if (itemsToInsert.length > 0) {
+            await supabase.from('game_items').insert(itemsToInsert);
         }
 
         setIsSaving(false);
@@ -103,8 +137,22 @@ export default function EditGameForm({ initialGame }: { initialGame: any }) {
         <form onSubmit={handleSave} className="space-y-8 pb-20">
             
             {/* GAME SETTINGS */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="font-bold text-slate-800 border-b pb-2">Algemene Instellingen</h3>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4 relative overflow-hidden">
+                <div className="flex justify-between items-center border-b pb-2 mb-4">
+                    <h3 className="font-bold text-slate-800">Algemene Instellingen</h3>
+                    
+                    {/* DE AI KNOP */}
+                    <button 
+                        type="button"
+                        onClick={handleAiGenerate}
+                        disabled={isGenerating}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                    >
+                        {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} />}
+                        {isGenerating ? "Genereren..." : "Vul met AI"}
+                    </button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Titel</label>
@@ -134,7 +182,7 @@ export default function EditGameForm({ initialGame }: { initialGame: any }) {
                 </div>
 
                 {items.map((item, idx) => (
-                    <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative">
+                    <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative animate-fade-in-up">
                         <span className="absolute top-4 right-4 text-xs font-bold text-slate-300">#{idx + 1}</span>
                         
                         <div className="mb-4">
@@ -195,7 +243,7 @@ export default function EditGameForm({ initialGame }: { initialGame: any }) {
             </div>
 
             {/* SAVE BAR */}
-            <div className="fixed bottom-0 right-0 w-[calc(100%-16rem)] bg-white border-t p-4 flex justify-between items-center z-10">
+            <div className="fixed bottom-0 right-0 w-[calc(100%-16rem)] bg-white border-t p-4 flex justify-between items-center z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                 <div className="text-sm font-bold text-green-600">{message}</div>
                 <button
                     type="submit"
