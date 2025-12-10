@@ -9,7 +9,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
   // UPDATE: We kiezen voor KWALITEIT boven snelheid.
   // 'gemini-2.5-pro' is het slimste model in jouw lijst.
   // Dit zorgt voor betere 'High End' museumteksten.
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-live:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-live:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
