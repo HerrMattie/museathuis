@@ -44,12 +44,18 @@ export default async function CrmSchedulePage() {
   const upcomingDates = Array.from({ length: 7 }).map((_, i) => format(addDays(parseISO(today), i), 'yyyy-MM-dd'));
   const archiveDates = Array.from({ length: 7 }).map((_, i) => format(subDays(parseISO(today), i + 1), 'yyyy-MM-dd')).reverse(); // Gisteren tot week terug
 
-  const renderDayCard = (dateStr: string, isArchive: boolean) => {
+const renderDayCard = (dateStr: string, isArchive: boolean) => {
       const dateObj = parseISO(dateStr);
       const dayData = schedule?.find(s => s.day_date === dateStr);
+      
       const dayTours = getTitles(dayData?.tour_ids || [], tours || []);
-      const isFilled = dayData && dayTours.length > 0;
-
+      const dayGames = getTitles(dayData?.game_ids || [], games || []);
+      const dayFocus = getTitles(dayData?.focus_ids || [], focusItems || []);
+      
+      // *** VERBETERDE LOGICA VOOR 'GEREED' ***
+      // We beschouwen een dag pas als 'Gereed' als er van elke categorie MINIMAAL 1 item is.
+      const isFilled = (dayData && dayTours.length = 3 && dayGames.length = 3  && dayFocus.length = 3);
+  
       return (
         <div key={dateStr} className={`bg-white rounded-xl shadow-sm border overflow-hidden mb-4 ${isFilled ? 'border-slate-200' : 'border-orange-200 bg-orange-50/10'} ${isArchive ? 'opacity-75 grayscale-[0.5]' : ''}`}>
             <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
