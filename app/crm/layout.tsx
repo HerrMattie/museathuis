@@ -1,41 +1,84 @@
-import "../globals.css"; // Gebruik zelfde styles
+import { createClient } from '@/lib/supabaseServer';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Image as ImageIcon, Users, Settings, LogOut } from 'lucide-react';
+// NIEUW: BookOpen en Brush iconen toegevoegd
+import { LayoutDashboard, Image as ImageIcon, Headphones, Crosshair, Gamepad2, Users, LogOut, Settings, BookOpen, Brush } from 'lucide-react'; 
 
-export default function CRMLayout({ children }: { children: React.ReactNode }) {
+export default async function CrmLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createClient(cookies());
+  
+  // 1. SECURITY CHECK (Zelfde als vorige stap)
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single();
+
+  if (profile?.role !== 'admin') {
+    redirect('/'); 
+  }
+
+  // 2. DE ADMIN UI
   return (
-    <div className="flex min-h-screen bg-midnight-950 text-white">
+    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900">
+      
       {/* SIDEBAR */}
-      <aside className="w-64 border-r border-white/10 bg-midnight-900 hidden md:flex flex-col">
+      <aside className="w-64 bg-midnight-950 text-white flex flex-col fixed h-full z-20">
         <div className="p-6 border-b border-white/10">
-          <span className="font-serif text-xl font-bold tracking-widest text-white">
-            MUSEA<span className="text-museum-lime">ADMIN</span>
-          </span>
+           <h1 className="font-serif text-xl font-bold text-museum-gold tracking-widest">
+             MUSEA<span className="text-white">ADMIN</span>
+           </h1>
+           <p className="text-xs text-gray-400 mt-1">Backoffice Beheer</p>
         </div>
-        
+
         <nav className="flex-1 p-4 space-y-2">
-          <Link href="/crm" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white/5 text-white">
-            <LayoutDashboard size={18} /> Dashboard
-          </Link>
-          <Link href="/crm/tours" className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
-            <ImageIcon size={18} /> Tours & Content
-          </Link>
-          <Link href="/crm/users" className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
-            <Users size={18} /> Gebruikers
-          </Link>
+           <AdminLink href="/crm" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
+           
+           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Content</div>
+           <AdminLink href="/crm/artworks" icon={<ImageIcon size={20}/>} label="Kunstwerken" />
+           <AdminLink href="/crm/tours" icon={<Headphones size={20}/>} label="Tours" />
+           <AdminLink href="/crm/focus" icon={<Crosshair size={20}/>} label="Focus Items" />
+           <AdminLink href="/crm/games" icon={<Gamepad2 size={20}/>} label="Games & Quiz" />
+           
+           {/* NIEUWE PAGINA'S SECTIE */}
+           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Pagina's</div>
+           <AdminLink href="/crm/salon" icon={<Brush size={20}/>} label="Salon" />
+           <AdminLink href="/crm/academie" icon={<BookOpen size={20}/>} label="Academie" />
+
+           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Relaties & Systeem</div>
+           <AdminLink href="/crm/users" icon={<Users size={20}/>} label="Gebruikers" />
+           <AdminLink href="/crm/settings" icon={<Settings size={20}/>} label="Algemene Instellingen" />
         </nav>
 
         <div className="p-4 border-t border-white/10">
-          <Link href="/" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-500 hover:text-white">
-            <LogOut size={16} /> Terug naar site
-          </Link>
+           <form action="/auth/signout" method="post">
+             <button className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors w-full p-2 rounded-lg hover:bg-white/5">
+                <LogOut size={20} /> Uitloggen
+             </button>
+           </form>
         </div>
       </aside>
 
-      {/* CONTENT */}
-      <main className="flex-1 overflow-y-auto">
-        {children}
+      {/* MAIN CONTENT */}
+      <main className="flex-1 ml-64 p-8 overflow-y-auto">
+         {children}
       </main>
+
     </div>
+  );
+}
+
+function AdminLink({ href, icon, label }: { href: string, icon: React.ReactNode, label: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-museum-gold hover:text-black transition-all font-medium">
+      {icon}
+      <span>{label}</span>
+    </Link>
   );
 }
