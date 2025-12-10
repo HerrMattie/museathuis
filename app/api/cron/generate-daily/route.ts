@@ -13,7 +13,7 @@ export async function GET() {
   
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   // Zorg dat je 1.5-flash gebruikt als je package.json geupdate is, anders gemini-pro
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
   try {
     // ---------------------------------------------------------
