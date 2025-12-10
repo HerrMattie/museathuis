@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabaseClient'; // Let op: Client versie
-import { trackActivity } from '@/lib/tracking'; // Jouw bestaande lib
+import { createClient } from '@/lib/supabaseClient'; 
+import { trackActivity } from '@/lib/tracking'; 
 
 export default function PageTracker() {
   const pathname = usePathname();
@@ -24,9 +24,9 @@ export default function PageTracker() {
   useEffect(() => {
     if (!userId) return;
 
-    // Bepaal type content op basis van URL
     let contentType = 'general';
-    let contentId = undefined;
+    // FIX: Expliciet type aangeven
+    let contentId: string | undefined = undefined;
     
     // Voorbeeld URL: /tour/123-abc
     if (pathname.startsWith('/tour/')) { contentType = 'tour'; contentId = pathname.split('/')[2]; }
@@ -34,18 +34,14 @@ export default function PageTracker() {
     else if (pathname.startsWith('/game/')) { contentType = 'game'; contentId = pathname.split('/')[2]; }
     else if (pathname.startsWith('/salons/')) { contentType = 'salon'; contentId = pathname.split('/')[2]; }
 
-    // Start de stopwatch
     const startTime = Date.now();
 
-    // A. Log dat we de pagina zien (Interesse profiel)
-    // We roepen jouw functie aan, en geven de supabase client mee
+    // A. Log Page View
     trackActivity(supabase, userId, 'page_view', contentId, { path: pathname, type: contentType });
 
-    // B. Log als we weggaan (Lees-tijd / Aandacht profiel)
+    // B. Log Time Spent bij verlaten
     return () => {
         const timeSpentSeconds = Math.round((Date.now() - startTime) / 1000);
-        
-        // Alleen loggen als het 'echt' bezoek was (> 5 seconden)
         if (timeSpentSeconds > 5) {
             trackActivity(supabase, userId, 'time_spent', contentId, { 
                 path: pathname, 
@@ -56,5 +52,5 @@ export default function PageTracker() {
     };
   }, [pathname, searchParams, userId, supabase]);
 
-  return null; // Onzichtbaar
+  return null;
 }
