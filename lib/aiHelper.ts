@@ -6,7 +6,8 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     throw new Error("Server configuratie fout: API Key ontbreekt.");
   }
 
-  // We gebruiken de REST API direct. Dit werkt ALTIJD, onafhankelijk van libraries.
+  // We gebruiken de v1beta endpoint met gemini-1.5-flash (snel & goedkoop)
+  // Let op de URL structuur: models/gemini-1.5-flash:generateContent
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   try {
@@ -20,7 +21,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(`Google AI Error (${response.status}): ${errorData.error?.message}`);
+      throw new Error(`Google AI Fout (${response.status}): ${errorData.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
@@ -29,15 +30,20 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     if (!rawText) throw new Error("AI gaf leeg antwoord.");
 
     if (jsonMode) {
-      // Schoonmaak van markdown
+      // Schoonmaak van eventuele markdown code blocks
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleanJson);
+      try {
+        return JSON.parse(cleanJson);
+      } catch (e) {
+        console.error("JSON Parse Fout. Tekst:", rawText);
+        throw new Error("AI antwoord was geen geldig JSON.");
+      }
     }
 
     return rawText;
 
   } catch (error: any) {
     console.error("AI Helper Fout:", error);
-    throw error; // Gooi door naar de route
+    throw error; // Gooi door naar de frontend
   }
 }
