@@ -83,15 +83,20 @@ export default function ReviewPage() {
                 {candidates.map((item) => (
                     <div key={item.wikidata_id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
                         
-                        {/* IMAGE */}
+                       {/* IMAGE */}
                         <div className="h-56 relative bg-slate-100">
                             <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
                             
-                            {/* Kwaliteit Badge */}
-                            <div className="absolute top-2 left-2 bg-green-500/90 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm">
+                            {/* --- NIEUW: TYPE BADGE --- */}
+                            <div className="absolute top-2 left-2 bg-blue-600/90 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
+                                {item.type}
+                            </div>
+                        
+                            {/* Kwaliteit Badge (AANGEPAST: Verplaatst naar top-9 om overlap te voorkomen) */}
+                            <div className="absolute top-9 left-2 bg-green-500/90 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm">
                                 {item.width}x{item.height}
                             </div>
-
+                        
                             {/* Populariteit Badge */}
                             <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm">
                                 ★ {item.sitelinks}
