@@ -2,73 +2,45 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 60;
-
-export async function POST(req: Request) {
+export async function POST() {
   const supabase = createClient(cookies());
 
+  // 1. SPARQL Query voor Wikidata (Haal populaire schilderijen met plaatjes)
+  const sparqlQuery = `
+    SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image WHERE {
+      ?item wdt:P31 wd:Q3305213;  # Het is een schilderij
+            wdt:P18 ?image;       # Het heeft een plaatje
+            wdt:P170 ?artist.     # Het heeft een artiest
+      
+      # Alleen werken van beroemde schilders (optioneel, voor kwaliteit)
+      VALUES ?artist { wd:Q5599 wd:Q5597 wd:Q296 } # Rubens, Rembrandt, Vermeer, Picasso etc. kan je toevoegen
+      
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],nl,en". }
+    } LIMIT 20
+  `;
+
+  const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparqlQuery)}&format=json`;
+
   try {
-    // DE STRENGE CURATOR QUERY
-    // 1. P31 Q3305213 = Het is een schilderij (geen schets/beeld/munt)
-    // 2. P18 = Heeft een afbeelding
-    // 3. P570 = Overlijdensdatum (moet < 1954 zijn voor copyright)
-    // 4. Sitelinks = Populariteitsmeter
-    
-    const sparqlQuery = `
-      SELECT ?item ?itemLabel ?artistLabel ?image ?deathDate ?sitelinks WHERE {
-        ?item wdt:P31 wd:Q3305213;
-              wdt:P18 ?image;
-              wdt:P170 ?artist;
-              wikibase:sitelinks ?sitelinks.
+    // 2. Haal data van Wikidata
+    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!response.ok) throw new Error("Wikidata error");
+    const json = await response.json();
 
-        ?artist wdt:P570 ?deathDate.
+    const artworks = json.results.bindings.map((b: any) => ({
+      title: b.itemLabel.value,
+      artist: b.artistLabel.value,
+      image_url: b.image.value,
+      description_primary: "Geïmporteerd uit Wikidata",
+      is_enriched: false // Moet nog door AI
+    }));
 
-        # JURIDISCH FILTER: Maker langer dan 70 jaar dood (veiligheidsmarge: voor 1950)
-        FILTER(YEAR(?deathDate) < 1950)
+    // 3. Sla op in Supabase (upsert op basis van image_url om dubbelen te voorkomen)
+    const { error } = await supabase.from('artworks').upsert(artworks, { onConflict: 'image_url' });
 
-        # KWALITEIT FILTER 1: Minimaal in 3 talen op Wikipedia (filtert obscure rommel)
-        FILTER(?sitelinks > 3)
+    if (error) throw error;
 
-        # TAAL: Nederlands of Engels label beschikbaar
-        SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
-      }
-      ORDER BY RAND() # Blijft willekeurig voor de mix
-      LIMIT 5
-    `;
-
-    const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparqlQuery)}&format=json`;
-    
-    const response = await fetch(url, {
-      headers: { 'Accept': 'application/json' }
-    });
-
-    const data = await response.json();
-    const bindings = data.results.bindings;
-    const importedWorks = [];
-
-    for (const row of bindings) {
-      const title = row.itemLabel?.value;
-      const artist = row.artistLabel?.value;
-      const imageUrl = row.image?.value;
-
-      // Extra check: Sla geen werken op met 'Untitled' of rare namen
-      if (title && !title.startsWith("Q") && artist && imageUrl) {
-        
-        const { data: inserted, error } = await supabase.from('artworks').upsert({
-          title: title,
-          artist: artist,
-          image_url: imageUrl,
-          description_primary: `Publiek domein werk van ${artist}.`,
-          is_enriched: false,
-          // We voegen de juridische credit line toe
-          description_technical: "Image Source: Wikimedia Commons / Wikidata (Public Domain)",
-        }, { onConflict: 'image_url' }).select().single();
-
-        if (!error && inserted) importedWorks.push(inserted);
-      }
-    }
-
-    return NextResponse.json({ success: true, count: importedWorks.length });
+    return NextResponse.json({ success: true, count: artworks.length });
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
