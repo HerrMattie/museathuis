@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
+import { trackActivity } from '@/lib/tracking'; // <--- IMPORT
 import { User, HelpCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
@@ -11,7 +12,9 @@ export default function WhoAmIEngine({ game, items, userId }: { game: any, items
     const [score, setScore] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
     
-    // items[0] is de enige vraag in dit speltype (meestal dagelijkse challenge)
+    // STARTTIJD
+    const startTimeRef = useRef(Date.now());
+    
     const currentItem = items[0]; 
     const hints = currentItem.extra_data?.hints || ["Hint 1", "Hint 2", "Hint 3"];
     
@@ -24,11 +27,10 @@ export default function WhoAmIEngine({ game, items, userId }: { game: any, items
             const points = (3 - step) * 10;
             finishGame(points);
         } else {
-            // Fout? Volgende hint tonen
             if (step < 2) {
                 setStep(s => s + 1);
             } else {
-                finishGame(0); // Verloren
+                finishGame(0);
             }
         }
     };
@@ -37,22 +39,25 @@ export default function WhoAmIEngine({ game, items, userId }: { game: any, items
         setScore(finalScore);
         setIsFinished(true);
         if (finalScore > 0) confetti();
+
+        const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
         
-        await supabase.from('user_activity_logs').insert({
-            user_id: userId,
-            action_type: 'complete_game',
-            entity_id: game.id,
-            metadata: { score: finalScore, type: 'who_am_i' }
+        await trackActivity(supabase, userId, 'complete_game', game.id, {
+            score: finalScore,
+            max_score: 30,
+            type: 'who_am_i',
+            duration: duration
         });
     };
 
     if (isFinished) {
         return (
-            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl">
+            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
                 <User size={48} className="mx-auto text-museum-gold mb-4"/>
-                <h2 className="text-3xl font-bold text-white mb-2">Het was {currentItem.correct_answer}!</h2>
-                <p className="text-gray-400 mb-6">Score: {score} punten</p>
-                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto">Terug</button>
+                <h2 className="text-3xl font-bold text-white mb-2">{score > 0 ? "Gevonden!" : "Niet geraden"}</h2>
+                <p className="text-gray-400 mb-6">Het was: <span className="text-white font-bold">{currentItem.correct_answer}</span></p>
+                <p className="text-museum-gold font-bold mb-6">Score: {score}</p>
+                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto hover:bg-gray-200">Terug</button>
             </div>
         );
     }
@@ -61,29 +66,26 @@ export default function WhoAmIEngine({ game, items, userId }: { game: any, items
 
     return (
         <div className="max-w-md mx-auto w-full">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 min-h-[200px] flex flex-col justify-center items-center text-center">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 min-h-[200px] flex flex-col justify-center items-center text-center relative overflow-hidden">
                 <HelpCircle size={32} className="text-gray-500 mb-4"/>
                 
-                <div className="space-y-4 w-full">
-                    {/* HINT 1 */}
+                <div className="space-y-4 w-full relative z-10">
                     <div className="animate-in fade-in zoom-in">
                         <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-1">Hint 1 (30 pnt)</p>
-                        <p className="text-xl font-serif">{hints[0]}</p>
+                        <p className="text-xl font-serif text-white">{hints[0]}</p>
                     </div>
 
-                    {/* HINT 2 */}
                     {step >= 1 && (
                         <div className="animate-in fade-in zoom-in pt-4 border-t border-white/5">
                             <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-1">Hint 2 (20 pnt)</p>
-                            <p className="text-xl font-serif">{hints[1]}</p>
+                            <p className="text-xl font-serif text-white">{hints[1]}</p>
                         </div>
                     )}
 
-                    {/* HINT 3 */}
                     {step >= 2 && (
                         <div className="animate-in fade-in zoom-in pt-4 border-t border-white/5">
                             <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-1">Hint 3 (10 pnt)</p>
-                            <p className="text-xl font-serif">{hints[2]}</p>
+                            <p className="text-xl font-serif text-white">{hints[2]}</p>
                         </div>
                     )}
                 </div>
@@ -91,7 +93,7 @@ export default function WhoAmIEngine({ game, items, userId }: { game: any, items
 
             <div className="grid grid-cols-1 gap-3">
                 {options.map((opt, idx) => (
-                    <button key={idx} onClick={() => handleAnswer(opt)} className="bg-midnight-900 border border-white/10 p-4 rounded-xl font-bold hover:bg-white hover:text-black transition-all">
+                    <button key={idx} onClick={() => handleAnswer(opt)} className="bg-midnight-900 border border-white/10 p-4 rounded-xl font-bold text-white hover:bg-white hover:text-black transition-all">
                         {opt}
                     </button>
                 ))}
