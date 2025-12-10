@@ -4,46 +4,43 @@ export async function POST(req: Request) {
   try {
     const { text } = await req.json();
 
-    // Je hebt een OpenAI Key nodig voor de stemmen. 
-    // Zet deze in je .env.local als OPENAI_API_KEY
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json({ error: "OpenAI API Key ontbreekt (nodig voor audio)." }, { status: 500 });
+    if (!text) {
+      return NextResponse.json({ error: 'Geen tekst opgegeven' }, { status: 400 });
     }
 
-    // We gebruiken model 'tts-1' (snel) of 'tts-1-hd' (hogere kwaliteit).
-    // Stemmen: 'alloy', 'echo', 'fable', 'onyx' (aanrader voor museum), 'nova', 'shimmer'.
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`;
+
+    const body = {
+      input: { text: text },
+      // We kiezen een mooie, rustige museum-stem (Neural2 is de beste kwaliteit)
+      voice: { languageCode: 'nl-NL', name: 'nl-NL-Neural2-B' }, 
+      audioConfig: { audioEncoding: 'MP3' },
+    };
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1',
-        input: text,
-        voice: 'onyx', 
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || "Audio generatie mislukt");
+      const errorData = await response.json();
+      console.error("TTS Error:", errorData);
+      // Hier vangen we de 'Billing' fout af voor de duidelijkheid
+      if (errorData.error?.message?.includes('billing')) {
+          throw new Error("Google Cloud Billing is vereist voor audio. Activeer dit in de console.");
+      }
+      throw new Error(errorData.error?.message || 'TTS API Fout');
     }
 
-    // We sturen de audio stream direct door naar de frontend
-    const audioBuffer = await response.arrayBuffer();
+    const data = await response.json();
     
-    return new NextResponse(audioBuffer, {
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': audioBuffer.byteLength.toString(),
-      },
-    });
+    // Google geeft audio terug als base64 string. 
+    // Wij sturen die direct door naar de browser om af te spelen.
+    return NextResponse.json({ audioContent: data.audioContent });
 
   } catch (error: any) {
-    console.error("TTS Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
