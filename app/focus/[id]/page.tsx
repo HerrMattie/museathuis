@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Clock, Headphones, BookOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; // Zorg dat je deze in package.json zet!
+import AudioPlayer from '@/components/AudioPlayer'; // <--- Importeer deze
 
 export const revalidate = 0;
 
@@ -107,10 +108,10 @@ export default async function FocusDetailPage({ params }: { params: { id: string
                           <div className="bg-white/5 border border-white/10 p-6 rounded-xl">
                               <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Headphones size={20}/> Luistergids</h3>
                               <p className="text-sm text-gray-400 mb-4">Laat u meenemen door het verhaal terwijl u kijkt.</p>
-                              {/* Hier zou de Audio Player komen die de gegenereerde tekst (TTS) afspeelt */}
-                              <button className="w-full bg-white text-black py-2 rounded-lg font-bold hover:bg-gray-200 transition-colors">
-                                  Start Audio (Binnenkort)
-                              </button>
+                              
+                              {/* HIER IS DE NIEUWE SPELER */}
+                              <AudioPlayer text={item.audio_script_main} />
+                              
                           </div>
                       )}
 
