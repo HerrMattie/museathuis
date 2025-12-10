@@ -1,87 +1,83 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { 
-  LayoutDashboard, Image as ImageIcon, Headphones, Crosshair, 
-  Gamepad2, Users, LogOut, Settings, BookOpen, Brush 
-} from 'lucide-react'; 
+import type { Metadata } from "next";
+import { Inter, Playfair_Display } from "next/font/google";
+import "@/app/globals.css"; 
+import { createClient } from "@/lib/supabaseServer"; // <--- FIX: Gebruik de SERVER versie
+import { cookies } from "next/headers"; // <--- FIX: Nodig voor cookies
+import Link from "next/link";
+import { User, Menu } from "lucide-react";
+import Footer from "@/components/layout/Footer"; 
 
-// Hulp-component voor de links
-function AdminLink({ href, icon, label }: { href: string, icon: React.ReactNode, label: string }) {
-  return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-museum-gold hover:text-black transition-all font-medium">
-      {icon}
-      <span>{label}</span>
-    </Link>
-  );
-}
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair", display: "swap" });
 
-export default async function CrmLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient(cookies());
+export const metadata: Metadata = {
+  title: "MuseaThuis | Dagelijkse Kunstbeleving",
+  description: "Elke dag een nieuwe audiotour, game en focusmoment.",
+};
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  // FIX: Juiste manier om user op te halen in Server Component
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
   
-  // 1. SECURITY CHECK
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect('/login');
+  let user = null;
+  try {
+     const { data } = await supabase.auth.getUser();
+     user = data.user;
+  } catch (e) { 
+      // Geen user is geen ramp, we renderen gewoon als gast
   }
 
-  // Check of user echt admin is
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
-    redirect('/'); 
-  }
-
-  // 2. DE ADMIN UI
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900">
-      
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-midnight-950 text-white flex flex-col fixed h-full z-20">
-        <div className="p-6 border-b border-white/10">
-           <h1 className="font-serif text-xl font-bold text-museum-gold tracking-widest">
-             MUSEA<span className="text-white">ADMIN</span>
-           </h1>
-           <p className="text-xs text-gray-400 mt-1">Backoffice Beheer</p>
-        </div>
+    <html lang="nl" className={`${inter.variable} ${playfair.variable}`}>
+      <body className="bg-midnight-950 text-white font-sans antialiased min-h-screen flex flex-col">
+        
+        {/* GLOBAL HEADER */}
+        <nav className="fixed top-0 w-full z-50 bg-midnight-950/90 backdrop-blur-md border-b border-white/10 h-16 transition-all">
+          <div className="container mx-auto px-6 h-full flex justify-between items-center">
+            
+            <Link href="/" className="font-serif text-xl font-bold tracking-widest text-museum-gold hover:text-white transition-colors">
+              MUSEATHUIS
+            </Link>
+            
+            <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-400">
+               <Link href="/tour" className="hover:text-white transition-colors">Tour</Link>
+               <Link href="/game" className="hover:text-white transition-colors">Game</Link>
+               <Link href="/focus" className="hover:text-white transition-colors">Focus</Link>
+               <Link href="/salon" className="hover:text-white transition-colors">Salon</Link>
+               <Link href="/academie" className="hover:text-white transition-colors">Academie</Link>
+               <Link href="/best-of" className="hover:text-white transition-colors">Best of</Link>
+            </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-           <AdminLink href="/crm" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
-           
-           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Content</div>
-           <AdminLink href="/crm/tours" icon={<Headphones size={20}/>} label="Tours" />
-           <AdminLink href="/crm/focus" icon={<Crosshair size={20}/>} label="Focus Items" />
-           <AdminLink href="/crm/games" icon={<Gamepad2 size={20}/>} label="Games & Quiz" />
-           <AdminLink href="/crm/artworks" icon={<ImageIcon size={20}/>} label="Kunstwerken" />
-           
-           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Pagina's</div>
-           <AdminLink href="/crm/salon" icon={<Brush size={20}/>} label="Salon" />
-           <AdminLink href="/crm/academie" icon={<BookOpen size={20}/>} label="Academie" />
-
-           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Systeem</div>
-           <AdminLink href="/crm/users" icon={<Users size={20}/>} label="Gebruikers" />
-           <AdminLink href="/crm/settings" icon={<Settings size={20}/>} label="Instellingen" />
+            <div className="flex items-center gap-4 text-sm font-bold">
+              {user ? (
+                 <Link href="/profile" className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors border border-white/5">
+                    <User size={16} /> <span className="hidden md:inline">Mijn Profiel</span>
+                 </Link>
+              ) : (
+                 <>
+                   <Link href="/login" className="hidden md:block text-gray-300 hover:text-white transition-colors">Inloggen</Link>
+                   <Link href="/pricing" className="text-black bg-museum-gold hover:bg-white transition-colors px-4 py-2 rounded-full shadow-lg shadow-museum-gold/10">
+                      Word Lid
+                   </Link>
+                 </>
+              )}
+              <button className="lg:hidden text-white"><Menu size={24} /></button>
+            </div>
+          </div>
         </nav>
 
-        <div className="p-4 border-t border-white/10">
-           <form action="/auth/signout" method="post">
-             <button className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors w-full p-2 rounded-lg hover:bg-white/5">
-                <LogOut size={20} /> Uitloggen
-             </button>
-           </form>
+        <div className="pt-16 flex-1 flex flex-col">
+          {children}
         </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <main className="flex-1 ml-64 p-8 overflow-y-auto">
-         {children}
-      </main>
-
-    </div>
+        
+        <Footer />
+        
+      </body>
+    </html>
   );
 }
