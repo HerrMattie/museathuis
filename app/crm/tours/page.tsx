@@ -5,62 +5,7 @@ import { Plus, Edit, Zap, Calendar, Play, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
-export const revalidate = 0; // Altijd verse data in CRM
-
-export default async function CrmToursPage() {
-  const supabase = createClient(cookies());
-  
-  // Haal tours op
-  const { data: tours } = await supabase
-    .from('tours')
-    .select('*')
-    .order('scheduled_date', { ascending: false });
-
-  // Filter tours om de 'daily' tours te tonen die automatisch gegenereerd worden
-  const dailyTours = tours?.filter(t => t.type === 'daily');
-  // Filter de overige tours (handmatig gemaakte, speciale thema tours etc.)
-  const specialTours = tours?.filter(t => t.type !== 'daily');
-
-  return (
-    <div>
-      <header className="flex justify-between items-center mb-8">
-        <div>
-            <h2 className="text-3xl font-bold text-slate-800">Tour Beheer</h2>
-            <p className="text-slate-500">Genereer, plan en bewerk je Audio Tours.</p>
-        </div>
-        <div className="flex gap-3">
-             {/* TOUR GENERATIE/SCHEDULING: Deze actie genereert de 'Daily Tour' voor vandaag */}
-             <form action="/api/cron/generate-daily" method="GET" target="_blank">
-                <button className="bg-orange-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-orange-600 transition-colors">
-                   <Zap size={18} /> Genereer Vandaag's Tours
-                </button>
-             </form>
-             <Link href="/crm/tours/create" className="bg-museum-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-600 transition-colors">
-                 <Plus size={18} /> Nieuwe Handmatige Tour
-             </Link>
-        </div>
-      </header>
-
-      {/* 1. DAGELIJKSE TOURS (Geplande / Automatische) */}
-      <TourSection 
-          title="Automatisch Geplande (Dagelijkse) Tours" 
-          description="Dit zijn de tours die de AI dagelijks automatisch genereert op basis van de ingeplande onderwerpen."
-          tours={dailyTours}
-          icon={<Calendar size={20} />}
-      />
-
-      {/* 2. SPECIALE TOURS (Handmatig Gemaakt) */}
-      <TourSection 
-          title="Speciale & Handmatige Tours" 
-          description="Tours die handmatig zijn gecreëerd voor speciale tentoonstellingen of evenementen."
-          tours={specialTours}
-          icon={<Star size={20} />}
-      />
-
-    </div>
-  );
-}
-
+export const revalidate = 0;
 
 function TourSection({ title, description, tours, icon }: any) {
     return (
@@ -128,4 +73,55 @@ function TourSection({ title, description, tours, icon }: any) {
             </div>
         </div>
     );
+}
+
+export default async function CrmToursPage() {
+  const supabase = createClient(cookies());
+  
+  // Haal tours op
+  const { data: tours } = await supabase
+    .from('tours')
+    .select('*')
+    .order('scheduled_date', { ascending: false });
+
+  const dailyTours = tours?.filter(t => t.type === 'daily');
+  const specialTours = tours?.filter(t => t.type !== 'daily');
+
+  return (
+    <div>
+      <header className="flex justify-between items-center mb-8">
+        <div>
+            <h2 className="text-3xl font-bold text-slate-800">Tour Beheer</h2>
+            <p className="text-slate-500">Genereer, plan en bewerk je Audio Tours.</p>
+        </div>
+        <div className="flex gap-3">
+             <form action="/api/cron/generate-daily" method="GET" target="_blank">
+                <button className="bg-orange-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-orange-600 transition-colors">
+                   <Zap size={18} /> Genereer Vandaag's Tours
+                </button>
+             </form>
+             <Link href="/crm/tours/create" className="bg-museum-gold text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-600 transition-colors">
+                 <Plus size={18} /> Nieuwe Handmatige Tour
+             </Link>
+        </div>
+      </header>
+
+      {/* 1. DAGELIJKSE TOURS (Geplande / Automatische) */}
+      <TourSection 
+          title="Automatisch Geplande (Dagelijkse) Tours" 
+          description="Dit zijn de tours die de AI dagelijks automatisch genereert op basis van de ingeplande onderwerpen."
+          tours={dailyTours}
+          icon={<Calendar size={20} />}
+      />
+
+      {/* 2. SPECIALE TOURS (Handmatig Gemaakt) */}
+      <TourSection 
+          title="Speciale & Handmatige Tours" 
+          description="Tours die handmatig zijn gecreëerd voor speciale tentoonstellingen of evenementen."
+          tours={specialTours}
+          icon={<Star size={20} />}
+      />
+
+    </div>
+  );
 }
