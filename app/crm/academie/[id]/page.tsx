@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import EditSalonForm from './EditSalonForm';
+import EditAcademieForm from './EditAcademieForm';
 
 export const revalidate = 0;
 
-export default async function EditSalonPage({ params }: { params: { id: string } }) {
+export default async function EditAcademieForm({ params }: { params: { id: string } }) {
   const supabase = createClient(cookies());
   
   let initialItem = {
@@ -17,7 +17,7 @@ export default async function EditSalonPage({ params }: { params: { id: string }
   };
 
   if (params.id !== 'new') {
-    const { data } = await supabase.from('salons').select('*').eq('id', params.id).single();
+    const { data } = await supabase.from('academie').select('*').eq('id', params.id).single();
     if (data) {
       initialItem = data;
     }
@@ -26,7 +26,7 @@ export default async function EditSalonPage({ params }: { params: { id: string }
   return (
     <div>
       <h2 className="text-3xl font-bold text-slate-800 mb-6">
-        {params.id === 'new' ? 'Nieuwe Salon Aanmaken' : `Salon bewerken: ${initialItem.title}`}
+        {params.id === 'new' ? 'Nieuwe Academie Aanmaken' : `Academie bewerken: ${initialItem.title}`}
       </h2>
       <EditSalonForm initialItem={initialItem} isNew={params.id === 'new'} />
     </div>
