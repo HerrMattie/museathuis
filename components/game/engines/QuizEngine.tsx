@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Check, X, Trophy, Home, RefreshCw } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking'; // <--- Centrale intelligentie
+import { Check, X, Trophy, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti'; 
-
-// Installeer confetti als je dat nog niet had: npm i canvas-confetti && npm i --save-dev @types/canvas-confetti
 
 export default function QuizEngine({ game, items, userId }: { game: any, items: any[], userId: string }) {
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -15,12 +14,14 @@ export default function QuizEngine({ game, items, userId }: { game: any, items: 
     const [isAnswered, setIsAnswered] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
     
+    // STARTTIJD (Voor duur-meting)
+    const startTimeRef = useRef(Date.now());
+    
     const supabase = createClient();
     const router = useRouter();
     const currentItem = items[currentIndex];
 
-    // Mix antwoorden (Simpele shuffle)
-    // In productie: Doe dit in useEffect om hydration errors te voorkomen
+    // Mix antwoorden (Simpele shuffle bij render)
     const allAnswers = [currentItem.correct_answer, ...currentItem.wrong_answers].sort();
 
     const handleAnswer = (answer: string) => {
@@ -31,10 +32,11 @@ export default function QuizEngine({ game, items, userId }: { game: any, items: 
         const isCorrect = answer === currentItem.correct_answer;
         if (isCorrect) {
             setScore(s => s + 1);
-            confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } }); // Klein feestje
+            // Klein pufje confetti bij goed antwoord
+            confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } }); 
         }
 
-        // Wacht even en ga door
+        // Wacht 2 seconden en ga door
         setTimeout(() => {
             if (currentIndex < items.length - 1) {
                 setCurrentIndex(c => c + 1);
@@ -43,22 +45,23 @@ export default function QuizEngine({ game, items, userId }: { game: any, items: 
             } else {
                 finishGame(isCorrect ? score + 1 : score);
             }
-        }, 2000);
+        }, 1500);
     };
 
     const finishGame = async (finalScore: number) => {
         setIsFinished(true);
-        if (finalScore === items.length) confetti({ particleCount: 200, spread: 100 }); // GROOT feest
+        if (finalScore === items.length) confetti(); // GROOT feest bij alles goed
 
-        // 1. Log activiteit (XP verdienen)
-        await supabase.from('user_activity_logs').insert({
-            user_id: userId,
-            action_type: 'complete_game',
-            entity_id: game.id,
-            metadata: { score: finalScore, max_score: items.length, type: 'quiz' }
+        // BEREKEN TIJD
+        const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
+
+        // TRACKING (Slaat score op, checkt streak, checkt badges)
+        await trackActivity(supabase, userId, 'complete_game', game.id, {
+            score: finalScore,
+            max_score: items.length,
+            type: 'quiz',
+            duration: duration
         });
-        
-        // Hier zou je ook de 'daily limit' vlag kunnen zetten in de DB
     };
 
     if (isFinished) {
