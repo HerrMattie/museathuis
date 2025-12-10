@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { generateWithAI } from '@/lib/aiHelper';
+import { generateWithAI } from '@/lib/aiHelper'; // Gebruik de helper!
 
 export const maxDuration = 60; 
 
@@ -23,45 +23,41 @@ export async function GET() {
 
     const createdIds = { tours: [] as string[], focus: [] as string[], games: [] as string[] };
 
-    // 2. Genereren (Loop 3x)
+    // 2. Genereren
     for (let i = 0; i < 3; i++) {
         const art = seedArtworks[i];
         
-        // A. TOUR (Geen AI nodig voor basis, alleen insert)
+        // A. TOUR
         const { data: tour } = await supabase.from('tours').insert({
             title: `Tour: ${art.title}`,
-            intro: `Ontdek het verhaal achter ${art.title}.`,
+            intro: `Ontdek ${art.title}.`,
             hero_image_url: art.image_url,
             status: 'published',
             type: 'daily'
         }).select().single();
         if(tour) createdIds.tours.push(tour.id);
 
-        // B. FOCUS (Wel AI)
+        // B. FOCUS (AI via Helper)
         try {
-            // We gebruiken false voor jsonMode omdat we hier simpele tekst willen
-            const aiText = await generateWithAI(`Schrijf een korte intro (max 40 woorden) over "${art.title}" van ${art.artist}.`, false);
-            
+            const aiText: any = await generateWithAI(`Schrijf intro over "${art.title}"`, false); // false = text mode
             const { data: focus } = await supabase.from('focus_items').insert({
                 title: `Focus: ${art.title}`,
-                intro: typeof aiText === 'string' ? aiText.trim() : "Focus op kunst.",
+                intro: aiText.toString().trim(),
                 artwork_id: art.id,
                 status: 'published'
             }).select().single();
             if(focus) createdIds.focus.push(focus.id);
         } catch(e) { console.error("Focus AI Fail", e); }
 
-        // C. GAME (Wel AI)
+        // C. GAME (AI via Helper)
         try {
-            const quizData = await generateWithAI(`Maak 3 quizvragen over "${art.title}". JSON Format: [{ "question": "...", "correct_answer": "...", "wrong_answers": ["..."] }]`, true);
-            
+            const quizData: any = await generateWithAI(`Maak 3 quizvragen over "${art.title}". JSON: [{ "question": "...", "correct_answer": "...", "wrong_answers": ["..."] }]`, true);
             if (Array.isArray(quizData)) {
                 const { data: game } = await supabase.from('games').insert({
                     title: `Quiz: ${art.title}`,
                     short_description: `Test je kennis.`,
                     status: 'published'
                 }).select().single();
-                
                 if (game) {
                     createdIds.games.push(game.id);
                     const items = quizData.map((q:any, idx:number) => ({
@@ -85,7 +81,6 @@ export async function GET() {
     return NextResponse.json({ success: true, date: today });
 
   } catch (error: any) {
-    console.error("Cron Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
