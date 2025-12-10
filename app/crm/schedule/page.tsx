@@ -51,9 +51,9 @@ export default async function CrmSchedulePage() {
       const dayGames = getTitles(dayData?.game_ids || [], games || []);
       const dayFocus = getTitles(dayData?.focus_ids || [], focusItems || []);
 
-      // FIX: STRIKTERE LOGICA VOOR 'GEREED'
-      // Een dag is pas klaar als er Tours EN Games EN Focus items zijn
-      const hasContent = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0);
+      // FIX: STRIKTE LOGICA
+      // Een dag is pas 'Compleet' als er minstens 1 Tour, 1 Game EN 1 Focus item is.
+      const hasSomething = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0);
       const isFullyReady = dayData && dayTours.length > 0 && dayGames.length > 0 && dayFocus.length > 0;
 
       return (
@@ -68,15 +68,15 @@ export default async function CrmSchedulePage() {
                     {!isArchive && (
                         isFullyReady ? 
                         <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full flex gap-1 items-center"><CheckCircle size={10}/> Gereed</span> : 
-                        <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full flex gap-1 items-center"><AlertTriangle size={10}/> {hasContent ? 'Incompleet' : 'Leeg'}</span>
+                        <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full flex gap-1 items-center"><AlertTriangle size={10}/> {hasSomething ? 'Incompleet' : 'Leeg'}</span>
                     )}
                 </div>
                 <Link href={`/crm/schedule/edit/${dateStr}`} className="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors font-medium">
-                    {hasContent ? 'Wijzigen' : 'Inplannen'}
+                    {hasSomething ? 'Wijzigen' : 'Inplannen'}
                 </Link>
             </div>
             
-            {(hasContent) && (
+            {(hasSomething) && (
                 <div className="p-4 text-xs text-slate-600 grid grid-cols-3 gap-2">
                     <div>
                         <strong className="block text-slate-400 mb-1">Tours</strong>
