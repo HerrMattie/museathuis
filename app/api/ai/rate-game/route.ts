@@ -1,51 +1,29 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
+import { generateWithAI } from '@/lib/aiHelper';
 
 export async function POST(req: Request) {
   try {
-    const { topic } = await req.json();
+    const { question, userAnswer, correctAnswer } = await req.json();
     
-    if (!process.env.GOOGLE_API_KEY) {
-        return NextResponse.json({ error: "Google API Key ontbreekt" }, { status: 500 });
-    }
-
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-    // We gebruiken 'gemini-pro' omdat die stabiel werkt met jouw versie
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
     const prompt = `
-      Je bent een museum curator. Maak een boeiende quiz over het onderwerp: "${topic}".
+      Ik ben een quizmaster.
+      Vraag: "${question}"
+      Juiste antwoord: "${correctAnswer}"
+      Antwoord van speler: "${userAnswer}"
       
-      De output MOET valide JSON zijn en mag GEEN markdown opmaak (zoals \`\`\`json) bevatten.
-      
-      Structuur:
-      {
-        "title": "Pakkende titel",
-        "short_description": "Korte wervende tekst (max 150 tekens)",
-        "questions": [
-          {
-            "question": "De vraag?",
-            "correct_answer": "Het goede antwoord",
-            "wrong_answers": ["Fout 1", "Fout 2", "Fout 3"]
-          }
-        ]
+      Beoordeel het antwoord van de speler.
+      Geef ALLEEN valide JSON. Format:
+      { 
+        "is_correct": boolean, 
+        "score": number (0-100), 
+        "feedback": "Korte uitleg waarom het goed of fout is (max 2 zinnen)." 
       }
-      
-      Zorg voor 5 vragen. De taal moet Nederlands zijn.
+      Taal: Nederlands.
     `;
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-
-    // Schoon de tekst op (soms stuurt AI toch markdown)
-    const cleanText = text.replace(/```json|```/g, '').trim();
     
-    const data = JSON.parse(cleanText);
-
+    const data = await generateWithAI(prompt, true);
     return NextResponse.json(data);
-
   } catch (error: any) {
-    console.error("AI Error:", error);
-    return NextResponse.json({ error: error.message || "AI generatie mislukt" }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
