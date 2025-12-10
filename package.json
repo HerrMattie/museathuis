@@ -1,6 +1,6 @@
 {
   "name": "museathuis-premium",
-  "version": "0.1.9",
+  "version": "0.2.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,8 +19,10 @@
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.344.0",
     "@google/generative-ai": "^0.21.0",
+    "@google-cloud/text-to-speech": "^5.0.1",
     "canvas-confetti": "^1.9.3",
-    "date-fns": "^3.3.1"
+    "date-fns": "^3.3.1",
+    "react-markdown": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "20.11.0",
