@@ -2,25 +2,38 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-// NIEUW: BookOpen en Brush iconen toegevoegd
-import { LayoutDashboard, Image as ImageIcon, Headphones, Crosshair, Gamepad2, Users, LogOut, Settings, BookOpen, Brush } from 'lucide-react'; 
+import { 
+  LayoutDashboard, Image as ImageIcon, Headphones, Crosshair, 
+  Gamepad2, Users, LogOut, Settings, BookOpen, Brush 
+} from 'lucide-react'; 
+
+function AdminLink({ href, icon, label }: { href: string, icon: React.ReactNode, label: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-museum-gold hover:text-black transition-all font-medium">
+      {icon}
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient(cookies());
   
-  // 1. SECURITY CHECK (Zelfde als vorige stap)
+  // 1. SECURITY CHECK
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect('/login');
   }
 
+  // FIX: We kijken nu naar 'is_admin' in plaats van 'role'
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role')
+    .select('is_admin') // <--- AANGEPAST
     .eq('user_id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
+  // FIX: Check op boolean true/false
+  if (!profile || !profile.is_admin) {
     redirect('/'); 
   }
 
@@ -41,19 +54,18 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
            <AdminLink href="/crm" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
            
            <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Content</div>
-           <AdminLink href="/crm/artworks" icon={<ImageIcon size={20}/>} label="Kunstwerken" />
            <AdminLink href="/crm/tours" icon={<Headphones size={20}/>} label="Tours" />
            <AdminLink href="/crm/focus" icon={<Crosshair size={20}/>} label="Focus Items" />
            <AdminLink href="/crm/games" icon={<Gamepad2 size={20}/>} label="Games & Quiz" />
+           <AdminLink href="/crm/artworks" icon={<ImageIcon size={20}/>} label="Kunstwerken" />
            
-           {/* NIEUWE PAGINA'S SECTIE */}
            <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Pagina's</div>
            <AdminLink href="/crm/salon" icon={<Brush size={20}/>} label="Salon" />
            <AdminLink href="/crm/academie" icon={<BookOpen size={20}/>} label="Academie" />
 
-           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Relaties & Systeem</div>
+           <div className="pt-4 pb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Systeem</div>
            <AdminLink href="/crm/users" icon={<Users size={20}/>} label="Gebruikers" />
-           <AdminLink href="/crm/settings" icon={<Settings size={20}/>} label="Algemene Instellingen" />
+           <AdminLink href="/crm/settings" icon={<Settings size={20}/>} label="Instellingen" />
         </nav>
 
         <div className="p-4 border-t border-white/10">
@@ -71,14 +83,5 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       </main>
 
     </div>
-  );
-}
-
-function AdminLink({ href, icon, label }: { href: string, icon: React.ReactNode, label: string }) {
-  return (
-    <Link href={href} className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-museum-gold hover:text-black transition-all font-medium">
-      {icon}
-      <span>{label}</span>
-    </Link>
   );
 }
