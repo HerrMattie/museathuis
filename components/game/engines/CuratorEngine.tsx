@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Palette, XCircle, CheckCircle } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking'; // <--- IMPORT
+import { Palette } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 
@@ -12,6 +13,9 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
     const [score, setScore] = useState(0);
     const [showHint, setShowHint] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
+    
+    // STARTTIJD
+    const startTimeRef = useRef(Date.now());
     
     const supabase = createClient();
     const router = useRouter();
@@ -37,7 +41,6 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
             if (lives <= 1) {
                 finishGame(score);
             } else {
-                // Bij fout: Toon automatisch de hint als troost
                 setShowHint(true);
             }
         }
@@ -46,21 +49,24 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
     const finishGame = async (finalScore: number) => {
         setIsFinished(true);
         if (lives > 0) confetti();
-        await supabase.from('user_activity_logs').insert({
-            user_id: userId,
-            action_type: 'complete_game',
-            entity_id: game.id,
-            metadata: { score: finalScore, type: 'curator' }
+
+        const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
+
+        await trackActivity(supabase, userId, 'complete_game', game.id, {
+            score: finalScore,
+            lives_left: lives,
+            type: 'curator',
+            duration: duration
         });
     };
 
     if (isFinished) {
         return (
-            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl">
+            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
                 <Palette size={48} className="mx-auto text-museum-gold mb-4"/>
                 <h2 className="text-3xl font-bold text-white mb-2">{lives > 0 ? "Meesterlijk!" : "Helaas..."}</h2>
                 <p className="text-gray-400 mb-6">Score: {score}</p>
-                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto">Terug</button>
+                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto hover:bg-gray-200">Terug</button>
             </div>
         );
     }
@@ -78,11 +84,9 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
                 <div className="text-museum-gold font-bold">Score: {score}</div>
             </div>
 
-            {/* ARTWORK */}
-            <div className="bg-black rounded-xl overflow-hidden mb-6 relative group">
+            <div className="bg-black rounded-xl overflow-hidden mb-6 relative group border border-white/10">
                 <img src={currentItem.image_url} alt="Raad de maker" className="w-full h-64 object-contain mx-auto" />
                 
-                {/* HINT OVERLAY */}
                 {showHint && (
                     <div className="absolute bottom-0 left-0 w-full bg-black/80 backdrop-blur-sm p-4 text-center animate-in slide-in-from-bottom">
                         <p className="text-museum-gold text-xs font-bold uppercase">💡 Hint</p>
@@ -98,7 +102,7 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
                     <button 
                         key={idx} 
                         onClick={() => handleAnswer(opt)}
-                        className="bg-midnight-900 border border-white/10 p-4 rounded-xl font-medium hover:bg-white/10 hover:border-museum-gold transition-all"
+                        className="bg-midnight-900 border border-white/10 p-4 rounded-xl font-medium hover:bg-white/10 hover:border-museum-gold transition-all text-white"
                     >
                         {opt}
                     </button>
