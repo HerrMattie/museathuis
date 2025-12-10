@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Calendar, RefreshCw, AlertTriangle, CheckCircle, History, ArrowRight } from 'lucide-react';
+import { Calendar, RefreshCw, AlertTriangle, CheckCircle, History } from 'lucide-react';
 import { format, addDays, subDays, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -12,14 +12,14 @@ export default async function CrmSchedulePage() {
   const today = new Date().toISOString().split('T')[0];
   const lastWeekStart = format(subDays(new Date(), 7), 'yyyy-MM-dd');
 
-  // 1. Haal rooster op: Vandaag + 7 dagen vooruit EN 7 dagen terug (Archief)
+  // 1. Haal rooster op
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
     .select('*')
-    .gte('day_date', lastWeekStart) // Vanaf vorige week
-    .order('day_date', { ascending: true }); // Oudste eerst
+    .gte('day_date', lastWeekStart)
+    .order('day_date', { ascending: true });
 
-  // 2. Verzamel ID's voor lookup
+  // 2. Verzamel ID's
   const allIds = new Set<string>();
   schedule?.forEach(s => {
       s.tour_ids?.forEach((id: string) => allIds.add(id));
@@ -33,51 +33,63 @@ export default async function CrmSchedulePage() {
   const { data: games } = await supabase.from('games').select('id, title').in('id', idArray);
   const { data: focusItems } = await supabase.from('focus_items').select('id, title').in('id', idArray);
 
-  // Helper
+  // Veilige helper
   const getTitles = (ids: any, source: any) => {
       if (!ids || !Array.isArray(ids) || ids.length === 0) return [];
       if (!source || !Array.isArray(source)) return [];
-      return ids.map((id: string) => source.find((item: any) => item.id === id)?.title || "Onbekend item");
+      return ids.map((id: string) => source.find((item: any) => item.id === id)?.title || "Onbekend");
   };
 
-  // Splits data in Toekomst en Verleden
   const upcomingDates = Array.from({ length: 7 }).map((_, i) => format(addDays(parseISO(today), i), 'yyyy-MM-dd'));
-  const archiveDates = Array.from({ length: 7 }).map((_, i) => format(subDays(parseISO(today), i + 1), 'yyyy-MM-dd')).reverse(); // Gisteren tot week terug
+  const archiveDates = Array.from({ length: 7 }).map((_, i) => format(subDays(parseISO(today), i + 1), 'yyyy-MM-dd')).reverse();
 
-const renderDayCard = (dateStr: string, isArchive: boolean) => {
+  const renderDayCard = (dateStr: string, isArchive: boolean) => {
       const dateObj = parseISO(dateStr);
       const dayData = schedule?.find(s => s.day_date === dateStr);
       
       const dayTours = getTitles(dayData?.tour_ids || [], tours || []);
       const dayGames = getTitles(dayData?.game_ids || [], games || []);
       const dayFocus = getTitles(dayData?.focus_ids || [], focusItems || []);
-      
-      // *** VERBETERDE LOGICA VOOR 'GEREED' ***
-      // We beschouwen een dag pas als 'Gereed' als er van elke categorie MINIMAAL 1 item is.
-      const isFilled = (dayData && dayTours.length = 3 && dayGames.length = 3  && dayFocus.length = 3);
-  
+
+      // FIX: STRIKTERE LOGICA VOOR 'GEREED'
+      // Een dag is pas klaar als er Tours EN Games EN Focus items zijn
+      const hasContent = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0);
+      const isFullyReady = dayData && dayTours.length > 0 && dayGames.length > 0 && dayFocus.length > 0;
+
       return (
-        <div key={dateStr} className={`bg-white rounded-xl shadow-sm border overflow-hidden mb-4 ${isFilled ? 'border-slate-200' : 'border-orange-200 bg-orange-50/10'} ${isArchive ? 'opacity-75 grayscale-[0.5]' : ''}`}>
+        <div key={dateStr} className={`bg-white rounded-xl shadow-sm border overflow-hidden mb-4 ${isFullyReady ? 'border-green-200' : 'border-orange-200 bg-orange-50/10'} ${isArchive ? 'opacity-75 grayscale-[0.5]' : ''}`}>
             <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div className="flex items-center gap-3">
                     <Calendar className={isArchive ? "text-slate-300" : "text-slate-500"} size={18} />
                     <h3 className={`font-bold capitalize ${isArchive ? 'text-slate-500' : 'text-slate-800'}`}>
                         {format(dateObj, 'EEEE d MMMM', { locale: nl })}
                     </h3>
+                    
                     {!isArchive && (
-                        isFilled ? 
+                        isFullyReady ? 
                         <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full flex gap-1 items-center"><CheckCircle size={10}/> Gereed</span> : 
-                        <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full flex gap-1 items-center"><AlertTriangle size={10}/> Leeg</span>
+                        <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full flex gap-1 items-center"><AlertTriangle size={10}/> {hasContent ? 'Incompleet' : 'Leeg'}</span>
                     )}
                 </div>
                 <Link href={`/crm/schedule/edit/${dateStr}`} className="text-xs bg-white border border-slate-200 px-3 py-1.5 rounded hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors font-medium">
-                    {isFilled ? 'Wijzigen' : 'Inplannen'}
+                    {hasContent ? 'Wijzigen' : 'Inplannen'}
                 </Link>
             </div>
             
-            {isFilled && (
-                <div className="p-4 text-xs text-slate-600">
-                    <strong>Tour:</strong> {dayTours[0]} {dayTours.length > 1 && `+ ${dayTours.length - 1} andere`}
+            {(hasContent) && (
+                <div className="p-4 text-xs text-slate-600 grid grid-cols-3 gap-2">
+                    <div>
+                        <strong className="block text-slate-400 mb-1">Tours</strong>
+                        {dayTours.length > 0 ? <span className="text-slate-800">{dayTours.length}</span> : <span className="text-red-400">-</span>}
+                    </div>
+                    <div>
+                        <strong className="block text-slate-400 mb-1">Games</strong>
+                        {dayGames.length > 0 ? <span className="text-slate-800">{dayGames.length}</span> : <span className="text-red-400">-</span>}
+                    </div>
+                    <div>
+                        <strong className="block text-slate-400 mb-1">Focus</strong>
+                        {dayFocus.length > 0 ? <span className="text-slate-800">{dayFocus.length}</span> : <span className="text-red-400">-</span>}
+                    </div>
                 </div>
             )}
         </div>
@@ -101,7 +113,6 @@ const renderDayCard = (dateStr: string, isArchive: boolean) => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          
           {/* KOLOM 1: AANKOMEND */}
           <div>
               <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -120,11 +131,7 @@ const renderDayCard = (dateStr: string, isArchive: boolean) => {
               <div className="space-y-4">
                   {archiveDates.map(date => renderDayCard(date, true))}
               </div>
-              <div className="mt-4 p-4 bg-slate-100 rounded-xl text-center text-slate-400 text-sm">
-                  Oudere data wordt automatisch bewaard in de database.
-              </div>
           </div>
-
       </div>
     </div>
   );
