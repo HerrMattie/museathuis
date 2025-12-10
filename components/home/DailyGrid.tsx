@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Headphones, Crosshair, Gamepad2, Brush, ArrowUpRight } from 'lucide-react';
+import { Headphones, Crosshair, Gamepad2, ArrowUpRight } from 'lucide-react';
 
 export default function DailyGrid({ items }: { items: any }) {
     
@@ -32,7 +32,8 @@ export default function DailyGrid({ items }: { items: any }) {
 
     return (
         <div className="container mx-auto px-6 -mt-20 relative z-20 pb-20">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* AANGEPAST: Nu 3 kolommen (lg:grid-cols-3) i.p.v. 4 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 
                 {items.tour && (
                     <Card 
@@ -42,7 +43,7 @@ export default function DailyGrid({ items }: { items: any }) {
                         href={`/tour/${items.tour.id}`}
                         desc={items.tour.intro}
                         color="bg-purple-900"
-                        image={items.tour.hero_image_url} // Als je die hebt
+                        image={items.tour.hero_image_url}
                     />
                 )}
 
@@ -65,17 +66,6 @@ export default function DailyGrid({ items }: { items: any }) {
                         href={`/game/${items.game.id}`}
                         desc={items.game.short_description}
                         color="bg-emerald-900"
-                    />
-                )}
-
-                {items.salon && (
-                    <Card 
-                        title={items.salon.title} 
-                        type="Salon" 
-                        icon={Brush} 
-                        href={`/salon/${items.salon.id}`}
-                        desc={items.salon.short_description}
-                        color="bg-orange-900"
                     />
                 )}
 
