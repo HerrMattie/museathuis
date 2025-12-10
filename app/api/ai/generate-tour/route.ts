@@ -1,65 +1,53 @@
-import { GoogleGenAI } from '@google/genai'; // Let op: De officiële SDK is 'google-genai' of 'ai/core'
-
-// We gaan er hier vanuit dat je de 'ai' library (Vercel AI SDK) gebruikt, 
-// of een lokaal wrapper bestand. Als je de Google Gen AI SDK gebruikt, pas aan:
-// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-// Voor nu, we corrigeren de modelnaam in de generate call:
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { topic } = await req.json();
-
-    if (!topic) {
-      return new Response(JSON.stringify({ error: 'Topic is vereist' }), { status: 400 });
+    
+    if (!process.env.GOOGLE_API_KEY) {
+        return NextResponse.json({ error: "Google API Key ontbreekt in .env" }, { status: 500 });
     }
 
-    // VOORBEELD: Als je de Vercel AI SDK gebruikt (populair in Next.js projecten):
-    // import { generateObject } from 'ai';
-    // const ai = new OpenAI({ apiKey: process.env.GEMINI_API_KEY, baseURL: "..." }); // Pas base URL aan
-
-    // Als we uitgaan van een directere API call of een vergelijkbare structuur:
-    // **CRUCIALE VERANDERING:** Gebruik een model dat zeker beschikbaar is, zoals `gemini-2.5-flash`.
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
     
-    // *** Aangenomen dat je een bestaande Gen AI client/wrapper hebt (zoals in je project): ***
-    // (Plaats deze logica in je daadwerkelijke AI client code, waar je de generateContent aanroept)
-    /* const response = await ai.generateContent({
-          model: "gemini-2.5-flash", // <-- Gebruik gemini-2.5-flash 
-          contents: [{ role: "user", parts: [{ text: promptText }] }],
-          config: { 
-              // ...
-          }
-      });
-    */
+    // FIX: Gebruik 'gemini-1.5-flash' (snel & goedkoop) of 'gemini-pro' (stabiel)
+    // De 'latest' alias voorkomt vaak versie-conflicten.
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const promptText = `Genereer een focus item, audiotour of spel over het onderwerp: "${topic}". Geef de output in het Nederlands in de volgende JSON structuur: 
-    {
-      "title": "Korte en pakkende titel (max 5 woorden)",
-      "short_description": "Een korte beschrijving voor de gebruiker (max 15 woorden)",
-      "content_markdown": "Volledige inhoud in markdown, inclusief koppen, alinea's, en relevante feitjes. Minimaal 200 woorden."
-    }`;
+    const prompt = `
+      Je bent een museum curator. Schrijf een "Deep Dive" focus item over het onderwerp: "${topic}".
+      
+      De output MOET valide JSON zijn en mag GEEN markdown opmaak (zoals \`\`\`json) bevatten. Alleen de pure JSON string.
+      
+      JSON Structuur:
+      {
+        "title": "Pakkende titel (max 6 woorden)",
+        "short_description": "Korte, prikkelende samenvatting (max 150 tekens)",
+        "content_markdown": "Een volledig artikel in Markdown formaat. Gebruik tussenkopjes (##), dikgedrukte tekst (**tekst**) en lijstjes. Minimaal 200 woorden. Schrijf inspirerend en educatief."
+      }
+      
+      Taal: Nederlands.
+    `;
 
-    // Dit is een placeholder, omdat ik je exacte AI-client code niet heb. 
-    // De oplossing vereist dat de code die de API daadwerkelijk aanroept, 
-    // `gemini-pro` vervangt door `gemini-2.5-flash` of een ander beschikbaar model.
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    // *Simulatie van succesvolle AI response*
-    const response = {
-        title: `De kracht van het onderwerp: ${topic}`,
-        short_description: `Ontdek de geheimen van dit fascinerende kunstwerk in 3 minuten.`,
-        content_markdown: `# Inleiding\n\nDit is de volledige tekst over ${topic}, gegenereerd door de AI. De oude 404-fout is opgelost door een correct model te kiezen.\n\n### Meer Details\n\n- Punt 1\n- Punt 2\n\nDit zou een lange tekst moeten zijn om het focus-item te vullen.`
-    };
+    // Schoonmaak stap: verwijder eventuele markdown code blocks die de AI per ongeluk toevoegt
+    const cleanText = text.replace(/```json|```/g, '').trim();
+    
+    let data;
+    try {
+        data = JSON.parse(cleanText);
+    } catch (e) {
+        console.error("JSON Parse Error:", cleanText);
+        throw new Error("AI gaf geen geldige JSON terug. Probeer het opnieuw.");
+    }
 
-    return new Response(JSON.stringify(response), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json(data);
 
-  } catch (error) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: 'Interne serverfout bij AI generatie.' }), { status: 500 });
+  } catch (error: any) {
+    console.error("AI API Error:", error);
+    return NextResponse.json({ error: error.message || "AI generatie mislukt" }, { status: 500 });
   }
 }
-
-// **EXTRA CHECK:** Controleer ook je client-side code (`EditAcademieForm.tsx` of vergelijkbaar)
-// waar de `/api/ai/generate-focus` wordt aangeroepen. Zorg dat je daar de foutmeldingen goed afvangt.
