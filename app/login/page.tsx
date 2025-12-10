@@ -1,4 +1,5 @@
 'use client';
+
 import { createClient } from '@/lib/supabaseClient';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,28 +7,45 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    // We gebruiken Magic Links (Wachtwoordloos) - Modern & Veilig
-    const { error } = await supabase.auth.signInWithOtp({
+    setError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        // Zorg dat dit overeenkomt met je URL (localhost:3000 of je vercel url)
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      password,
     });
 
     if (error) {
-      setMessage('Er ging iets mis: ' + error.message);
+      setError(error.message);
+      setLoading(false);
     } else {
-      setMessage('Check je e-mail voor de magische inloglink!');
+      // Refresh zorgt dat de server components (layout) de nieuwe cookie zien
+      router.refresh(); 
+      router.push('/profile'); 
+    }
+  };
+
+  const handleSignUp = async () => {
+    setLoading(true);
+    setError(null);
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+        setError(error.message);
+    } else {
+        setError('Check uw e-mail om de registratie te bevestigen.');
     }
     setLoading(false);
   };
@@ -35,42 +53,54 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-midnight-950 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
-        <div className="text-center mb-8">
-          <h1 className="font-serif text-3xl text-white font-bold mb-2">Welkom Terug</h1>
-          <p className="text-gray-400">Log in om toegang te krijgen tot Premium tours en je profiel.</p>
-        </div>
+        <h1 className="text-3xl font-serif text-white font-bold mb-2 text-center">Welkom terug</h1>
+        <p className="text-gray-400 text-center mb-8">Log in voor uw dagelijkse dosis kunst.</p>
 
-        {message ? (
-          <div className="bg-museum-lime/10 border border-museum-lime text-museum-lime p-4 rounded-lg text-center">
-            {message}
-          </div>
-        ) : (
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">E-mailadres</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="naam@voorbeeld.nl"
-                className="w-full bg-midnight-950 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-museum-gold focus:outline-none"
-                required
-              />
+        {error && (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-3 rounded-lg mb-6 text-sm">
+                {error}
             </div>
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-museum-gold transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Laden...' : 'Stuur Magic Link'}
-            </button>
-          </form>
         )}
-        
-        <div className="mt-6 text-center">
-          <Link href="/" className="text-sm text-gray-500 hover:text-white">
-            Terug naar home
-          </Link>
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">E-mailadres</label>
+            <input 
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-midnight-950 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-museum-gold"
+              placeholder="naam@voorbeeld.nl"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Wachtwoord</label>
+            <input 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-midnight-950 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-museum-gold"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-museum-gold text-black font-bold py-3 rounded-lg hover:bg-white transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Laden...' : 'Inloggen'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center text-sm text-gray-500">
+            Nog geen lid?{' '}
+            <button onClick={handleSignUp} className="text-museum-gold hover:underline">
+                Maak gratis account
+            </button>
         </div>
       </div>
     </main>
