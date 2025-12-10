@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
+import { trackActivity } from '@/lib/tracking'; // <--- IMPORT
 import { Trophy, Home, Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
@@ -10,8 +11,11 @@ export default function PixelHuntEngine({ game, items, userId }: { game: any, it
     const [currentIndex, setCurrentIndex] = useState(0);
     const [score, setScore] = useState(0);
     const [blurLevel, setBlurLevel] = useState(20); // Start met 20px blur
-    const [isPaused, setIsPaused] = useState(false); // Stopt timer als je antwoordt
+    const [isPaused, setIsPaused] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
+    
+    // STARTTIJD
+    const startTimeRef = useRef(Date.now());
     
     const supabase = createClient();
     const router = useRouter();
@@ -27,9 +31,9 @@ export default function PixelHuntEngine({ game, items, userId }: { game: any, it
                     clearInterval(interval);
                     return 0;
                 }
-                return prev - 0.5; // Elke tick wordt hij iets scherper
+                return prev - 0.2; // Langzaam scherper
             });
-        }, 200); // Snelheid van scherpstellen
+        }, 100);
 
         return () => clearInterval(interval);
     }, [currentIndex, isPaused, isFinished]);
@@ -39,7 +43,7 @@ export default function PixelHuntEngine({ game, items, userId }: { game: any, it
         const isCorrect = answer === currentItem.correct_answer;
 
         if (isCorrect) {
-            // Punten berekening: Hoe hoger de blur nog is, hoe meer punten
+            // Punten: Meer punten als het nog wazig is
             const pointsEarned = Math.max(1, Math.floor(blurLevel));
             setScore(s => s + pointsEarned);
             confetti({ particleCount: 30, spread: 50 });
@@ -59,27 +63,35 @@ export default function PixelHuntEngine({ game, items, userId }: { game: any, it
     const finishGame = async (finalScore: number) => {
         setIsFinished(true);
         if (finalScore > 10) confetti();
-        await supabase.from('user_activity_logs').insert({
-            user_id: userId,
-            action_type: 'complete_game',
-            entity_id: game.id,
-            metadata: { score: finalScore, type: 'pixel_hunt' }
+
+        // BEREKEN TIJD
+        const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
+
+        // TRACK ACTIVITY
+        await trackActivity(supabase, userId, 'complete_game', game.id, {
+            score: finalScore,
+            max_score: items.length * 20, // Theoretisch max
+            type: 'pixel_hunt',
+            duration: duration
         });
     };
 
     if (isFinished) {
         return (
-            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl">
-                <Trophy size={48} className="mx-auto text-museum-gold mb-4"/>
+            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
+                <div className="inline-flex items-center justify-center w-24 h-24 bg-museum-gold text-black rounded-full mb-6">
+                    <Trophy size={40} />
+                </div>
                 <h2 className="text-3xl font-bold text-white mb-2">Scherp oog!</h2>
-                <p className="text-gray-400 mb-6">Score: {score} punten</p>
-                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto">
+                <p className="text-gray-400 mb-6">Score: <span className="text-museum-gold font-bold">{score}</span></p>
+                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto hover:bg-gray-200">
                     <Home size={18}/> Terug
                 </button>
             </div>
         );
     }
 
+    // Antwoorden sorteren
     const answers = [currentItem.correct_answer, ...currentItem.wrong_answers].sort();
 
     return (
@@ -92,7 +104,7 @@ export default function PixelHuntEngine({ game, items, userId }: { game: any, it
             {/* HET PLAATJE */}
             <div className="relative h-64 w-full bg-black rounded-2xl overflow-hidden mb-8 border border-white/10">
                 <img 
-                    src={currentItem.image_url} // Zorg dat AI hier een URL invult
+                    src={currentItem.image_url} 
                     alt="Raad dit werk" 
                     className="w-full h-full object-cover transition-all duration-200"
                     style={{ filter: `blur(${blurLevel}px)` }}
@@ -109,7 +121,7 @@ export default function PixelHuntEngine({ game, items, userId }: { game: any, it
                         key={idx} 
                         onClick={() => handleAnswer(ans)}
                         disabled={isPaused}
-                        className="bg-midnight-900 border border-white/10 p-4 rounded-xl text-left hover:border-museum-gold hover:bg-white/5 transition-all"
+                        className="bg-midnight-900 border border-white/10 p-4 rounded-xl text-left hover:border-museum-gold hover:bg-white/5 transition-all text-white font-medium"
                     >
                         {ans}
                     </button>
