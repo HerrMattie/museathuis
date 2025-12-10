@@ -1,3 +1,6 @@
+'use client'; // <--- ADD THIS LINE AT THE VERY TOP
+
+
 import Link from 'next/link';
 import { Instagram, Twitter, Facebook, Mail } from 'lucide-react';
 
