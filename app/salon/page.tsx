@@ -1,125 +1,65 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import Image from 'next/image';
-import { ChevronRight, Calendar, Lock } from 'lucide-react';
+import { Brush, ArrowRight, Layers } from 'lucide-react';
+import LikeButton from '@/components/LikeButton';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 export default async function SalonPage() {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  let isUserPremium = false;
-  if (user) {
-    const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
-    if (profile?.is_premium) isUserPremium = true;
-  }
+  const { data: pageContent } = await supabase.from('page_content').select('*').eq('slug', 'salon').single();
+  const { data: items } = await supabase.from('salons').select('*').eq('status', 'published').order('created_at', { ascending: false });
 
-  // Haal de 12 nieuwste salon sets op (we gaan ervan uit dat de eerste 3 de weekselectie zijn)
-  const { data: sets } = await supabase
-    .from('salon_sets')
-    .select('id, title, description, hero_image_url, is_premium, created_at')
-    .order('created_at', { ascending: false }) 
-    .limit(12);
-
-  const weeklyFeatures = sets?.slice(0, 3) || [];
-  const archive = sets?.slice(3) || [];
+  const title = pageContent?.title || "De Salon";
+  const subtitle = pageContent?.subtitle || "Curated Collections";
+  const intro = pageContent?.intro_text || "Thematische verzamelingen samengesteld door onze curatoren.";
 
   return (
-    <main className="min-h-screen bg-midnight-950 pb-20 pt-12 animate-fade-in-up">
-      <div className="container mx-auto px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-12 px-6">
+      <div className="max-w-7xl mx-auto">
         
-        <header className="mb-16 max-w-4xl border-b border-white/10 pb-8">
-          <p className="text-museum-gold text-xs font-bold uppercase tracking-[0.2em] mb-4">
-            Het Wekelijkse Magazine
-          </p>
-          <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-6">De Salon</h1>
-          <p className="text-xl text-museum-text-secondary leading-relaxed max-w-3xl">
-            Laat u verrassen door onze wekelijkse curatie. Drie exclusieve collecties die u de diepte in nemen.
-          </p>
-        </header>
+        {/* HEADER */}
+        <div className="relative py-16 mb-12 border-b border-white/10">
+             <div className="absolute inset-0 bg-gradient-to-r from-orange-900/20 to-transparent pointer-events-none rounded-3xl"></div>
+             <div className="relative z-10">
+                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-3">{subtitle}</p>
+                <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 text-white">{title}</h1>
+                <p className="text-xl text-gray-300 max-w-2xl leading-relaxed font-light">{intro}</p>
+             </div>
+        </div>
 
-        {/* --- DE WEKELIJKSE FEATURES (3 PROMINENTE CARDS) --- */}
-        <section className="mb-16">
-          <h2 className="font-serif text-3xl text-white font-bold mb-6 flex items-center gap-3">
-            <Calendar size={28} className="text-museum-lime" /> Deze Week Gecureerd
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {weeklyFeatures.map((set, index) => {
-              const isLocked = set.is_premium && !isUserPremium;
-              const linkUrl = isLocked ? '/pricing' : `/salon/${set.id}`;
-              
-              return (
-                <Link key={set.id} href={linkUrl} className="group relative flex flex-col h-[400px] rounded-2xl overflow-hidden shadow-2xl transition-all hover:scale-[1.02]">
-                  {/* Background Image */}
-                  {set.hero_image_url && (
-                    <Image 
-                      src={set.hero_image_url} 
-                      alt={set.title} 
-                      fill 
-                      className={`object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale opacity-70' : 'opacity-90'}`}
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent p-6 flex flex-col justify-end">
-                    
-                    {/* Badge */}
-                    <div className="flex gap-2 mb-2">
-                       <span className="bg-museum-gold/80 text-black px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                         Feature #{index + 1}
-                       </span>
+        {/* MASONRY / GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {items?.map((salon) => (
+                <Link key={salon.id} href={`/salon/${salon.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl">
+                    <div className="h-72 relative bg-black overflow-hidden">
+                        {/* Fake 'stack' effect voor collecties */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10"></div>
+                        <div className="w-full h-full flex items-center justify-center opacity-40"><Brush size={64} className="text-orange-200"/></div>
+                        
+                        <div className="absolute top-4 left-4 bg-orange-900/80 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white border border-white/10 flex items-center gap-2">
+                            <Layers size={12}/> Collectie
+                        </div>
+                        <div className="absolute top-4 right-4 z-20">
+                             <LikeButton itemId={salon.id} itemType="salon" userId={user?.id} />
+                        </div>
                     </div>
-
-                    <h3 className="font-serif text-3xl text-white font-bold mb-2 drop-shadow-md">
-                      {set.title}
-                    </h3>
-                    <p className="text-gray-300 text-sm mb-4">
-                       {set.description}
-                    </p>
                     
-                    {/* CTA */}
-                    <div className="flex items-center gap-2 text-white font-bold text-sm group-hover:text-museum-lime transition-colors">
-                       {isLocked ? (
-                          <>Ontgrendel met Premium <Lock size={16} /></>
-                       ) : (
-                          <>Bekijk Collectie <ChevronRight size={16} /></>
-                       )}
+                    <div className="p-8">
+                        <h3 className="font-serif font-bold text-3xl mb-3 text-white group-hover:text-museum-gold transition-colors">{salon.title}</h3>
+                        <p className="text-gray-400 text-sm line-clamp-3 mb-6 leading-relaxed">{salon.short_description}</p>
+                        
+                        <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2 group-hover:gap-3 transition-all">
+                            Bekijk Collectie <ArrowRight size={14} className="text-museum-gold"/>
+                        </span>
                     </div>
-                  </div>
                 </Link>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* --- ARCHIEF (ALLE VORIGE WEKEN) --- */}
-        {archive.length > 0 && (
-          <section>
-            <h2 className="font-serif text-3xl text-white font-bold mb-6">Salon Archief</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {archive.map(set => {
-                const isLocked = set.is_premium && !isUserPremium;
-                const linkUrl = isLocked ? '/pricing' : `/salon/${set.id}`;
-
-                return (
-                  <Link key={set.id} href={linkUrl} className="group flex flex-col p-4 bg-midnight-900 border border-white/5 rounded-xl hover:bg-midnight-800 transition-all">
-                     <div className="flex items-center justify-between">
-                       <h4 className="text-white font-bold truncate">{set.title}</h4>
-                       {isLocked && <Lock size={16} className="text-museum-gold" />}
-                     </div>
-                     <p className="text-xs text-gray-500 mt-1 mb-2">
-                       {new Date(set.created_at).toLocaleDateString('nl-NL', { year: 'numeric', month: 'short' })}
-                     </p>
-                     <p className="text-sm text-gray-400 line-clamp-2">{set.description}</p>
-                  </Link>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
+            ))}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
