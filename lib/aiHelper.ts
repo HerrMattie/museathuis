@@ -6,9 +6,10 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     throw new Error("Server configuratie fout: API Key ontbreekt.");
   }
 
-  // FIX: We gebruiken 'gemini-pro' (versie 1.0). Dit is de stabiele productie-versie.
-  // URL structuur: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+  // UPDATE: We kiezen voor KWALITEIT boven snelheid.
+  // 'gemini-2.5-pro' is het slimste model in jouw lijst.
+  // Dit zorgt voor betere 'High End' museumteksten.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
@@ -21,6 +22,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
 
     if (!response.ok) {
       const errorData = await response.json();
+      // Vang specifieke Google fouten af
       throw new Error(`Google AI Fout (${response.status}): ${errorData.error?.message || response.statusText}`);
     }
 
@@ -30,14 +32,11 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     if (!rawText) throw new Error("AI gaf leeg antwoord.");
 
     if (jsonMode) {
-      // Schoonmaak van eventuele markdown code blocks
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       try {
         return JSON.parse(cleanJson);
       } catch (e) {
         console.error("JSON Parse Fout. Tekst:", rawText);
-        // Fallback: Als JSON faalt, geef de tekst terug (beter iets dan niets)
-        // Of gooi error: throw new Error("AI antwoord was geen geldig JSON.");
         throw new Error("AI antwoord was geen geldig JSON.");
       }
     }
