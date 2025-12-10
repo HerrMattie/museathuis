@@ -1,66 +1,97 @@
 'use client';
-
-import { Trophy, Lock, Unlock } from 'lucide-react';
+import { useState } from 'react';
+import { Lock, Edit2, Flame } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
+import { AVATARS } from '@/lib/gamificationConfig';
+import Image from 'next/image';
+import AvatarSelector from './AvatarSelector';
 
 export default function LevelCard({ userProfile, stats }: { userProfile: any, stats: any }) {
-    // XP Simulatie (of haal uit DB)
-    const xp = (stats?.total_actions * 15) + (stats?.fav_count * 50) || 0; 
-    
-    const { level, title, nextLevelXp, progress, nextReward } = getLevel(xp);
+    const [showAvatarSelect, setShowAvatarSelect] = useState(false);
 
-    // Bepaal randkleur op basis van level (Fase 2, 4, 5)
-    let borderColor = 'border-white/20'; // Standaard
-    if (level >= 50) borderColor = 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]'; // Diamant
-    else if (level >= 40) borderColor = 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)]'; // Goud
-    else if (level >= 20) borderColor = 'border-slate-300 shadow-[0_0_15px_rgba(203,213,225,0.5)]'; // Zilver
-    else if (level >= 5) borderColor = 'border-orange-400'; // Brons
+    // XP & Level Logic
+    const xp = (stats?.total_actions * 15) + (stats?.fav_count * 50) || 0; 
+    const { level, title, nextLevelXp, progress, nextReward } = getLevel(xp);
+    const streak = userProfile?.current_streak || 0;
+
+    // Avatar Logic
+    const avatarDef = AVATARS.find(a => a.id === userProfile?.avatar_id) || AVATARS[0];
+    const hasImage = !!avatarDef.src;
+
+    // Border Color Logic
+    let borderColor = 'border-white/20';
+    if (level >= 50) borderColor = 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]';
+    else if (level >= 40) borderColor = 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.5)]';
+    else if (level >= 20) borderColor = 'border-slate-300';
+    else if (level >= 5) borderColor = 'border-orange-400';
 
     return (
-        <div className="relative overflow-hidden rounded-2xl p-8 mb-8 bg-gradient-to-br from-gray-900 to-black border border-white/10 text-white shadow-2xl">
-            
-            {/* Achtergrond Glow */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-museum-gold/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/3"></div>
-
-            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                
-                {/* Avatar met Dynamische Rand */}
-                <div className="relative">
-                    <div className={`w-28 h-28 rounded-full bg-black flex items-center justify-center text-4xl font-serif font-bold border-4 ${borderColor} transition-all duration-500`}>
-                        {userProfile?.display_name?.charAt(0) || '?'}
-                    </div>
-                    <div className="absolute -bottom-3 -right-3 bg-museum-gold text-black font-black text-sm w-10 h-10 rounded-full flex items-center justify-center border-4 border-black shadow-lg">
-                        {level}
-                    </div>
+        <>
+            <div className="relative overflow-hidden rounded-2xl p-8 mb-8 bg-gradient-to-br from-gray-900 to-black border border-white/10 text-white shadow-2xl">
+                {/* Streak Vlammetje (Rechtsboven) */}
+                <div className="absolute top-6 right-6 flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full" title="Dagen op rij actief">
+                    <Flame size={16} className={`${streak > 0 ? 'text-orange-500 fill-orange-500 animate-pulse' : 'text-gray-500'}`} />
+                    <span className="font-bold text-sm">{streak} <span className="text-xs text-gray-400 font-normal">dagen</span></span>
                 </div>
 
-                {/* Info & Progress */}
-                <div className="flex-1 w-full text-center md:text-left space-y-2">
-                    <div>
-                        <h2 className="text-3xl font-serif font-bold">{userProfile?.display_name}</h2>
-                        <p className="text-museum-gold font-bold uppercase tracking-widest text-xs">{title}</p>
-                    </div>
+                <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
                     
-                    {/* XP Bar */}
-                    <div className="relative pt-2">
-                        <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
-                            <div className="bg-gradient-to-r from-museum-gold to-yellow-600 h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(234,179,8,0.5)]" style={{ width: `${progress}%` }}></div>
+                    {/* Avatar Sectie */}
+                    <div className="relative group cursor-pointer" onClick={() => setShowAvatarSelect(true)}>
+                        <div className={`w-28 h-28 rounded-full bg-black flex items-center justify-center text-4xl font-serif font-bold border-4 ${borderColor} overflow-hidden relative`}>
+                            {hasImage ? (
+                                <Image src={avatarDef.src} alt="Avatar" fill className="object-cover" />
+                            ) : (
+                                userProfile?.display_name?.charAt(0) || '?'
+                            )}
+                            
+                            {/* Edit Overlay */}
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Edit2 size={24} className="text-white"/>
+                            </div>
                         </div>
-                        <div className="flex justify-between text-[10px] font-bold mt-1 text-gray-400 font-mono">
-                            <span>{xp} XP</span>
-                            <span>{nextLevelXp} XP</span>
+                        {/* Level Badge */}
+                        <div className="absolute -bottom-3 -right-3 bg-museum-gold text-black font-black text-sm w-10 h-10 rounded-full flex items-center justify-center border-4 border-black shadow-lg">
+                            {level}
                         </div>
                     </div>
 
-                    {/* Volgende Beloning Teaser */}
-                    {nextReward && (
-                        <div className="mt-4 inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-xs text-gray-300">
-                            <Lock size={12} className="text-gray-500"/>
-                            <span>Volgende unlock: <span className="text-white font-bold">{nextReward}</span></span>
+                    {/* Info Sectie */}
+                    <div className="flex-1 w-full text-center md:text-left space-y-2">
+                        <div>
+                            <h2 className="text-3xl font-serif font-bold">{userProfile?.display_name}</h2>
+                            <p className="text-museum-gold font-bold uppercase tracking-widest text-xs">{title}</p>
                         </div>
-                    )}
+                        
+                        {/* Progress Bar */}
+                        <div className="relative pt-2">
+                            <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
+                                <div className="bg-gradient-to-r from-museum-gold to-yellow-600 h-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div>
+                            </div>
+                            <div className="flex justify-between text-[10px] font-bold mt-1 text-gray-400 font-mono">
+                                <span>{xp} XP</span>
+                                <span>{nextLevelXp} XP</span>
+                            </div>
+                        </div>
+
+                        {nextReward && (
+                            <div className="mt-4 inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-xs text-gray-300">
+                                <Lock size={12} className="text-gray-500"/>
+                                <span>Volgende unlock: <span className="text-white font-bold">{nextReward}</span></span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+
+            {/* Popup */}
+            {showAvatarSelect && (
+                <AvatarSelector 
+                    currentId={userProfile.avatar_id} 
+                    userId={userProfile.user_id} 
+                    onClose={() => setShowAvatarSelect(false)} 
+                />
+            )}
+        </>
     );
 }
