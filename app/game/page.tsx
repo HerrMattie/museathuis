@@ -1,109 +1,83 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Brain, Lock, ChevronRight, Calendar, Play } from 'lucide-react';
-import { notFound } from 'next/navigation';
+import { Gamepad2, ArrowRight, Clock } from 'lucide-react';
+import LikeButton from '@/components/LikeButton';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
-export default async function GameOverviewPage({ searchParams }: { searchParams: { date?: string } }) {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
+export default async function GamePage() {
+  const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  let isUserPremium = false;
-  if (user) {
-    const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
-    if (profile?.is_premium) isUserPremium = true;
-  }
+  // 1. HAAL PAGINA TEKST UIT CRM
+  const { data: pageContent } = await supabase
+    .from('page_content')
+    .select('*')
+    .eq('slug', 'game')
+    .single();
 
-  const dateParam = searchParams.date;
-  let games: any[] = [];
-  let headerText = "Alle Quizzen";
+  // 2. Haal Games op
+  const { data: items } = await supabase
+    .from('games')
+    .select('*, game_items(count)')
+    .eq('status', 'published')
+    .order('created_at', { ascending: false });
 
-  if (dateParam) {
-    // SCENARIO 1: TIJDREIS MODUS (Toon alle 3 de scheduled games)
-    const { data: schedule } = await supabase
-      .from('dayprogram_schedule')
-      .select('game_ids')
-      .eq('day_date', dateParam)
-      .single();
-
-    if (schedule?.game_ids && schedule.game_ids.length > 0) {
-        // Haal alle games op die in de array van die dag staan
-        const { data } = await supabase.from('games').select('*').in('id', schedule.game_ids);
-        if (data) games = data;
-    }
-    headerText = `Quiz Selectie van ${new Date(dateParam).toLocaleDateString('nl-NL')}`;
-
-  } else {
-    // SCENARIO 2: STANDAARD MODUS (Archief)
-    const { data } = await supabase
-      .from('games')
-      .select('*')
-      .eq('status', 'published')
-      .order('created_at', { ascending: false })
-      .limit(12);
-    games = data || [];
-  }
+  // Fallbacks
+  const title = pageContent?.title || "Kunst Quiz";
+  const subtitle = pageContent?.subtitle || "Test uw kennis";
+  const intro = pageContent?.intro_text || "Dagelijkse uitdagingen om uw kunstkennis aan te scherpen.";
 
   return (
-    <main className="min-h-screen bg-midnight-950 pb-20 pt-12 animate-fade-in-up">
-      <div className="container mx-auto px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-12 px-6">
+      <div className="max-w-7xl mx-auto">
         
-        <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white mb-8 transition-colors text-sm font-medium">
-          <ChevronRight className="rotate-180" size={16} /> Terug naar Dashboard
-        </Link>
-
-        <header className="mb-12 max-w-4xl">
-          <p className="text-museum-gold text-xs font-bold uppercase tracking-[0.2em] mb-4">
-            {dateParam ? 'Dagelijks Archief' : 'Train uw oog'}
-          </p>
-          <h1 className="font-serif text-5xl md:text-6xl text-white font-bold mb-6">{headerText}</h1>
-          <p className="text-xl text-gray-400 leading-relaxed max-w-3xl">
-            {dateParam ? 'Dit was de volledige selectie voor deze datum.' : 'Test uw kennis van de kunsthistorie.'}
-          </p>
-        </header>
-
-        {/* GAMES GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {games.map((game) => {
-            const isLocked = game.is_premium && !isUserPremium;
-
-            return (
-              <Link 
-                key={game.id} 
-                href={isLocked ? '/pricing' : `/game/${game.id}`}
-                className={`group flex flex-col p-6 bg-midnight-900 border rounded-2xl transition-all hover:-translate-y-1 hover:shadow-xl ${isLocked ? 'border-museum-gold/30' : 'border-white/10 hover:border-white/30'}`}
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-3 rounded-full bg-blue-500/10 text-blue-400 group-hover:bg-blue-500/20 transition-colors">
-                    <Brain size={28} />
-                  </div>
-                  {game.is_premium && <Lock size={20} className="text-museum-gold" />}
-                </div>
-
-                <h3 className="font-serif text-2xl text-white font-bold mb-2 group-hover:text-blue-300 transition-colors">
-                  {game.title}
-                </h3>
-                <p className="text-gray-400 text-sm mb-6 flex-1">
-                  {game.short_description}
-                </p>
-
-                <div className="flex items-center gap-2 text-sm font-bold text-white group-hover:translate-x-1 transition-transform">
-                  {isLocked ? 'Ontgrendel Quiz' : 'Start Quiz'} <ChevronRight size={16} />
-                </div>
-              </Link>
-            )
-          })}
-          
-          {games.length === 0 && (
-             <div className="col-span-full py-10 text-center text-gray-500">
-                Er zijn geen quizzen gevonden voor deze datum.
+        {/* HEADER */}
+        <div className="relative py-16 mb-12 border-b border-white/10">
+             <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/20 to-transparent pointer-events-none rounded-3xl"></div>
+             <div className="relative z-10">
+                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-3">{subtitle}</p>
+                <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 text-white">{title}</h1>
+                <p className="text-xl text-gray-300 max-w-2xl leading-relaxed font-light">{intro}</p>
              </div>
-          )}
+        </div>
+
+        {/* GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {items?.map((game) => (
+                <Link key={game.id} href={`/game/${game.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl flex flex-col">
+                    
+                    <div className="h-48 relative bg-white/5 flex items-center justify-center overflow-hidden">
+                        {/* Abstract patroon of icoon */}
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                        <Gamepad2 size={64} className="text-gray-600 group-hover:text-museum-gold transition-colors duration-500 group-hover:scale-110"/>
+                        
+                        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white border border-white/10">
+                            Quiz
+                        </div>
+                        <div className="absolute top-4 right-4 z-20">
+                             <LikeButton itemId={game.id} itemType="game" userId={user?.id} />
+                        </div>
+                    </div>
+                    
+                    <div className="p-8 flex-1 flex flex-col">
+                        <h3 className="font-serif font-bold text-2xl mb-3 text-white group-hover:text-museum-gold transition-colors">{game.title}</h3>
+                        <p className="text-gray-400 text-sm line-clamp-2 mb-6 leading-relaxed flex-1">{game.short_description}</p>
+                        
+                        <div className="flex justify-between items-center border-t border-white/5 pt-4 mt-auto">
+                             <span className="text-xs font-bold text-gray-500 flex items-center gap-2">
+                                <Clock size={14}/> 2 min
+                             </span>
+                             <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2 group-hover:gap-3 transition-all">
+                                Start <ArrowRight size={14} className="text-museum-gold"/>
+                             </span>
+                        </div>
+                    </div>
+                </Link>
+            ))}
         </div>
       </div>
-    </main>
+    </div>
   );
 }
