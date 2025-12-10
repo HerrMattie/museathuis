@@ -6,9 +6,9 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     throw new Error("Server configuratie fout: API Key ontbreekt.");
   }
 
-  // We gebruiken de v1beta endpoint met gemini-1.5-flash (snel & goedkoop)
-  // Let op de URL structuur: models/gemini-1.5-flash:generateContent
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // FIX: We gebruiken 'gemini-pro' (versie 1.0). Dit is de stabiele productie-versie.
+  // URL structuur: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
@@ -36,6 +36,8 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
         return JSON.parse(cleanJson);
       } catch (e) {
         console.error("JSON Parse Fout. Tekst:", rawText);
+        // Fallback: Als JSON faalt, geef de tekst terug (beter iets dan niets)
+        // Of gooi error: throw new Error("AI antwoord was geen geldig JSON.");
         throw new Error("AI antwoord was geen geldig JSON.");
       }
     }
@@ -44,6 +46,6 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
 
   } catch (error: any) {
     console.error("AI Helper Fout:", error);
-    throw error; // Gooi door naar de frontend
+    throw error; 
   }
 }
