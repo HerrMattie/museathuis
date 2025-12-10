@@ -11,7 +11,7 @@ export default function PageTracker() {
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const supabase = createClient();
 
-  // 1. Haal User ID op (eenmalig)
+  // 1. Haal User ID op
   useEffect(() => {
     const getUser = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -25,14 +25,15 @@ export default function PageTracker() {
     if (!userId) return;
 
     let contentType = 'general';
-    // FIX: Expliciet type aangeven
+    
+    // HIER ZAT DE FOUT: We moeten expliciet zeggen dat dit string of undefined is
     let contentId: string | undefined = undefined;
     
-    // Voorbeeld URL: /tour/123-abc
+    // URL parsing logic
     if (pathname.startsWith('/tour/')) { contentType = 'tour'; contentId = pathname.split('/')[2]; }
     else if (pathname.startsWith('/focus/')) { contentType = 'focus'; contentId = pathname.split('/')[2]; }
     else if (pathname.startsWith('/game/')) { contentType = 'game'; contentId = pathname.split('/')[2]; }
-    else if (pathname.startsWith('/salons/')) { contentType = 'salon'; contentId = pathname.split('/')[2]; }
+    else if (pathname.startsWith('/salon/')) { contentType = 'salon'; contentId = pathname.split('/')[2]; }
 
     const startTime = Date.now();
 
