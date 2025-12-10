@@ -54,7 +54,7 @@ export default async function CrmSchedulePage() {
       // FIX: STRIKTE LOGICA
       // Een dag is pas 'Compleet' als er minstens 1 Tour, 1 Game EN 1 Focus item is.
       const hasSomething = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0);
-      const isFullyReady = dayData && dayTours.length = 3 && dayGames.length = 3 && dayFocus.length = 3;
+      const isFullyReady = dayData && dayTours.length == 3 && dayGames.length == 3 && dayFocus.length == 3;
 
       return (
         <div key={dateStr} className={`bg-white rounded-xl shadow-sm border overflow-hidden mb-4 ${isFullyReady ? 'border-green-200' : 'border-orange-200 bg-orange-50/10'} ${isArchive ? 'opacity-75 grayscale-[0.5]' : ''}`}>
