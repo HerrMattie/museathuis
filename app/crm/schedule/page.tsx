@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import Link from 'next/link';
 import { Calendar, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -11,7 +10,7 @@ export default async function CrmSchedulePage() {
   const supabase = createClient(cookies());
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. Haal het rooster op voor de komende 7 dagen
+  // 1. Haal het rooster op
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
     .select('*')
@@ -19,20 +18,24 @@ export default async function CrmSchedulePage() {
     .order('day_date', { ascending: true })
     .limit(7);
 
-  // 2. Verzamel alle ID's om de details (titels) op te halen
+  // 2. Verzamel ID's (met veiligheidschecks)
   const tourIds = schedule?.flatMap(s => s.tour_ids || []) || [];
   const gameIds = schedule?.flatMap(s => s.game_ids || []) || [];
   const focusIds = schedule?.flatMap(s => s.focus_ids || []) || [];
 
-  // 3. Haal de details op (zodat we titels zien ipv ID's)
+  // 3. Haal de details op
   const { data: tours } = await supabase.from('tours').select('id, title').in('id', tourIds);
   const { data: games } = await supabase.from('games').select('id, title').in('id', gameIds);
   const { data: focusItems } = await supabase.from('focus_items').select('id, title').in('id', focusIds);
 
-  // Helper om titels te vinden
-  const getTitles = (ids: string[], source: any[]) => {
-      if (!ids || ids.length === 0) return [];
-      return ids.map(id => source?.find(item => item.id === id)?.title || "Onbekend item");
+  // FIX: Type-veilige helper functie
+  // We accepteren 'any' om TypeScript gerust te stellen dat null of undefined ook mag, 
+  // en vangen dat binnen de functie op.
+  const getTitles = (ids: any, source: any) => {
+      if (!ids || !Array.isArray(ids) || ids.length === 0) return [];
+      if (!source || !Array.isArray(source)) return [];
+      
+      return ids.map((id: string) => source.find((item: any) => item.id === id)?.title || "Onbekend item");
   };
 
   return (
@@ -52,15 +55,15 @@ export default async function CrmSchedulePage() {
       </header>
 
       <div className="space-y-6">
-        {/* We tonen de komende 7 dagen, ook als er nog geen data is */}
         {Array.from({ length: 7 }).map((_, i) => {
             const date = addDays(parseISO(today), i);
             const dateStr = format(date, 'yyyy-MM-dd');
             const dayData = schedule?.find(s => s.day_date === dateStr);
             
-            const dayTours = getTitles(dayData?.tour_ids, tours);
-            const dayGames = getTitles(dayData?.game_ids, games);
-            const dayFocus = getTitles(dayData?.focus_ids, focusItems);
+            // FIX: We geven nu altijd veilige waardes mee (|| [])
+            const dayTours = getTitles(dayData?.tour_ids || [], tours || []);
+            const dayGames = getTitles(dayData?.game_ids || [], games || []);
+            const dayFocus = getTitles(dayData?.focus_ids || [], focusItems || []);
 
             const isFilled = dayData && dayTours.length > 0;
 
@@ -82,20 +85,18 @@ export default async function CrmSchedulePage() {
                                 </span>
                             )}
                         </div>
-                        {/* Edit knop voor de dagplanning (Toekomstige feature) */}
                         <button className="text-sm text-blue-600 hover:underline font-medium">
                             Wijzigen
                         </button>
                     </div>
 
                     <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-                        
                         {/* TOURS */}
                         <div>
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">3 Tours</h4>
                             {dayTours.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {dayTours.map((t, idx) => (
+                                    {dayTours.map((t: string, idx: number) => (
                                         <li key={idx} className="text-sm text-slate-700 bg-slate-100 p-2 rounded truncate border border-slate-200">
                                             {idx + 1}. {t}
                                         </li>
@@ -109,7 +110,7 @@ export default async function CrmSchedulePage() {
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">3 Games</h4>
                             {dayGames.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {dayGames.map((t, idx) => (
+                                    {dayGames.map((t: string, idx: number) => (
                                         <li key={idx} className="text-sm text-slate-700 bg-slate-100 p-2 rounded truncate border border-slate-200">
                                             {idx + 1}. {t}
                                         </li>
@@ -123,7 +124,7 @@ export default async function CrmSchedulePage() {
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">3 Focus Items</h4>
                             {dayFocus.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {dayFocus.map((t, idx) => (
+                                    {dayFocus.map((t: string, idx: number) => (
                                         <li key={idx} className="text-sm text-slate-700 bg-slate-100 p-2 rounded truncate border border-slate-200">
                                             {idx + 1}. {t}
                                         </li>
@@ -131,7 +132,6 @@ export default async function CrmSchedulePage() {
                                 </ul>
                             ) : <span className="text-sm text-slate-400 italic">Geen focus items gepland</span>}
                         </div>
-
                     </div>
                 </div>
             );
