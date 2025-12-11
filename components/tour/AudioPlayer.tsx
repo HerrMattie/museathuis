@@ -32,10 +32,10 @@ export default function AudioPlayer({ stops, title, src, onEnded }: AudioPlayerP
     const [duration, setDuration] = useState(0);
 
     // 1. Audio Bron Instellen
-    useEffect(() => {
-        if (audioRef.current) {
+useEffect(() => {
+        if (audioRef.current && src) { // <-- HIER IS DE FIX: Voeg '&& src' toe
             audioRef.current.src = src;
-            audioRef.current.load();
+            audioRef.current.load(); 
             audioRef.current.onloadedmetadata = () => {
                 if (audioRef.current) setDuration(audioRef.current.duration);
             };
@@ -44,7 +44,7 @@ export default function AudioPlayer({ stops, title, src, onEnded }: AudioPlayerP
                  audioRef.current.play().catch(e => console.error("Autoplay prevented:", e));
             }
         }
-    }, [src]);
+    }, [src, isPlaying]); // Zorgt dat audio update als src verandert
 
     // 2. Event Listeners (Tijd en Einde van track)
     useEffect(() => {
