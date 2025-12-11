@@ -3,22 +3,22 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 
 // Vercel config
-export const maxDuration = 10; // Hobby limiet is 10s, Pro is 60s
+export const maxDuration = 10; 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const offset = parseInt(searchParams.get('offset') || '0');
   
-  // AANPASSING: Nog minder items om binnen de 10s te blijven
-  const limit = 10; 
+  const limit = 12; // Een mooi grid aantal
 
   const supabase = createClient(cookies());
   const validCandidates = [];
   
   try {
-      // 1. SPARQL QUERY
-      // We halen minder velden op om snelheid te winnen
+      // 1. SPARQL QUERY (Geoptimaliseerd voor snelheid)
+      // WEG: ORDER BY DESC(?sitelinks) -> Dit is te zwaar.
+      // NIEUW: FILTER(?sitelinks > 20) -> Alleen beroemde werken.
       const sparqlQuery = `
         SELECT DISTINCT ?item ?itemLabel ?image ?artistLabel ?date WHERE {
           VALUES ?type { wd:Q3305213 } 
@@ -26,24 +26,26 @@ export async function GET(req: Request) {
                 wdt:P18 ?image;
                 wdt:P170 ?artist.
           FILTER(?artist != wd:Q4233718) 
+          
           ?item wikibase:sitelinks ?sitelinks.
-          FILTER(?sitelinks > 5) 
+          FILTER(?sitelinks > 20) 
+
           SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],nl,en". }
         }
-        ORDER BY DESC(?sitelinks)
         LIMIT ${limit}
         OFFSET ${offset}
       `;
 
       const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparqlQuery)}&format=json`;
       
-      // Timeout op 9000ms zetten (net onder de 10s limiet)
+      // Timeout controller
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 9000);
+      const timeoutId = setTimeout(() => controller.abort(), 9500); // 9.5 sec
 
       const response = await fetch(url, { 
           headers: { 'User-Agent': 'MuseaThuisBot/1.0' },
-          signal: controller.signal
+          signal: controller.signal,
+          cache: 'no-store' // Voorkom caching problemen
       });
       clearTimeout(timeoutId);
       
@@ -53,7 +55,7 @@ export async function GET(req: Request) {
       const bindings = data.results.bindings;
 
       if (bindings.length > 0) {
-        // 2. CHECK DB (Snel in 1 keer)
+        // 2. HAAL BESTAANDE IDS OP
         const wikiIds = bindings.map((b: any) => b.item.value.split('/').pop());
         
         const { data: existing } = await supabase
@@ -63,7 +65,7 @@ export async function GET(req: Request) {
             
         const existingSet = new Set(existing?.map(e => e.wikidata_id));
 
-        // 3. FILTER
+        // 3. FILTER RESULTATEN
         for (const item of bindings) {
              const wId = item.item.value.split('/').pop();
              if (!existingSet.has(wId) && item.image?.value) {
@@ -73,8 +75,8 @@ export async function GET(req: Request) {
                      image_url: item.image.value,
                      artist: item.artistLabel?.value || "Onbekend",
                      year: item.date ? item.date.value.substring(0, 4) : '',
-                     type: 'Schilderij', // Hardcoded voor snelheid
-                     sitelinks: 5 // Placeholder
+                     type: 'Schilderij', 
+                     sitelinks: '20+' 
                  });
              }
         }
@@ -87,12 +89,8 @@ export async function GET(req: Request) {
 
   } catch (e: any) {
       console.error("Import Error:", e);
-      // Vang de 'Abort' error op en geef een vriendelijke melding
-      if (e.name === 'AbortError' || e.message.includes('aborted')) {
-          return NextResponse.json({ 
-              error: "Wikidata reageerde te traag. Klik nogmaals op 'Start' om het opnieuw te proberen." 
-          }, { status: 504 }); // 504 = Gateway Timeout
-      }
-      return NextResponse.json({ error: e.message }, { status: 500 });
+      // Nette foutmelding voor de frontend
+      const msg = e.name === 'AbortError' ? "Wikidata is te druk. Probeer het nog eens." : e.message;
+      return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
