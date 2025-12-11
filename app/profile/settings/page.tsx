@@ -3,20 +3,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Loader2, User, Camera, Upload, Tag, MapPin, Users, CreditCard } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Camera, Upload, Tag, MapPin, Users, CreditCard, GraduationCap, BarChart } from 'lucide-react';
 import Link from 'next/link';
 
-// DATA OPTIES
+// --- DATA OPTIES (Gebaseerd op jouw database kolommen) ---
 const INTEREST_OPTIONS = ["Oude Meesters", "Moderne Kunst", "Fotografie", "Design", "Geschiedenis", "Beeldhouwkunst", "Architectuur", "Mode", "Wetenschap"];
 const CARD_OPTIONS = ["Museumkaart", "CJP", "Rembrandtkaart", "ICOM", "VriendenLoterij VIP"];
 const AGE_OPTIONS = ["-18", "18-24", "25-39", "40-54", "55-64", "65+"];
+const PROVINCES = ["Drenthe", "Flevoland", "Friesland", "Gelderland", "Groningen", "Limburg", "Noord-Brabant", "Noord-Holland", "Overijssel", "Utrecht", "Zeeland", "Zuid-Holland", "Buitenland"];
+
+const GENDER_OPTIONS = [
+    { id: 'M', label: 'Man' },
+    { id: 'F', label: 'Vrouw' },
+    { id: 'X', label: 'Anders/Zeg ik liever niet' }
+];
+
 const BEHAVIOR_OPTIONS = [
     { id: 'solo', label: 'Alleen' },
     { id: 'partner', label: 'Met Partner' },
     { id: 'family', label: 'Met Gezin/Kinderen' },
     { id: 'friends', label: 'Met Vrienden' }
 ];
-const PROVINCES = ["Drenthe", "Flevoland", "Friesland", "Gelderland", "Groningen", "Limburg", "Noord-Brabant", "Noord-Holland", "Overijssel", "Utrecht", "Zeeland", "Zuid-Holland", "Buitenland"];
+
+const EDUCATION_OPTIONS = ["Middelbare School", "MBO", "HBO", "WO", "PhD/Post-doc", "Anders"];
+
+const FREQUENCY_OPTIONS = ["0-2 keer", "3-5 keer", "6-12 keer", "12+ keer"];
 
 export default function ProfileSettingsPage() {
     // Basic Info
@@ -29,7 +40,10 @@ export default function ProfileSettingsPage() {
     const [cards, setCards] = useState<string[]>([]);
     const [ageGroup, setAgeGroup] = useState('');
     const [province, setProvince] = useState('');
-    const [visitBehavior, setVisitBehavior] = useState('');
+    const [gender, setGender] = useState('');
+    const [visitBehavior, setVisitBehavior] = useState(''); // visit_behavior / visit_company
+    const [educationLevel, setEducationLevel] = useState('');
+    const [visitFrequency, setVisitFrequency] = useState(''); // museum_visits_per_year
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -45,6 +59,7 @@ export default function ProfileSettingsPage() {
             
             setEmail(user.email || '');
 
+            // We halen nu ALLE relevante kolommen op die je stuurde
             const { data } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
             
             if (data) {
@@ -54,14 +69,17 @@ export default function ProfileSettingsPage() {
                 setCards(data.museum_cards || []);
                 setAgeGroup(data.age_group || '');
                 setProvince(data.province || '');
-                setVisitBehavior(data.visit_behavior || '');
+                setGender(data.gender || '');
+                setVisitBehavior(data.visit_behavior || ''); 
+                setEducationLevel(data.education_level || '');
+                setVisitFrequency(data.museum_visits_per_year || '');
             }
             setLoading(false);
         };
         fetchData();
     }, []);
 
-    // Toggle functies voor arrays (Aan/Uit zetten)
+    // Toggle functies
     const toggleInterest = (tag: string) => {
         setInterests(prev => prev.includes(tag) ? prev.filter(i => i !== tag) : [...prev, tag]);
     };
@@ -101,12 +119,16 @@ export default function ProfileSettingsPage() {
                 museum_cards: cards,
                 age_group: ageGroup,
                 province: province,
-                visit_behavior: visitBehavior
+                gender: gender,
+                visit_behavior: visitBehavior,
+                education_level: educationLevel,
+                museum_visits_per_year: visitFrequency,
+                updated_at: new Date().toISOString() // Goed voor administratie
             }).eq('user_id', user.id);
 
             if (error) alert("Er ging iets mis: " + error.message);
             else {
-                alert("Profiel succesvol bijgewerkt!");
+                alert("Profiel en voorkeuren opgeslagen!");
                 router.refresh();
                 router.push('/profile');
             }
@@ -118,16 +140,20 @@ export default function ProfileSettingsPage() {
 
     return (
         <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-4xl mx-auto">
                 
                 <Link href="/profile" className="text-gray-400 hover:text-white flex items-center gap-2 mb-8 text-sm font-bold uppercase tracking-widest transition-colors">
                     <ArrowLeft size={16}/> Terug naar Profiel
                 </Link>
 
-                <h1 className="text-3xl font-serif font-bold text-white mb-8">Instellingen</h1>
+                <h1 className="text-3xl font-serif font-bold text-white mb-8">Instellingen & Voorkeuren</h1>
 
                 {/* --- SECTIE 1: PERSOONSGEGEVENS --- */}
                 <div className="bg-midnight-900 border border-white/10 rounded-2xl p-8 mb-8">
+                    <h2 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2">
+                        <User size={20} className="text-museum-gold"/> Algemene Gegevens
+                    </h2>
+
                     <div className="flex items-center gap-6 mb-8 border-b border-white/5 pb-8">
                         <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                             <div className="w-20 h-20 rounded-full bg-museum-gold text-black flex items-center justify-center text-2xl font-black border-4 border-black overflow-hidden relative">
@@ -153,13 +179,31 @@ export default function ProfileSettingsPage() {
                             <label className="block text-xs font-bold uppercase text-gray-500 mb-2">E-mailadres</label>
                             <input type="text" value={email} disabled className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-gray-500 cursor-not-allowed"/>
                         </div>
+                        
+                        {/* NIEUW: GENDER */}
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2">Geslacht</label>
+                            <select value={gender} onChange={e => setGender(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                                <option value="">Maak een keuze...</option>
+                                {GENDER_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                            </select>
+                        </div>
+
+                        {/* PROVINCIE */}
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-2"><MapPin size={14}/> Provincie</label>
+                            <select value={province} onChange={e => setProvince(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                                <option value="">Maak een keuze...</option>
+                                {PROVINCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
                 {/* --- SECTIE 2: CULTUUR PROFIEL (DATA) --- */}
                 <div className="bg-midnight-900 border border-white/10 rounded-2xl p-8 mb-8">
                     <h2 className="text-xl font-serif font-bold text-museum-gold mb-6 flex items-center gap-2">
-                        <User size={20}/> Mijn Cultuur Profiel
+                        <BarChart size={20}/> Mijn Cultuur Profiel
                     </h2>
 
                     {/* INTERESSES */}
@@ -178,7 +222,7 @@ export default function ProfileSettingsPage() {
                         </div>
                     </div>
 
-                    {/* DEMOGRAFIE */}
+                    {/* DEMOGRAFIE & OPLEIDING */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <div>
                             <label className="block text-sm font-bold text-white mb-2">Leeftijdsgroep</label>
@@ -187,17 +231,36 @@ export default function ProfileSettingsPage() {
                                 {AGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </div>
+                        {/* NIEUW: OPLEIDING */}
                         <div>
-                            <label className="block text-sm font-bold text-white mb-2 flex items-center gap-2"><MapPin size={16}/> Provincie</label>
-                            <select value={province} onChange={e => setProvince(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                            <label className="block text-sm font-bold text-white mb-2 flex items-center gap-2"><GraduationCap size={16}/> Opleidingsniveau</label>
+                            <select value={educationLevel} onChange={e => setEducationLevel(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
                                 <option value="">Maak een keuze...</option>
-                                {PROVINCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                {EDUCATION_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* MUSEUMGEDRAG */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><Users size={16}/> Met wie bezoekt u musea?</label>
+                            <select value={visitBehavior} onChange={e => setVisitBehavior(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                                <option value="">Maak een keuze...</option>
+                                {BEHAVIOR_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><MapPin size={16}/> Hoe vaak bezoekt u musea (p/j)?</label>
+                            <select value={visitFrequency} onChange={e => setVisitFrequency(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                                <option value="">Maak een keuze...</option>
+                                {FREQUENCY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </div>
                     </div>
 
                     {/* KAARTEN */}
-                    <div className="mb-8">
+                    <div>
                         <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><CreditCard size={16}/> Welke cultuurkaarten heeft u?</label>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             {CARD_OPTIONS.map(card => (
@@ -215,26 +278,10 @@ export default function ProfileSettingsPage() {
                         </div>
                     </div>
 
-                    {/* GEDRAG */}
-                    <div>
-                        <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><Users size={16}/> Met wie bezoekt u meestal een museum?</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {BEHAVIOR_OPTIONS.map(opt => (
-                                <button 
-                                    key={opt.id}
-                                    onClick={() => setVisitBehavior(opt.id)}
-                                    className={`p-3 rounded-xl text-xs font-bold border transition-all ${visitBehavior === opt.id ? 'bg-museum-gold text-black border-museum-gold' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
                 </div>
 
                 {/* OPSLAAN */}
-                <div className="flex justify-end">
+                <div className="flex justify-end pb-10">
                     <button 
                         onClick={handleSave} 
                         disabled={saving}
