@@ -3,56 +3,72 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { Heart } from 'lucide-react';
-import { trackActivity } from '@/lib/tracking';
+import confetti from 'canvas-confetti';
 
 interface LikeButtonProps {
     itemId: string;
-    // UPDATE: 'salon' toegevoegd aan de types hieronder
-    itemType: 'tour' | 'game' | 'focus' | 'artwork' | 'salon';
-    userId?: string | null;
+    itemType: 'artwork' | 'tour' | 'game' | 'focus' | 'salon';
+    userId?: string;
+    className?: string;
 }
 
-export default function LikeButton({ itemId, itemType, userId }: LikeButtonProps) {
+export default function LikeButton({ itemId, itemType, userId, className = "" }: LikeButtonProps) {
     const [isLiked, setIsLiked] = useState(false);
     const [loading, setLoading] = useState(false);
     const supabase = createClient();
 
     useEffect(() => {
         if (!userId) return;
-        const checkLike = async () => {
-            const { data } = await supabase
-                .from('favorites')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('item_type', itemType)
-                .eq('item_id', itemId)
-                .single();
-            if (data) setIsLiked(true);
-        };
-        checkLike();
-    }, [userId, itemId, itemType]);
+        checkStatus();
+    }, [userId, itemId]);
+
+    const checkStatus = async () => {
+        const { data } = await supabase
+            .from('favorites')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('entity_type', itemType)
+            .eq('entity_id', itemId)
+            .single();
+        
+        if (data) setIsLiked(true);
+    };
 
     const toggleLike = async (e: React.MouseEvent) => {
-        e.preventDefault(); // Voorkom dat de Link eromheen ook klikt
+        e.preventDefault(); // Voorkom dat de link erachter wordt aangeklikt
+        e.stopPropagation();
+
         if (!userId) {
-            // In een echte app: redirect naar login of toon modal
-            alert("Log in om items te bewaren."); 
+            alert("Log in om items te bewaren.");
             return;
         }
         if (loading) return;
+
         setLoading(true);
 
         if (isLiked) {
             // Verwijderen
-            await supabase.from('favorites').delete().eq('user_id', userId).eq('item_type', itemType).eq('item_id', itemId);
+            await supabase
+                .from('favorites')
+                .delete()
+                .eq('user_id', userId)
+                .eq('entity_type', itemType)
+                .eq('entity_id', itemId);
             setIsLiked(false);
         } else {
             // Toevoegen
-            await supabase.from('favorites').insert({ user_id: userId, item_type: itemType, item_id: itemId });
-            setIsLiked(true);
+            const { error } = await supabase
+                .from('favorites')
+                .insert({
+                    user_id: userId,
+                    entity_type: itemType,
+                    entity_id: itemId
+                });
             
-            // Track voor Badges (Curator badge etc.)
-            trackActivity(supabase, userId, 'favorite_item', itemId, { type: itemType });
+            if (!error) {
+                setIsLiked(true);
+                confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: ['#EAB308', '#FF0000'] });
+            }
         }
         setLoading(false);
     };
@@ -60,14 +76,13 @@ export default function LikeButton({ itemId, itemType, userId }: LikeButtonProps
     return (
         <button 
             onClick={toggleLike}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border ${
+            className={`p-3 rounded-full transition-all active:scale-90 shadow-lg ${
                 isLiked 
-                ? 'bg-rose-600 border-rose-500 text-white shadow-[0_0_15px_rgba(225,29,72,0.6)] scale-110' 
-                : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
-            }`}
-            aria-label={isLiked ? "Verwijder uit favorieten" : "Voeg toe aan favorieten"}
+                ? 'bg-rose-600 text-white shadow-rose-900/20' 
+                : 'bg-white/10 text-white hover:bg-white/20 backdrop-blur-md'
+            } ${className}`}
         >
-            <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
+            <Heart size={20} className={isLiked ? "fill-current" : ""} />
         </button>
     );
 }
