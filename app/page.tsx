@@ -1,62 +1,55 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import DailyHero from '@/components/home/DailyHero';
 import DailyGrid from '@/components/home/DailyGrid';
 import { getDailyProgram } from '@/lib/dailyService';
-import Link from 'next/link';
 
-export const revalidate = 0; // Zorg dat de homepage altijd vers is (elke refresh checkt date)
+export const revalidate = 0;
 
 export default async function Home() {
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
-
-  // 1. Haal de gebruikersnaam op (voor begroeting)
-  let userName = "Kunstliefhebber";
-  if (user) {
-    const { data: profile } = await supabase.from('user_profiles').select('display_name').eq('user_id', user.id).single();
-    if (profile?.display_name) userName = profile.display_name;
-  }
-
-  // 2. Haal het programma van VANDAAG op
   const dailyProgram = await getDailyProgram(supabase);
 
-  // Fallback als er ECHT niks is (DB leeg)
-  if (!dailyProgram) {
-    return (
-        <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">
-            <div className="text-center">
-                <h1 className="text-3xl font-bold mb-4">Welkom bij MuseaThuis</h1>
-                <p className="text-gray-400 mb-8">Het museum wordt momenteel ingericht. Kom later terug.</p>
-                {user?.email && <Link href="/crm" className="bg-museum-gold text-black px-4 py-2 rounded">Naar Admin</Link>}
-            </div>
-        </div>
-    );
-  }
+  // Fallback data als er niets is ingepland
+  const date = dailyProgram?.date ? new Date(dailyProgram.date) : new Date();
+  const dateString = date.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <main className="min-h-screen bg-midnight-950 text-white">
+    <main className="min-h-screen bg-midnight-950">
       
-      {/* 1. HERO SECTION */}
-      <DailyHero daily={dailyProgram} userName={userName} />
+      {/* HERO SECTION */}
+      <div className="relative h-[60vh] flex items-center justify-center text-center px-4">
+        
+        {/* Achtergrond: Kunstwerk i.p.v. Publiek */}
+        <div 
+            className="absolute inset-0 bg-cover bg-center opacity-40"
+            style={{ backgroundImage: "url('https://images.unsplash.com/photo-1577720580479-7d839d829c73?q=80&w=2532&auto=format&fit=crop')" }} // Klassieke kunst sfeer
+        ></div>
+        
+        {/* Gradient Overlay (Zorgt voor de donkere 'Midnight' look, weg met het rood) */}
+        <div className="absolute inset-0 bg-gradient-to-b from-midnight-950/80 via-midnight-950/60 to-midnight-950"></div>
 
-      {/* 2. CONTENT GRID (Zweeft deels over Hero heen) */}
-      <DailyGrid items={dailyProgram.items} />
-
-      {/* 3. CTA VOOR NIET-LEDEN */}
-      {!user && (
-          <div className="container mx-auto px-6 pb-20 text-center">
-              <div className="bg-gradient-to-r from-museum-gold/10 to-transparent p-12 rounded-2xl border border-museum-gold/20">
-                  <h2 className="text-3xl font-serif font-bold mb-4">Ontdek elke dag iets nieuws</h2>
-                  <p className="text-gray-300 max-w-2xl mx-auto mb-8">
-                      Word lid en krijg onbeperkt toegang tot alle audiotours, verdiepende artikelen en de historische archieven.
-                  </p>
-                  <Link href="/pricing" className="bg-museum-gold text-black px-8 py-3 rounded-full font-bold hover:bg-white transition-colors">
-                      Start je lidmaatschap
-                  </Link>
-              </div>
+        <div className="relative z-10 max-w-3xl mx-auto mt-10">
+          <div className="inline-block px-3 py-1 mb-4 border border-museum-gold/30 rounded-full bg-black/40 backdrop-blur-md">
+            <span className="text-museum-gold text-xs font-bold uppercase tracking-widest">
+                📅 Dagprogramma • {dateString}
+            </span>
           </div>
-      )}
+          
+          <h1 className="text-5xl md:text-7xl font-serif font-black text-white mb-6 drop-shadow-lg">
+            {dailyProgram?.theme.title || "Kunst Ontdekken"}
+          </h1>
+          
+          <p className="text-xl text-gray-200 leading-relaxed font-light drop-shadow-md">
+             {dailyProgram?.theme.description || "Uw dagelijkse dosis inspiratie en geschiedenis."}
+          </p>
+        </div>
+      </div>
+
+      {/* DAILY GRID (De kaarten doen het werk) */}
+      <div className="-mt-32 relative z-20 pb-20">
+         <DailyGrid items={dailyProgram?.items || {}} />
+      </div>
 
     </main>
   );
