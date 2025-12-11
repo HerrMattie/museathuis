@@ -10,15 +10,20 @@ interface Stop {
     description: string;
 }
 
+// components/tour/AudioPlayer.tsx
+
+// ...
 interface AudioPlayerProps {
-    // Tour Props (optioneel, voor de complexe UI)
+    // Tour Props (optioneel voor TheaterView)
     stops?: Stop[];
     title?: string;
     
-    // Simpele/TheaterView Props (nodig om de error te fixen)
-    src: string;
-    onEnded?: () => void;
+    // Simpele/TheaterView Props (nu OPTIONEEL gemaakt voor Focus/Tour pagina)
+    src?: string; // <--- HIER IS DE FIX: MAAK HET OPTIONEEL
+    onEnded?: () => void; 
 }
+// ...
+// (rest van de code blijft hetzelfde)
 
 export default function AudioPlayer({ stops, title, src, onEnded }: AudioPlayerProps) {
     const audioRef = useRef<HTMLAudioElement>(null);
