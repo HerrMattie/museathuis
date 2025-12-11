@@ -24,8 +24,10 @@ export default function Sidebar() {
         { type: 'divider' },
         { icon: Headphones, label: 'Tours', href: '/crm/tours' },
         { icon: Gamepad2, label: 'Games', href: '/crm/games' },
-        { icon: FileText, label: 'Artikelen', href: '/crm/focus' },
-        { icon: ImageIcon, label: 'Collectie', href: '/crm/artworks' },
+        { icon: FileText, label: 'Focus', href: '/crm/focus' },
+        { icon: FileText, label: 'Salons', href: '/crm/salon' },
+        { icon: FileText, label: 'Academie', href: '/crm/academie' },
+        { icon: ImageIcon, label: 'Artworks', href: '/crm/artworks' },
         { type: 'divider' },
         { icon: Globe, label: 'Site Teksten', href: '/crm/pages' }, // DEZE MISTE NOG
         { icon: Settings, label: 'Instellingen', href: '/crm/settings' },
