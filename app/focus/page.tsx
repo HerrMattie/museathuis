@@ -1,155 +1,140 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Crosshair, ArrowRight, Clock, History, Lock, FileText } from 'lucide-react';
+import { Crosshair, ArrowRight, Clock, Calendar, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import LikeButton from '@/components/LikeButton';
-import { getLevel } from '@/lib/levelSystem'; // <--- Level logica
-import { getPastContent } from '@/lib/dailyService'; // <--- Time Travel logica
+import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
 
-export default async function FocusPage() {
+export default async function FocusPage({ searchParams }: { searchParams: { date?: string } }) {
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. HAAL PAGINA CONTENT (CMS)
-  const { data: pageContent } = await supabase.from('page_content').select('*').eq('slug', 'focus').single();
-  
-  // 2. LEVEL & XP BEREKENEN (Voor Time Travel)
+  // 1. Datum Logica (Punt 15)
+  // Als er geen datum in de URL staat, pak vandaag.
+  const todayStr = new Date().toISOString().split('T')[0];
+  const selectedDateStr = searchParams.date || todayStr;
+  const selectedDate = new Date(selectedDateStr);
+
+  // Vorige en Volgende dag berekenen
+  const prevDate = new Date(selectedDate); prevDate.setDate(prevDate.getDate() - 1);
+  const nextDate = new Date(selectedDate); nextDate.setDate(nextDate.getDate() + 1);
+  const prevStr = prevDate.toISOString().split('T')[0];
+  const nextStr = nextDate.toISOString().split('T')[0];
+  const isToday = selectedDateStr === todayStr;
+
+  // 2. Haal Content op voor DEZE datum
+  // We halen het schedule op van de geselecteerde dag
+  const { data: schedule } = await supabase
+    .from('dayprogram_schedule')
+    .select('focus_ids')
+    .eq('day_date', selectedDateStr)
+    .single();
+
+  let items = [];
+  if (schedule?.focus_ids && schedule.focus_ids.length > 0) {
+      const { data } = await supabase.from('focus_items').select('*').in('id', schedule.focus_ids);
+      items = data || [];
+  } else if (isToday) {
+      // Fallback voor vandaag als er geen schedule is: pak 3 nieuwste
+      const { data } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(3);
+      items = data || [];
+  }
+
+  // 3. Level Check voor Historie (Alleen als je terugbladert)
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
-  const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
-  
-  const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
+  const xp = (actionCount || 0) * 15;
   const { level } = getLevel(xp);
-
-  // 3. BEPAAL DAGEN TERUG (De Logica: Level 10 = 3 dagen, Level 30 = 7 dagen)
-  let daysBack = 0;
-  if (level >= 30) daysBack = 7;      // Historicus
-  else if (level >= 10) daysBack = 3; // Tijdreiziger
-
-  // 4. HAAL CONTENT OP
-  // A. Recente items (Gewoon de nieuwste lijst)
-  const { data: latestItems } = await supabase
-    .from('focus_items')
-    .select('*')
-    .eq('status', 'published')
-    .order('created_at', { ascending: false })
-    .limit(6);
-
-  // B. Historie items (Gemist in dagprogramma)
-  const historyItems = await getPastContent(supabase, daysBack, 'focus');
-
-  // Fallbacks voor teksten
-  const title = pageContent?.title || "In Focus";
-  const subtitle = pageContent?.subtitle || "Verdieping";
-  const intro = pageContent?.intro_text || "Long-read artikelen en analyses van bijzondere werken.";
+  
+  // Mag je deze dag zien? (Level 10 = 3 dagen, Level 30 = 7 dagen)
+  const diffDays = Math.ceil((new Date(todayStr).getTime() - selectedDate.getTime()) / (1000 * 60 * 60 * 24));
+  const isLocked = diffDays > 0 && ((diffDays > 3 && level < 30) || (diffDays > 0 && level < 10));
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-12 px-6">
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER SECTION */}
+        {/* HEADER */}
         <div className="relative py-16 mb-12 border-b border-white/10">
-             {/* Subtiel blauw accent voor Focus, maar wel in de donkere stijl */}
              <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-transparent pointer-events-none rounded-3xl"></div>
              <div className="relative z-10">
-                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-3">{subtitle}</p>
-                <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 text-white">{title}</h1>
-                <p className="text-xl text-gray-300 max-w-2xl leading-relaxed font-light">{intro}</p>
+                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-3">Verdieping</p>
+                <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 text-white">In Focus</h1>
+                <p className="text-xl text-gray-300 max-w-2xl leading-relaxed font-light">
+                    Analyses en achtergrondverhalen.
+                </p>
              </div>
         </div>
 
-        {/* --- TIME TRAVEL SECTIE --- */}
-        <div className="mb-16">
-            <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-serif font-bold text-white flex items-center gap-3">
-                    <History className="text-museum-gold"/> Gemist in de Daily
-                </h3>
-                
-                {daysBack === 0 && (
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                        <Lock size={12}/> Unlock historie op Level 10
-                    </div>
-                )}
+        {/* DATUM NAVIGATIE (Punt 15) */}
+        <div className="flex items-center justify-between mb-8 bg-white/5 p-4 rounded-xl border border-white/10">
+            <Link href={`/focus?date=${prevStr}`} className="flex items-center gap-2 text-sm font-bold hover:text-museum-gold transition-colors">
+                <ChevronLeft size={16}/> Vorige Dag
+            </Link>
+            
+            <div className="flex items-center gap-2 text-museum-gold font-serif font-bold text-lg">
+                <Calendar size={20}/>
+                {selectedDate.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}
             </div>
 
-            {daysBack > 0 && historyItems.length > 0 ? (
-                // OPTIE A: Level hoog genoeg -> Toon grid
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {historyItems.map((item: any) => (
-                        <Link key={item.id} href={`/focus/${item.id}`} className="group bg-midnight-900 border border-white/10 rounded-xl p-6 hover:border-museum-gold/40 transition-all flex items-center gap-4">
-                            <div className="w-12 h-12 bg-blue-900/30 text-blue-400 rounded-lg flex items-center justify-center shrink-0">
-                                <FileText size={24}/>
-                            </div>
-                            <div>
-                                <div className="text-xs text-gray-500 uppercase font-bold mb-1">Eerder deze week</div>
-                                <h4 className="font-bold text-white group-hover:text-museum-gold transition-colors line-clamp-1">{item.title}</h4>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
-            ) : daysBack === 0 ? (
-                // OPTIE B: Level te laag -> Toon Locked State
-                <div className="bg-gradient-to-r from-gray-900 to-black border border-white/10 rounded-xl p-8 text-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-                    <Lock size={32} className="mx-auto text-gray-600 mb-4"/>
-                    <h4 className="font-bold text-gray-300 mb-2">Het archief is vergrendeld</h4>
-                    <p className="text-sm text-gray-500 max-w-md mx-auto mb-4">
-                        Bereik <span className="text-museum-gold font-bold">Level 10</span> om artikelen van de afgelopen 3 dagen terug te lezen.
-                    </p>
-                    {/* Fake progress bar ter motivatie */}
-                    <div className="w-full max-w-xs mx-auto bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-museum-gold h-full w-1/4 animate-pulse"></div> 
-                    </div>
-                </div>
+            {!isToday ? (
+                <Link href={`/focus?date=${nextStr}`} className="flex items-center gap-2 text-sm font-bold hover:text-museum-gold transition-colors">
+                    Volgende Dag <ChevronRight size={16}/>
+                </Link>
             ) : (
-                // OPTIE C: Wel level, maar geen gemiste items
-                <p className="text-gray-500 text-sm italic">U bent helemaal bij! Geen gemiste artikelen in de afgelopen {daysBack} dagen.</p>
+                <div className="w-24"></div> // Spacer
             )}
         </div>
 
-        {/* --- REGULIERE GRID (NIEUWSTE ITEMS) --- */}
-        <h3 className="text-2xl font-serif font-bold text-white mb-6">Nieuwste Artikelen</h3>
-        
-        {/* We gebruiken hier de List View (beter voor artikelen) */}
-        <div className="grid grid-cols-1 gap-6">
-            {latestItems?.map((item) => (
-                <Link key={item.id} href={`/focus/${item.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:bg-white/5 flex flex-col md:flex-row h-auto md:h-64">
-                    
-                    {/* Linkerkant: Icoon/Afbeelding placeholder */}
-                    <div className="w-full md:w-80 bg-black relative shrink-0 h-48 md:h-full">
-                         <div className="absolute inset-0 flex items-center justify-center opacity-30 group-hover:opacity-50 transition-opacity">
-                            <Crosshair size={48} className="text-blue-200"/>
-                         </div>
-                         <div className="absolute top-4 left-4 bg-blue-900/80 backdrop-blur-md px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white border border-white/10">
-                            Artikel
-                         </div>
-                         <div className="absolute top-4 right-4 md:left-4 md:right-auto md:top-auto md:bottom-4 z-20">
-                             <LikeButton itemId={item.id} itemType="focus" userId={user?.id} />
-                         </div>
-                    </div>
-
-                    {/* Rechterkant: Tekst */}
-                    <div className="p-8 flex-1 flex flex-col justify-center">
-                        <h3 className="font-serif font-bold text-3xl mb-3 text-white group-hover:text-museum-gold transition-colors leading-tight">
-                            {item.title}
-                        </h3>
-                        <p className="text-gray-400 text-base line-clamp-2 mb-6 leading-relaxed max-w-3xl">
-                            {item.intro}
-                        </p>
+        {/* CONTENT GRID (Punt 16: Horizontaal) */}
+        {isLocked ? (
+             <div className="bg-black/50 border border-white/10 rounded-xl p-12 text-center">
+                 <Lock size={48} className="mx-auto text-gray-600 mb-4"/>
+                 <h3 className="text-2xl font-bold text-white mb-2">Archief Vergrendeld</h3>
+                 <p className="text-gray-400">Bereik Level 10 om terug te kijken in de tijd.</p>
+             </div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {items.map((item) => (
+                    <Link key={item.id} href={`/focus/${item.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl flex flex-col">
                         
-                        <div className="flex items-center gap-6 mt-auto border-t border-white/5 pt-4 md:pt-0 md:border-0">
-                             <span className="text-xs font-bold text-gray-500 flex items-center gap-2">
-                                <Clock size={14}/> 10 min lezen
-                             </span>
-                             <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2 group-hover:translate-x-2 transition-transform ml-auto md:ml-0">
-                                Lees Artikel <ArrowRight size={14} className="text-museum-gold"/>
-                             </span>
+                        {/* Image Placeholder (of echte image als je die toevoegt aan focus tabel) */}
+                        <div className="h-48 bg-black relative flex items-center justify-center overflow-hidden">
+                             {/* Hier zou je item.image_url gebruiken als je dat veld toevoegt */}
+                             <div className="absolute inset-0 bg-blue-900/20 group-hover:bg-blue-900/30 transition-colors"></div>
+                             <Crosshair size={48} className="text-blue-200/50 group-hover:scale-110 transition-transform"/>
+                             
+                             <div className="absolute top-4 right-4 z-20">
+                                 <LikeButton itemId={item.id} itemType="focus" userId={user?.id} />
+                             </div>
                         </div>
-                    </div>
-                </Link>
-            ))}
-        </div>
+
+                        <div className="p-6 flex-1 flex flex-col">
+                            <h3 className="font-serif font-bold text-xl mb-3 text-white group-hover:text-museum-gold transition-colors line-clamp-2">
+                                {item.title}
+                            </h3>
+                            <p className="text-gray-400 text-sm line-clamp-3 mb-6 leading-relaxed flex-1">
+                                {item.intro}
+                            </p>
+                            
+                            <div className="flex justify-between items-center border-t border-white/5 pt-4 mt-auto">
+                                <span className="text-xs font-bold text-gray-500 flex items-center gap-2">
+                                    <Clock size={14}/> 10 min
+                                </span>
+                                <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                                    Lees <ArrowRight size={14} className="text-museum-gold"/>
+                                </span>
+                            </div>
+                        </div>
+                    </Link>
+                ))}
+                
+                {items.length === 0 && (
+                    <p className="text-gray-500 col-span-3 text-center py-10">Geen artikelen gevonden voor deze datum.</p>
+                )}
+            </div>
+        )}
 
       </div>
     </div>
