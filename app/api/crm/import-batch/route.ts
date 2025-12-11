@@ -3,14 +3,14 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 
 // Vercel config
-export const maxDuration = 10; 
+export const maxDuration = 100; 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const offset = parseInt(searchParams.get('offset') || '0');
   
-  const limit = 12; // Een mooi grid aantal
+  const limit = 100; // Een mooi grid aantal
 
   const supabase = createClient(cookies());
   const validCandidates = [];
