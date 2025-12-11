@@ -2,10 +2,8 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { LogOut, LayoutDashboard, Heart, History, PlayCircle } from 'lucide-react';
-import LevelCard from '@/components/profile/LevelCard';
-import BadgeGrid from '@/components/profile/BadgeGrid';
-import OnboardingWizard from '@/components/profile/OnboardingWizard';
+import { Settings, Heart, Award, LogOut, Flame, History, Edit3 } from 'lucide-react';
+import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
 
@@ -15,118 +13,110 @@ export default async function ProfilePage() {
 
   if (!user) redirect('/login');
 
-  // 1. Haal Profiel & Stats
+  // 1. Haal data op
   const { data: profile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
-  const { data: userBadges } = await supabase.from('user_badges').select('badge_id').eq('user_id', user.id);
+  const { count: badgeCount } = await supabase.from('user_badges').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
 
-  // 2. Haal RECENTE HISTORIE (Unieke content items uit logs)
-  // We halen de laatste 20 logs op en filteren unieke items eruit in JS
-  const { data: recentLogs } = await supabase
-    .from('user_activity_logs')
-    .select('entity_id, action_type, metadata, created_at')
-    .in('action_type', ['page_view', 'complete_tour'])
-    .not('entity_id', 'is', null) // Alleen logs met ID
-    .order('created_at', { ascending: false })
-    .limit(20);
-
-  // Filter dubbelen (unieke ID's) en pak de eerste 3
-  const uniqueHistory = Array.from(new Set(recentLogs?.map(l => l.entity_id)))
-    .map(id => recentLogs?.find(l => l.entity_id === id))
-    .slice(0, 3);
-
-  const stats = {
-      total_actions: actionCount || 0,
-      fav_count: favCount || 0
-  };
-
-  const earnedBadgeIds = userBadges?.map((b: any) => b.badge_id) || [];
+  // 2. Bereken Level
+  const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
+  const { level, title: levelTitle, nextLevelXp } = getLevel(xp);
+  const progress = (xp / nextLevelXp) * 100;
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white font-sans p-6 md:p-12 flex flex-col items-center">
-      <div className="max-w-4xl w-full">
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
+      <div className="max-w-4xl mx-auto">
         
-        {/* 1. HEADER MET AVATAR & STREAK */}
-        <LevelCard userProfile={profile} stats={stats} />
-
-        {/* 2. RECENT BEKEKEN (NIEUW) */}
-        {uniqueHistory.length > 0 && (
-            <div className="mb-8">
-                <h3 className="font-serif text-xl mb-4 flex items-center gap-2 text-gray-300">
-                    <History size={18} className="text-museum-gold"/> Verder kijken
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {uniqueHistory.map((log: any) => {
-                         // Fallback data uit metadata of generiek
-                         const type = log.metadata?.type || 'Item';
-                         const path = log.metadata?.path || '#';
-                         return (
-                            <Link key={log.entity_id} href={path} className="group bg-white/5 border border-white/5 p-4 rounded-xl flex items-center gap-4 hover:bg-white/10 transition-all">
-                                <div className="w-10 h-10 rounded-full bg-museum-gold/20 text-museum-gold flex items-center justify-center group-hover:bg-museum-gold group-hover:text-black transition-colors">
-                                    <PlayCircle size={20}/>
-                                </div>
-                                <div className="overflow-hidden">
-                                    <div className="text-xs uppercase font-bold text-gray-500 tracking-wider mb-0.5">{type}</div>
-                                    <div className="text-sm font-bold truncate text-gray-200 group-hover:text-white">Ga verder</div>
-                                </div>
-                            </Link>
-                         );
-                    })}
+        {/* HEADER KAART */}
+        <div className="bg-gradient-to-r from-midnight-900 to-black border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
+            <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                {/* Avatar */}
+                <div className="w-24 h-24 rounded-full bg-museum-gold text-black flex items-center justify-center text-3xl font-black border-4 border-black shadow-lg shrink-0">
+                    {profile?.full_name?.[0] || user.email?.[0].toUpperCase()}
                 </div>
-            </div>
-        )}
 
-        {/* 3. ERE-GALERIJ (Met link naar alle achievements) */}
-        <div className="flex justify-between items-end mb-4">
-             <h3 className="font-serif text-xl flex items-center gap-2 text-white">
-                <span className="text-museum-gold">✦</span> Ere-Galerij
-             </h3>
-             <Link href="/achievements" className="text-xs text-museum-gold hover:underline mb-1 font-bold tracking-wider">
-                 BEKIJK ALLE BADGES &rarr;
-             </Link>
-        </div>
-        <BadgeGrid earnedBadges={earnedBadgeIds} />
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
-            <div className="lg:col-span-2 space-y-8">
-                {/* 4. DATA WIZARD */}
-                <OnboardingWizard profile={profile} user={user} isOnboardingPage={false} />
-            </div>
-
-            <div className="space-y-6">
-                {/* 5. COLLECTIE WIDGET */}
-                <div className="bg-midnight-900 border border-white/10 rounded-xl p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-red-500/20 transition-colors"></div>
-                    <h3 className="font-bold mb-4 flex items-center gap-2 relative z-10"><Heart className="text-red-500" size={18}/> Collectie</h3>
-                    
-                    <div className="text-center py-8 bg-black/20 rounded-lg relative z-10">
-                        <div className="text-4xl font-serif font-bold text-white mb-1">{favCount}</div>
-                        <div className="text-xs text-gray-500 uppercase tracking-wider">Items bewaard</div>
+                {/* Info */}
+                <div className="flex-1 text-center md:text-left w-full">
+                    <h1 className="text-3xl font-serif font-bold text-white mb-1">
+                        {profile?.full_name || "Kunstliefhebber"}
+                    </h1>
+                    <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
+                        <span className="px-3 py-1 bg-museum-gold text-black text-xs font-bold uppercase tracking-widest rounded-full">
+                            Level {level}
+                        </span>
+                        <span className="text-museum-gold/80 text-sm font-serif italic">
+                            {levelTitle}
+                        </span>
                     </div>
-                    
-                    <Link href="/favorites" className="block mt-4 text-center text-sm font-bold bg-white/5 py-3 rounded-lg hover:bg-white/10 transition-colors text-white">
-                        Bekijk mijn collectie
-                    </Link>
+
+                    {/* XP Bar */}
+                    <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden relative">
+                        <div className="absolute top-0 left-0 h-full bg-museum-gold transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">
+                        <span>{xp} XP</span>
+                        <span>{nextLevelXp} XP (Volgende Level)</span>
+                    </div>
                 </div>
 
-                {/* ADMIN & LOGOUT */}
-                {profile?.is_admin && (
-                    <Link href="/crm" className="flex items-center gap-3 p-4 rounded-xl bg-blue-900/20 border border-blue-500/30 text-blue-200 hover:bg-blue-900/40 transition-colors">
-                        <div className="bg-blue-500 p-2 rounded-lg text-white"><LayoutDashboard size={18}/></div>
-                        <div>
-                            <div className="font-bold text-sm">CRM Dashboard</div>
-                            <div className="text-xs opacity-70">Beheerders toegang</div>
-                        </div>
-                    </Link>
-                )}
-
-                <form action="/auth/signout" method="post">
-                    <button className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border border-white/5 hover:bg-red-900/20 hover:text-red-400 hover:border-red-900/30 transition-colors text-gray-400 font-medium">
-                        <LogOut size={18} /> Uitloggen
-                    </button>
-                </form>
+                {/* Streak */}
+                <div className="flex flex-col items-center bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+                    <Flame className={profile?.current_streak > 0 ? "text-orange-500 fill-orange-500" : "text-gray-600"} size={32} />
+                    <span className="text-2xl font-bold mt-2">{profile?.current_streak || 0}</span>
+                    <span className="text-[10px] text-gray-500 uppercase font-bold">Dagen Streak</span>
+                </div>
             </div>
+        </div>
+
+        {/* DASHBOARD GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* 1. Collectie */}
+            <Link href="/favorites" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-rose-900/20 text-rose-500 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-colors">
+                        <Heart size={24} />
+                    </div>
+                    <span className="text-2xl font-bold text-white">{favCount}</span>
+                </div>
+                <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">Mijn Collectie</h3>
+                <p className="text-sm text-gray-500 mt-1">Bekijk uw bewaarde kunstwerken.</p>
+            </Link>
+
+            {/* 2. Achievements (Badges) */}
+            <Link href="/profile/achievements" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-yellow-900/20 text-yellow-500 rounded-xl group-hover:bg-yellow-500 group-hover:text-black transition-colors">
+                        <Award size={24} />
+                    </div>
+                    <span className="text-2xl font-bold text-white">{badgeCount}</span>
+                </div>
+                <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">Ere-Galerij</h3>
+                <p className="text-sm text-gray-500 mt-1">Bekijk uw behaalde medailles.</p>
+            </Link>
+
+            {/* 3. Instellingen / Edit */}
+            <Link href="/crm/settings" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-blue-900/20 text-blue-500 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                        <Settings size={24} />
+                    </div>
+                </div>
+                <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">Instellingen</h3>
+                <p className="text-sm text-gray-500 mt-1">Wijzig uw profiel en voorkeuren.</p>
+            </Link>
+        </div>
+
+        {/* ACTIES */}
+        <div className="mt-8 flex justify-center">
+             <form action="/auth/signout" method="post">
+                <button className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-red-500 transition-colors px-6 py-3 rounded-xl hover:bg-red-500/10">
+                    <LogOut size={16}/> Uitloggen
+                </button>
+             </form>
         </div>
 
       </div>
