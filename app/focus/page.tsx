@@ -24,23 +24,26 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
   const nextStr = nextDate.toISOString().split('T')[0];
   const isToday = selectedDateStr === todayStr;
 
-  // 2. Haal Content op voor DEZE datum
-  // We halen het schedule op van de geselecteerde dag
+// 2. Haal Content op voor DEZE datum
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
     .select('focus_ids')
     .eq('day_date', selectedDateStr)
     .single();
 
-  let items = [];
+  let items: any[] = [];
   if (schedule?.focus_ids && schedule.focus_ids.length > 0) {
       const { data } = await supabase.from('focus_items').select('*').in('id', schedule.focus_ids);
       items = data || [];
   } else if (isToday) {
-      // Fallback voor vandaag als er geen schedule is: pak 3 nieuwste
+      // Fallback: pak 3 nieuwste
       const { data } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(3);
       items = data || [];
   }
+
+  // FIX: Sorteer en Forceer Premium Verdeling (1 Gratis, 2 Premium)
+  // Stap A: Sorteer op bestaande premium status (Gratis eerst)
+  items.sort((a, b) => Number(a.is_premium) - Number(b.is_premium));
 
   // 3. Level Check voor Historie (Alleen als je terugbladert)
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
