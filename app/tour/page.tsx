@@ -50,6 +50,8 @@ export default async function TourPage() {
   const subtitle = pageContent?.subtitle || "Luister & Ontdek";
   const intro = pageContent?.intro_text || "Laat u meevoeren door de verhalen.";
 
+  todayTours.sort((a: any, b: any) => Number(a.is_premium) - Number(b.is_premium));
+  
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-12 px-6">
       <div className="max-w-7xl mx-auto">
