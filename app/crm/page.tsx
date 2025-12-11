@@ -1,157 +1,216 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
-import { 
-  Users, Star, Headphones, Gamepad2, Crosshair, 
-  Calendar, ArrowUpRight, Shield, Activity, Brush, BookOpen 
-} from 'lucide-react';
+import { Users, Crown, Activity, Image as ImageIcon, Gamepad2, Headphones, ArrowRight, Clock, TrendingUp } from 'lucide-react';
 
-export const revalidate = 0;
+export default function CrmDashboardPage() {
+    const [stats, setStats] = useState({
+        totalUsers: 0,
+        premiumUsers: 0,
+        activeToday: 0,
+        totalArtworks: 0,
+        totalGames: 0,
+        totalTours: 0
+    });
+    const [recentActivity, setRecentActivity] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    
+    const supabase = createClient();
 
-export default async function CrmDashboard() {
-  const supabase = createClient(cookies());
-  const today = new Date().toISOString().split('T')[0];
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
 
-  // We halen alle statistieken parallel op voor snelheid
-  const [
-    { count: userCount },
-    { count: premiumCount },
-    { count: tourCount },
-    { count: gameCount },
-    { count: focusCount },
-    { count: salonCount },
-    { count: academieCount },
-    { data: schedule }
-  ] = await Promise.all([
-    supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
-    supabase.from('tours').select('*', { count: 'exact', head: true }),
-    supabase.from('games').select('*', { count: 'exact', head: true }),
-    supabase.from('focus_items').select('*', { count: 'exact', head: true }),
-    supabase.from('salons').select('*', { count: 'exact', head: true }),
-    supabase.from('academie').select('*', { count: 'exact', head: true }),
-    // Haal planning op voor de komende 7 dagen om de 'health' te checken
-    supabase.from('dayprogram_schedule').select('day_date').gte('day_date', today).limit(7)
-  ]);
+    const fetchDashboardData = async () => {
+        const today = new Date().toISOString().split('T')[0];
 
-  // Berekeningen
-  const conversionRate = userCount ? Math.round(((premiumCount || 0) / userCount) * 100) : 0;
-  const scheduledDays = schedule?.length || 0;
-  const scheduleHealth = Math.min(Math.round((scheduledDays / 7) * 100), 100);
+        // 1. Parallel Data Ophalen (Snelheid!)
+        const [
+            users, 
+            premium, 
+            artworks, 
+            games, 
+            tours, 
+            activity
+        ] = await Promise.all([
+            supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+            supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
+            supabase.from('artworks').select('*', { count: 'exact', head: true }),
+            supabase.from('games').select('*', { count: 'exact', head: true }),
+            supabase.from('tours').select('*', { count: 'exact', head: true }),
+            // Recente acties ophalen met user details
+            supabase.from('user_activity_logs')
+                .select('action_type, created_at, metadata, user_profiles(full_name)')
+                .order('created_at', { ascending: false })
+                .limit(10)
+        ]);
 
-  return (
-    <div>
-      <header className="mb-8">
-        <h2 className="text-3xl font-bold text-slate-800">Dashboard</h2>
-        <p className="text-slate-500">Real-time inzicht in MuseaThuis.</p>
-      </header>
+        // 2. Unieke bezoekers vandaag berekenen
+        const { count: todayCount } = await supabase
+            .from('user_activity_logs')
+            .select('user_id', { count: 'exact', head: true }) // Eigenlijk wil je distinct count, maar dit is een goede benadering voor nu
+            .gte('created_at', `${today}T00:00:00`);
 
-      {/* RIJ 1: BELANGRIJKSTE KPI'S (LEDEN & PLANNING) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-         
-         {/* Totaal Leden */}
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <div className="flex justify-between items-start mb-4">
-                 <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><Users size={24}/></div>
-                 <span className="text-xs font-bold text-green-600 flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
-                     <ArrowUpRight size={12}/> Live
-                 </span>
-             </div>
-             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Geregistreerde Leden</p>
-             <h3 className="text-3xl font-bold text-slate-800 mt-1">{userCount || 0}</h3>
-         </div>
+        setStats({
+            totalUsers: users.count || 0,
+            premiumUsers: premium.count || 0,
+            activeToday: todayCount || 0,
+            totalArtworks: artworks.count || 0,
+            totalGames: games.count || 0,
+            totalTours: tours.count || 0
+        });
 
-         {/* Premium Leden (Conversie) */}
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <div className="flex justify-between items-start mb-4">
-                 <div className="p-3 bg-yellow-50 text-yellow-600 rounded-lg"><Star size={24}/></div>
-                 <span className="text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded">
-                     {conversionRate}% Conversie
-                 </span>
-             </div>
-             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Premium Abonnees</p>
-             <h3 className="text-3xl font-bold text-slate-800 mt-1">{premiumCount || 0}</h3>
-         </div>
+        setRecentActivity(activity.data || []);
+        setLoading(false);
+    };
 
-         {/* Planning Gezondheid */}
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <div className="flex justify-between items-start mb-4">
-                 <div className={`p-3 rounded-lg ${scheduleHealth < 100 ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
-                     <Calendar size={24}/>
-                 </div>
-                 <span className="text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded">
-                     Komende 7 dagen
-                 </span>
-             </div>
-             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Planning Status</p>
-             <div className="flex items-end gap-2 mt-1">
-                 <h3 className="text-3xl font-bold text-slate-800">{scheduleHealth}%</h3>
-                 <span className="text-sm text-slate-400 mb-1">gevuld</span>
-             </div>
-             {/* Progress Bar */}
-             <div className="w-full bg-slate-100 h-1.5 mt-4 rounded-full overflow-hidden">
-                 <div className={`h-full ${scheduleHealth < 50 ? 'bg-red-500' : scheduleHealth < 100 ? 'bg-orange-500' : 'bg-green-500'}`} style={{ width: `${scheduleHealth}%` }}></div>
-             </div>
-         </div>
+    // Helper voor mooie labels in de feed
+    const formatAction = (type: string, meta: any) => {
+        switch(type) {
+            case 'login': return 'is ingelogd';
+            case 'complete_game': return `behaalde ${meta?.score} punten in een Game`;
+            case 'view_tour': return 'startte een Audiotour';
+            case 'read_focus': return 'las een Focus artikel';
+            default: return 'was actief';
+        }
+    };
 
-         {/* Systeem Status */}
-         <div className="bg-gradient-to-br from-midnight-900 to-midnight-950 p-6 rounded-xl shadow-sm border border-midnight-800 text-white">
-             <div className="flex justify-between items-start mb-4">
-                 <div className="p-3 bg-white/10 text-museum-gold rounded-lg"><Activity size={24}/></div>
-                 <div className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse"></div>
-             </div>
-             <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Systeem Status</p>
-             <h3 className="text-lg font-bold text-white mt-1">Operationeel</h3>
-             <p className="text-xs text-gray-500 mt-2">AI Engine: Online</p>
-         </div>
+    if (loading) return (
+        <div className="p-8 flex items-center gap-2 text-slate-500">
+            <Activity className="animate-spin text-museum-gold"/> Dashboard laden...
+        </div>
+    );
 
-      </div>
-
-      {/* RIJ 2: CONTENT VOORRAAD */}
-      <h3 className="text-lg font-bold text-slate-800 mb-4">Content Bibliotheek</h3>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-          <StatMini title="Audio Tours" count={tourCount || 0} icon={<Headphones size={20}/>} href="/crm/tours" color="bg-blue-500" />
-          <StatMini title="Games / Quiz" count={gameCount || 0} icon={<Gamepad2 size={20}/>} href="/crm/games" color="bg-purple-500" />
-          <StatMini title="Focus Items" count={focusCount || 0} icon={<Crosshair size={20}/>} href="/crm/focus" color="bg-pink-500" />
-          <StatMini title="Salons" count={salonCount || 0} icon={<Brush size={20}/>} href="/crm/salons" color="bg-orange-500" />
-          <StatMini title="Cursussen" count={academieCount || 0} icon={<BookOpen size={20}/>} href="/crm/academie" color="bg-emerald-500" />
-      </div>
-
-      {/* RIJ 3: SNEL ACTIES */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-         <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-lg text-slate-800">Snel Acties</h3>
-         </div>
-         <div className="flex gap-4">
-            <form action="/api/cron/generate-daily" method="GET" target="_blank">
-                <button className="bg-slate-800 text-white px-6 py-3 rounded-lg font-bold hover:bg-black transition-all shadow-lg shadow-slate-200/50 flex items-center gap-2">
-                   ⚡ Forceer Dagelijkse Generatie
-                </button>
-            </form>
-            <Link href="/crm/users" className="bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-lg font-bold hover:bg-slate-50 transition-colors flex items-center gap-2">
-                <Users size={18}/> Beheer Leden
-            </Link>
-         </div>
-         <p className="text-xs text-slate-400 mt-4">
-            * De dagelijkse generatie draait normaal gesproken automatisch elke nacht om 04:00. Gebruik de knop hierboven alleen om te testen of gaten te vullen.
-         </p>
-      </div>
-
-    </div>
-  );
-}
-
-function StatMini({ title, count, icon, href, color }: any) {
     return (
-        <Link href={href} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all group">
-            <div className="flex items-center justify-between mb-2">
-                <div className={`p-2 rounded-lg text-white ${color} group-hover:scale-110 transition-transform`}>
-                    {icon}
+        <div className="p-8 max-w-7xl mx-auto">
+            <header className="mb-8">
+                <h1 className="text-3xl font-bold text-slate-800 mb-2">Dashboard</h1>
+                <p className="text-slate-500">Welkom terug, Directeur. Hier is het overzicht van vandaag.</p>
+            </header>
+
+            {/* --- STATS GRID --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                
+                {/* Users Card */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Gebruikers</p>
+                        <h3 className="text-3xl font-black text-slate-800">{stats.totalUsers}</h3>
+                        <p className="text-xs text-green-600 font-bold flex items-center gap-1 mt-2">
+                            <Crown size={12}/> {stats.premiumUsers} Premium leden
+                        </p>
+                    </div>
+                    <div className="p-4 bg-blue-50 text-blue-600 rounded-full">
+                        <Users size={24}/>
+                    </div>
                 </div>
-                <span className="text-xs text-slate-400 font-medium">Beheer &rarr;</span>
+
+                {/* Activity Card */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Acties Vandaag</p>
+                        <h3 className="text-3xl font-black text-slate-800">{stats.activeToday}</h3>
+                        <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-2">
+                            <TrendingUp size={12}/> Interacties
+                        </p>
+                    </div>
+                    <div className="p-4 bg-green-50 text-green-600 rounded-full">
+                        <Activity size={24}/>
+                    </div>
+                </div>
+
+                {/* Content Card */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Collectie Grootte</p>
+                        <h3 className="text-3xl font-black text-slate-800">{stats.totalArtworks}</h3>
+                        <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-2">
+                            Kunstwerken in database
+                        </p>
+                    </div>
+                    <div className="p-4 bg-purple-50 text-purple-600 rounded-full">
+                        <ImageIcon size={24}/>
+                    </div>
+                </div>
             </div>
-            <h4 className="text-2xl font-bold text-slate-800">{count}</h4>
-            <p className="text-xs text-slate-500 font-medium">{title}</p>
-        </Link>
-    )
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* --- LIVE FEED (Links, Breed) --- */}
+                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-800">Recente Activiteit</h3>
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                        </span>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                        {recentActivity.map((log: any, i) => (
+                            <div key={i} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs">
+                                    {log.user_profiles?.full_name?.[0] || '?'}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm text-slate-700">
+                                        <span className="font-bold">{log.user_profiles?.full_name || 'Iemand'}</span> {formatAction(log.action_type, log.metadata)}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-1">
+                                        <Clock size={10}/> {new Date(log.created_at).toLocaleTimeString('nl-NL')}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                        {recentActivity.length === 0 && (
+                            <div className="p-8 text-center text-slate-400 text-sm">Nog geen activiteit vandaag.</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* --- SNELKOPPELINGEN (Rechts, Smal) --- */}
+                <div className="space-y-6">
+                    
+                    {/* Content Overzicht */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                        <h3 className="font-bold text-slate-800 mb-4">Content Status</h3>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Headphones size={16}/></div>
+                                    <span className="text-sm font-medium text-slate-600">Audiotours</span>
+                                </div>
+                                <span className="font-bold text-slate-800">{stats.totalTours}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><Gamepad2 size={16}/></div>
+                                    <span className="text-sm font-medium text-slate-600">Games</span>
+                                </div>
+                                <span className="font-bold text-slate-800">{stats.totalGames}</span>
+                            </div>
+                        </div>
+                        <div className="mt-6 pt-4 border-t border-slate-100">
+                            <Link href="/crm/import" className="block w-full py-2 bg-slate-900 text-white text-center rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors">
+                                + Nieuwe Content Importeren
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Weekplanning Link */}
+                    <Link href="/crm/week" className="block bg-museum-gold rounded-xl p-6 shadow-lg shadow-yellow-900/10 hover:shadow-xl transition-all group">
+                        <h3 className="font-bold text-black mb-1 group-hover:underline">Weekplanning</h3>
+                        <p className="text-sm text-yellow-900/80 mb-4">Beheer het dagprogramma.</p>
+                        <div className="flex justify-end">
+                            <div className="w-8 h-8 bg-black/10 rounded-full flex items-center justify-center text-black">
+                                <ArrowRight size={16}/>
+                            </div>
+                        </div>
+                    </Link>
+
+                </div>
+            </div>
+        </div>
+    );
 }
