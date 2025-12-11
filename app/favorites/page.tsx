@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { ArrowLeft, Heart, Headphones, Crosshair, Gamepad2, Brush, Filter } from 'lucide-react';
+import { ArrowLeft, Heart, Headphones, Crosshair, Gamepad2, Brush, Layers } from 'lucide-react'; // Layers toegevoegd!
 
 export const revalidate = 0;
 
@@ -32,19 +32,20 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
       );
   }
 
-  // 2. Haal de details op van de bewaarde items (Tours, Focus, etc)
-  // We verzamelen de ID's per type
+  // 2. Haal de details op van de bewaarde items (Tours, Focus, Game, Artworks, SALONS)
   const tourIds = favorites.filter(f => f.item_type === 'tour').map(f => f.item_id);
   const focusIds = favorites.filter(f => f.item_type === 'focus').map(f => f.item_id);
   const gameIds = favorites.filter(f => f.item_type === 'game').map(f => f.item_id);
   const artworkIds = favorites.filter(f => f.item_type === 'artwork').map(f => f.item_id);
+  const salonIds = favorites.filter(f => f.item_type === 'salon').map(f => f.item_id); // NIEUW
 
-  // We halen de data parallel op voor snelheid
-  const [toursRes, focusRes, gameRes, artworkRes] = await Promise.all([
+  // Parallel ophalen voor snelheid
+  const [toursRes, focusRes, gameRes, artworkRes, salonsRes] = await Promise.all([
       tourIds.length > 0 ? supabase.from('tours').select('id, title, intro').in('id', tourIds) : { data: [] },
       focusIds.length > 0 ? supabase.from('focus_items').select('id, title, intro').in('id', focusIds) : { data: [] },
       gameIds.length > 0 ? supabase.from('games').select('id, title, short_description').in('id', gameIds) : { data: [] },
       artworkIds.length > 0 ? supabase.from('artworks').select('id, title, artist, image_url').in('id', artworkIds) : { data: [] },
+      salonIds.length > 0 ? supabase.from('salons').select('id, title, short_description').in('id', salonIds) : { data: [] }, // NIEUW
   ]);
 
   // Helper om item terug te vinden
@@ -53,6 +54,7 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
       if (fav.item_type === 'focus') return focusRes.data?.find((f: any) => f.id === fav.item_id);
       if (fav.item_type === 'game') return gameRes.data?.find((g: any) => g.id === fav.item_id);
       if (fav.item_type === 'artwork') return artworkRes.data?.find((a: any) => a.id === fav.item_id);
+      if (fav.item_type === 'salon') return salonsRes.data?.find((s: any) => s.id === fav.item_id); // NIEUW
       return null;
   };
 
@@ -78,6 +80,7 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
                     { id: 'tour', label: 'Tours', icon: <Headphones size={14}/> },
                     { id: 'focus', label: 'Artikelen', icon: <Crosshair size={14}/> },
                     { id: 'game', label: 'Games', icon: <Gamepad2 size={14}/> },
+                    { id: 'salon', label: 'Collecties', icon: <Layers size={14}/> }, // NIEUW
                     { id: 'artwork', label: 'Kunstwerken', icon: <Brush size={14}/> },
                 ].map(f => (
                     <Link 
@@ -99,7 +102,7 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {favorites.map((fav) => {
                 const details = getItemDetails(fav);
-                if (!details) return null; // Item misschien verwijderd
+                if (!details) return null;
 
                 // Bepaal icoon & link per type
                 let Icon = Heart;
@@ -108,12 +111,12 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
                 let desc = '';
                 let bgImage = null;
 
-                // FIX: We gebruiken 'as any' om TypeScript tevreden te stellen
-                const d = details as any;
+                const d = details as any; // Cast om TypeScript-fouten (die we eerder zagen) te vermijden
 
                 if (fav.item_type === 'tour') { Icon = Headphones; link = `/tour/${fav.item_id}`; label = 'Audio Tour'; desc = d.intro; }
                 if (fav.item_type === 'focus') { Icon = Crosshair; link = `/focus/${fav.item_id}`; label = 'Focus Item'; desc = d.intro; }
                 if (fav.item_type === 'game') { Icon = Gamepad2; link = `/game/${fav.item_id}`; label = 'Quiz'; desc = d.short_description; }
+                if (fav.item_type === 'salon') { Icon = Layers; link = `/salon/${fav.item_id}`; label = 'Collectie'; desc = d.short_description; } // NIEUW
                 if (fav.item_type === 'artwork') { 
                     Icon = Brush; 
                     link = '#'; // Artworks hebben voor nu geen eigen pagina
