@@ -24,10 +24,12 @@ export default function Footer() {
           <div>
             <h4 className="font-bold text-white mb-6">Ontdekken</h4>
             <ul className="space-y-4 text-sm text-gray-400">
-              <li><Link href="/tour" className="hover:text-museum-gold transition-colors">Vandaag</Link></li>
-              <li><Link href="/salon" className="hover:text-museum-gold transition-colors">De Salon</Link></li>
-              <li><Link href="/academie" className="hover:text-museum-gold transition-colors">De Academie</Link></li>
-              <li><Link href="/best-of" className="hover:text-museum-gold transition-colors">Publieksfavorieten</Link></li>
+              <li><Link href="/tour" className="hover:text-museum-gold transition-colors">Tours</Link></li>
+              <li><Link href="/game" className="hover:text-museum-gold transition-colors">Games</Link></li>
+              <li><Link href="/focus" className="hover:text-museum-gold transition-colors">Focus</Link></li>
+              <li><Link href="/salon" className="hover:text-museum-gold transition-colors">Salons</Link></li>
+              <li><Link href="/academie" className="hover:text-museum-gold transition-colors">Academie</Link></li>
+              <li><Link href="/best-of" className="hover:text-museum-gold transition-colors">Best of</Link></li>
             </ul>
           </div>
 
@@ -41,35 +43,13 @@ export default function Footer() {
               <li><Link href="#" className="hover:text-museum-gold transition-colors">Contact</Link></li>
             </ul>
           </div>
-
-          {/* Kolom 4: Nieuwsbrief */}
-          <div>
-            <h4 className="font-bold text-white mb-6">Blijf op de hoogte</h4>
-            <p className="text-gray-400 text-sm mb-4">Ontvang wekelijks de hoogtepunten.</p>
-            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input 
-                type="email" 
-                placeholder="Uw e-mailadres" 
-                className="bg-midnight-950 border border-white/10 rounded-lg px-4 py-2 text-sm text-white w-full focus:outline-none focus:border-museum-gold"
-              />
-              <button className="bg-museum-gold text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-white transition-colors">
-                OK
-              </button>
-            </form>
-          </div>
         </div>
 
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-gray-500">
             © {new Date().getFullYear()} MuseaThuis. Alle rechten voorbehouden.
           </p>
-          
-          <div className="flex gap-6">
-            <a href="#" className="text-gray-500 hover:text-white transition-colors"><Instagram size={20} /></a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors"><Twitter size={20} /></a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors"><Facebook size={20} /></a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors"><Mail size={20} /></a>
-          </div>
+
         </div>
       </div>
     </footer>
