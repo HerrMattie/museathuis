@@ -1,28 +1,37 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { trackActivity } from '@/lib/tracking'; // <--- Centrale intelligentie
-import { Check, X, Trophy, Home } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking';
+import { hasPlayedToday, getDailyLeaderboard } from '@/lib/gameLogic';
+import { Trophy, Home, AlertCircle, Check, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import confetti from 'canvas-confetti'; 
+import confetti from 'canvas-confetti';
 
 export default function QuizEngine({ game, items, userId }: { game: any, items: any[], userId: string }) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [score, setScore] = useState(0);
-    const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-    const [isAnswered, setIsAnswered] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
+    const [isAnswered, setIsAnswered] = useState(false);
+    const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
     
-    // STARTTIJD (Voor duur-meting)
+    // Nieuwe States
+    const [alreadyPlayed, setAlreadyPlayed] = useState(false);
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
+    
     const startTimeRef = useRef(Date.now());
-    
     const supabase = createClient();
     const router = useRouter();
     const currentItem = items[currentIndex];
 
-    // Mix antwoorden (Simpele shuffle bij render)
-    const allAnswers = [currentItem.correct_answer, ...currentItem.wrong_answers].sort();
+    // 1. Check Anti-Cheat bij start
+    useEffect(() => {
+        const check = async () => {
+            const played = await hasPlayedToday(supabase, userId, game.id);
+            setAlreadyPlayed(played);
+        };
+        check();
+    }, []);
 
     const handleAnswer = (answer: string) => {
         if (isAnswered) return;
@@ -32,16 +41,14 @@ export default function QuizEngine({ game, items, userId }: { game: any, items: 
         const isCorrect = answer === currentItem.correct_answer;
         if (isCorrect) {
             setScore(s => s + 1);
-            // Klein pufje confetti bij goed antwoord
-            confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } }); 
+            confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
         }
 
-        // Wacht 2 seconden en ga door
         setTimeout(() => {
             if (currentIndex < items.length - 1) {
                 setCurrentIndex(c => c + 1);
-                setSelectedAnswer(null);
                 setIsAnswered(false);
+                setSelectedAnswer(null);
             } else {
                 finishGame(isCorrect ? score + 1 : score);
             }
@@ -50,79 +57,85 @@ export default function QuizEngine({ game, items, userId }: { game: any, items: 
 
     const finishGame = async (finalScore: number) => {
         setIsFinished(true);
-        if (finalScore === items.length) confetti(); // GROOT feest bij alles goed
+        if (finalScore === items.length) confetti();
 
-        // BEREKEN TIJD
         const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
 
-        // TRACKING (Slaat score op, checkt streak, checkt badges)
-        await trackActivity(supabase, userId, 'complete_game', game.id, {
-            score: finalScore,
-            max_score: items.length,
-            type: 'quiz',
-            duration: duration
-        });
+        // 2. Alleen opslaan als nog niet gespeeld
+        if (!alreadyPlayed) {
+            await trackActivity(supabase, userId, 'complete_game', game.id, {
+                score: finalScore,
+                max_score: items.length,
+                type: 'quiz',
+                duration: duration
+            });
+        }
+
+        // 3. Leaderboard ophalen
+        const lb = await getDailyLeaderboard(supabase, game.id);
+        setLeaderboard(lb);
     };
 
     if (isFinished) {
         return (
-            <div className="text-center animate-in fade-in zoom-in duration-500 max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
-                <div className="inline-flex items-center justify-center w-24 h-24 bg-museum-gold text-black rounded-full mb-6 shadow-[0_0_30px_rgba(234,179,8,0.5)]">
-                    <Trophy size={40} />
-                </div>
+            <div className="max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl text-center">
+                <Trophy size={48} className="mx-auto text-museum-gold mb-4"/>
                 <h2 className="text-3xl font-serif font-bold text-white mb-2">Quiz Voltooid!</h2>
+                
+                {alreadyPlayed && (
+                    <div className="bg-blue-900/30 border border-blue-500/30 p-3 rounded-lg mb-4 text-xs text-blue-200 flex items-center justify-center gap-2">
+                        <AlertCircle size={14}/> Je hebt vandaag al gespeeld. Score telt niet mee voor XP.
+                    </div>
+                )}
+
                 <p className="text-xl text-gray-300 mb-8">Score: <span className="text-museum-gold font-bold">{score}</span> / {items.length}</p>
                 
-                <div className="space-y-3">
-                    <button onClick={() => router.push('/game')} className="w-full bg-white text-black font-bold py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                         <Home size={18}/> Terug naar Games
-                    </button>
+                {/* Leaderboard */}
+                <div className="mb-8 text-left bg-black/40 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Dagtoppers</h4>
+                    <div className="space-y-2">
+                        {leaderboard.map((player, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                                <span className={idx < 3 ? "text-museum-gold font-bold" : "text-gray-400"}>{idx + 1}. {player.user_name}</span>
+                                <span className="font-mono text-white">{player.score} pnt</span>
+                            </div>
+                        ))}
+                        {leaderboard.length === 0 && <p className="text-xs text-gray-500 italic">Nog geen scores vandaag.</p>}
+                    </div>
                 </div>
+
+                <button onClick={() => router.push('/game')} className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors flex justify-center items-center gap-2">
+                     <Home size={18}/> Terug naar Games
+                </button>
             </div>
         );
     }
 
+    const answers = [currentItem.correct_answer, ...currentItem.wrong_answers].sort();
+
     return (
-        <div className="max-w-2xl mx-auto w-full">
-            {/* Progress Bar */}
-            <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">
-                <span>Vraag {currentIndex + 1} / {items.length}</span>
-                <span>Score: {score}</span>
-            </div>
-            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden mb-8">
-                <div className="bg-museum-gold h-full transition-all duration-500" style={{ width: `${((currentIndex) / items.length) * 100}%` }}></div>
+        <div className="max-w-xl mx-auto w-full">
+            <div className="mb-8 text-center">
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Vraag {currentIndex + 1}/{items.length}</p>
+                <h2 className="text-2xl font-bold text-white">{currentItem.question}</h2>
             </div>
 
-            {/* De Vraag */}
-            <h2 className="text-2xl md:text-3xl font-serif font-bold text-white mb-8 leading-tight min-h-[120px] flex items-center justify-center text-center">
-                {currentItem.question}
-            </h2>
-
-            {/* Antwoorden Grid */}
-            <div className="grid grid-cols-1 gap-4">
-                {allAnswers.map((answer, idx) => {
-                    let btnClass = "bg-white/5 border-white/10 hover:bg-white/10 text-white hover:border-white/30"; // Standaard
-                    
+            <div className="grid gap-4">
+                {answers.map((ans, idx) => {
+                    let btnClass = "bg-white/5 hover:bg-white/10 border-white/10";
                     if (isAnswered) {
-                        if (answer === currentItem.correct_answer) {
-                            btnClass = "bg-green-500/20 border-green-500 text-green-100"; // GOED
-                        } else if (answer === selectedAnswer) {
-                            btnClass = "bg-red-500/20 border-red-500 text-red-100 opacity-50"; // FOUT
-                        } else {
-                            btnClass = "opacity-30 border-transparent"; // REST
-                        }
+                        if (ans === currentItem.correct_answer) btnClass = "bg-green-500/20 border-green-500 text-green-100";
+                        else if (ans === selectedAnswer) btnClass = "bg-red-500/20 border-red-500 text-red-100";
+                        else btnClass = "opacity-50";
                     }
-
                     return (
                         <button 
-                            key={idx}
+                            key={idx} 
+                            onClick={() => handleAnswer(ans)} 
                             disabled={isAnswered}
-                            onClick={() => handleAnswer(answer)}
-                            className={`p-6 rounded-xl border text-lg font-medium transition-all duration-300 flex items-center justify-between group text-left ${btnClass}`}
+                            className={`p-4 rounded-xl border text-left font-medium transition-all ${btnClass}`}
                         >
-                            <span>{answer}</span>
-                            {isAnswered && answer === currentItem.correct_answer && <Check className="text-green-500" />}
-                            {isAnswered && answer === selectedAnswer && answer !== currentItem.correct_answer && <X className="text-red-500" />}
+                            {ans}
                         </button>
                     )
                 })}
