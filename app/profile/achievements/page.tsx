@@ -26,6 +26,22 @@ const getIcon = (iconName: string) => {
         'Flame': Flame,
         'Library': Library,
         'Trophy': Trophy,
+        'Moon': Moon,
+        'Sun': Sun,
+        'Clock': Clock,
+        'Palette': Palette,
+        'CloudRain': CloudRain,
+        'Heart': Heart,
+        'LayoutGrid': LayoutGrid,
+        'Flame': Flame
+        'Scroll': Scroll,
+        'Coffee': Coffee,
+        'Target': Target,
+        'Search': Search,
+        'MoonStar': MoonStar,
+        'UserCheck': UserCheck,
+        'Compass': Compass,
+        'PenTool': PenTool
     };
     return icons[iconName] || Award; // Fallback naar Award als icoon niet bestaat
 };
