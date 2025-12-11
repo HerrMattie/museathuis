@@ -4,7 +4,7 @@ import "@/app/globals.css";
 import { createClient } from "@/lib/supabaseServer"; 
 import { cookies } from "next/headers"; 
 import Footer from "@/components/layout/Footer"; 
-import Navbar from "@/components/layout/Navbar"; // <--- NIEUWE IMPORT
+import NavBar from "@/components/layout/NavBar"; // <--- NIEUWE IMPORT
 import { Suspense } from "react";
 import PageTracker from "@/components/analytics/PageTracker";
 
@@ -38,8 +38,8 @@ export default async function RootLayout({
             <PageTracker />
         </Suspense>
 
-        {/* We geven de user data door aan de Navbar (Client Component) */}
-        <Navbar user={user} />
+        {/* We geven de user data door aan de NavBar (Client Component) */}
+        <NavBar user={user} />
 
         <div className="pt-20 flex-1 flex flex-col">
           {children}
