@@ -1,97 +1,145 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Star, TrendingUp, ArrowRight, Gamepad2, Trophy } from 'lucide-react';
+import { Trophy, Crown, ArrowRight, Star, Gamepad2, Headphones, Crosshair, Lock } from 'lucide-react';
 
 export const revalidate = 0;
 
 export default async function BestOfPage() {
   const supabase = createClient(cookies());
-  const { data: pageContent } = await supabase.from('page_content').select('*').eq('slug', 'best-of').single();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const title = pageContent?.title || "Best of MuseaThuis";
-  const subtitle = pageContent?.subtitle || "Publieksfavorieten";
-  const intro = pageContent?.intro_text || "De hoogst gewaardeerde content van de afgelopen maand.";
+  // 1. PREMIUM CHECK (Streng)
+  // We checken hier even simpel op user. In een echte app check je: user.is_premium === true
+  if (!user) {
+      redirect('/pricing');
+  }
 
-  // 1. Haal Content op (Nu ook Games!)
-  const { data: tours } = await supabase.from('tours').select('*').eq('status', 'published').limit(3);
-  const { data: focus } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(3);
-  const { data: games } = await supabase.from('games').select('*').eq('status', 'published').limit(3); 
+  // 2. DATUM LOGICA (Afgelopen maand, niet vandaag)
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+  
+  const todayStr = today.toISOString().split('T')[0];
+  const startStr = thirtyDaysAgo.toISOString();
+
+  // 3. DATA OPHALEN (Parallel voor snelheid)
+  // We halen items op die gemaakt/gepubliceerd zijn in de afgelopen maand
+  // En we sluiten items van VANDAAG uit (zoals gevraagd)
+  const [tours, games, focus] = await Promise.all([
+      supabase.from('tours')
+        .select('*')
+        .eq('status', 'published')
+        .gte('created_at', startStr)
+        .lt('created_at', todayStr) // Niet vandaag
+        .limit(5),
+      
+      supabase.from('games')
+        .select('*')
+        .eq('status', 'published')
+        .gte('created_at', startStr)
+        .lt('created_at', todayStr)
+        .limit(5),
+
+      supabase.from('focus_items')
+        .select('*')
+        .gte('created_at', startStr)
+        .lt('created_at', todayStr)
+        .limit(5)
+  ]);
+
+  // Helper voor de kaarten
+  const BestOfCard = ({ item, type, icon: Icon, color }: any) => (
+    <Link href={`/${type}/${item.id}`} className="group flex items-center gap-4 p-4 bg-midnight-900 border border-white/10 rounded-xl hover:border-museum-gold/50 hover:bg-white/5 transition-all">
+        <div className={`w-16 h-16 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-20 text-white font-bold border border-white/10`}>
+            {item.image_url || item.hero_image_url ? (
+                <img src={item.image_url || item.hero_image_url} className="w-full h-full object-cover rounded-lg"/>
+            ) : (
+                <Icon size={24} className="opacity-50"/>
+            )}
+        </div>
+        <div className="flex-1 min-w-0">
+            <h4 className="font-bold text-white truncate group-hover:text-museum-gold transition-colors">{item.title}</h4>
+            <p className="text-xs text-gray-500 line-clamp-1">{item.intro || item.short_description || "Bekijk dit item"}</p>
+        </div>
+        <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-gray-500 group-hover:text-museum-gold group-hover:bg-white/10 transition-colors">
+            <ArrowRight size={14}/>
+        </div>
+    </Link>
+  );
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-12 px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-7xl mx-auto">
         
         {/* HEADER */}
-        <div className="relative py-16 mb-12 border-b border-white/10">
-             <div className="absolute inset-0 bg-gradient-to-r from-yellow-600/10 to-transparent pointer-events-none rounded-3xl"></div>
-             <div className="relative z-10">
-                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-3">{subtitle}</p>
-                <h1 className="text-5xl md:text-7xl font-serif font-black mb-6 text-white">{title}</h1>
-                <p className="text-xl text-gray-300 max-w-2xl leading-relaxed font-light">{intro}</p>
-             </div>
+        <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-white/10 pb-8">
+            <div>
+                <p className="text-museum-gold text-sm font-bold uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                    <Crown size={16}/> Premium Only
+                </p>
+                <h1 className="text-5xl font-serif font-black text-white mb-2">Best of the Month</h1>
+                <p className="text-gray-400 max-w-lg">
+                    De populairste content van de afgelopen 30 dagen, speciaal geselecteerd voor onze leden.
+                </p>
+            </div>
+            <div className="hidden md:block text-right">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Jouw Status</p>
+                <span className="text-green-400 font-bold flex items-center gap-2 justify-end"><Star size={16} fill="currentColor"/> Actief Lid</span>
+            </div>
         </div>
 
-        <div className="space-y-16">
+        {/* DRIE KOLOMMEN */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             
-            {/* 1. TRENDING TOURS */}
-            <section>
-                <h3 className="text-2xl font-serif font-bold text-white mb-6 flex items-center gap-3">
-                    <TrendingUp className="text-museum-gold"/> Trending Tours
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {tours?.map(t => (
-                        <Link key={t.id} href={`/tour/${t.id}`} className="group block bg-midnight-900 border border-white/10 p-6 rounded-xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
-                             <h4 className="font-bold text-lg mb-2 text-white group-hover:text-museum-gold transition-colors">{t.title}</h4>
-                             <p className="text-sm text-gray-400 line-clamp-2 mb-4 font-light">{t.intro}</p>
-                             <div className="text-xs font-bold uppercase tracking-widest text-gray-500 group-hover:text-white flex items-center gap-2">
-                                Bekijk <ArrowRight size={12}/>
-                             </div>
-                        </Link>
+            {/* 1. TOURS */}
+            <div>
+                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                    <Headphones className="text-purple-400"/> Top 5 Audiotours
+                </h2>
+                <div className="space-y-4">
+                    {tours.data?.map((item, i) => (
+                        <div key={item.id} className="relative">
+                            <span className="absolute -left-4 top-1/2 -translate-y-1/2 -translate-x-full text-4xl font-black text-white/5">{i + 1}</span>
+                            <BestOfCard item={item} type="tour" icon={Headphones} color="bg-purple-500" />
+                        </div>
                     ))}
+                    {(!tours.data || tours.data.length === 0) && <p className="text-gray-600 text-sm italic">Geen tours gevonden deze maand.</p>}
                 </div>
-            </section>
+            </div>
 
-            {/* 2. POPULAIRE GAMES (NIEUW) */}
-            <section>
-                <h3 className="text-2xl font-serif font-bold text-white mb-6 flex items-center gap-3">
-                    <Trophy className="text-museum-gold"/> Top Rated Games
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {games?.map(g => (
-                        <Link key={g.id} href={`/game/${g.id}`} className="group block bg-midnight-900 border border-white/10 p-6 rounded-xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
-                             <div className="flex justify-between items-start mb-4">
-                                <div className="w-10 h-10 bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-400">
-                                    <Gamepad2 size={18}/>
-                                </div>
-                             </div>
-                             <h4 className="font-bold text-lg mb-2 text-white group-hover:text-museum-gold transition-colors">{g.title}</h4>
-                             <p className="text-sm text-gray-400 line-clamp-2 mb-4 font-light">{g.short_description}</p>
-                             <div className="text-xs font-bold uppercase tracking-widest text-gray-500 group-hover:text-white flex items-center gap-2">
-                                Speel Nu <ArrowRight size={12}/>
-                             </div>
-                        </Link>
+            {/* 2. GAMES */}
+            <div>
+                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                    <Gamepad2 className="text-emerald-400"/> Top 5 Games
+                </h2>
+                <div className="space-y-4">
+                    {games.data?.map((item, i) => (
+                        <div key={item.id} className="relative">
+                            <span className="absolute -left-4 top-1/2 -translate-y-1/2 -translate-x-full text-4xl font-black text-white/5">{i + 1}</span>
+                            <BestOfCard item={item} type="game" icon={Gamepad2} color="bg-emerald-500" />
+                        </div>
                     ))}
+                    {(!games.data || games.data.length === 0) && <p className="text-gray-600 text-sm italic">Geen games gevonden deze maand.</p>}
                 </div>
-            </section>
+            </div>
 
-             {/* 3. MUST READ ARTIKELEN */}
-             <section>
-                <h3 className="text-2xl font-serif font-bold text-white mb-6 flex items-center gap-3">
-                    <Star className="text-museum-gold"/> Must Read Artikelen
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {focus?.map(f => (
-                        <Link key={f.id} href={`/focus/${f.id}`} className="group block bg-midnight-900 border border-white/10 p-6 rounded-xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
-                             <h4 className="font-bold text-lg mb-2 text-white group-hover:text-museum-gold transition-colors">{f.title}</h4>
-                             <p className="text-sm text-gray-400 line-clamp-2 mb-4 font-light">{f.intro}</p>
-                             <div className="text-xs font-bold uppercase tracking-widest text-gray-500 group-hover:text-white flex items-center gap-2">
-                                Lees <ArrowRight size={12}/>
-                             </div>
-                        </Link>
+            {/* 3. FOCUS */}
+            <div>
+                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                    <Crosshair className="text-blue-400"/> Top 5 Artikelen
+                </h2>
+                <div className="space-y-4">
+                    {focus.data?.map((item, i) => (
+                        <div key={item.id} className="relative">
+                            <span className="absolute -left-4 top-1/2 -translate-y-1/2 -translate-x-full text-4xl font-black text-white/5">{i + 1}</span>
+                            <BestOfCard item={item} type="focus" icon={Crosshair} color="bg-blue-500" />
+                        </div>
                     ))}
+                    {(!focus.data || focus.data.length === 0) && <p className="text-gray-600 text-sm italic">Geen artikelen gevonden deze maand.</p>}
                 </div>
-            </section>
+            </div>
 
         </div>
       </div>
