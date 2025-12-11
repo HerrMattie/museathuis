@@ -2,82 +2,67 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Heart, Loader2 } from 'lucide-react';
-import { trackActivity } from '@/lib/tracking'; // We loggen dit voor jouw data-analyse!
+import { Heart } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking';
 
 interface LikeButtonProps {
     itemId: string;
-    itemType: 'tour' | 'focus' | 'game' | 'artwork';
-    userId?: string;
+    // UPDATE: 'salon' toegevoegd aan de types hieronder
+    itemType: 'tour' | 'game' | 'focus' | 'artwork' | 'salon';
+    userId?: string | null;
 }
 
 export default function LikeButton({ itemId, itemType, userId }: LikeButtonProps) {
     const [isLiked, setIsLiked] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const supabase = createClient();
 
-    // 1. Check bij laden of hij al geliked is
     useEffect(() => {
-        if (!userId) { setIsLoading(false); return; }
-
+        if (!userId) return;
         const checkLike = async () => {
             const { data } = await supabase
                 .from('favorites')
                 .select('id')
                 .eq('user_id', userId)
+                .eq('item_type', itemType)
                 .eq('item_id', itemId)
                 .single();
-            
-            setIsLiked(!!data);
-            setIsLoading(false);
+            if (data) setIsLiked(true);
         };
         checkLike();
-    }, [userId, itemId, supabase]);
+    }, [userId, itemId, itemType]);
 
-    // 2. Klik Actie
-    const toggleLike = async () => {
+    const toggleLike = async (e: React.MouseEvent) => {
+        e.preventDefault(); // Voorkom dat de Link eromheen ook klikt
         if (!userId) {
-            alert("Log in om items te bewaren.");
+            // In een echte app: redirect naar login of toon modal
+            alert("Log in om items te bewaren."); 
             return;
         }
+        if (loading) return;
+        setLoading(true);
 
-        // Optimistic UI update (direct kleuren, later checken)
-        const newState = !isLiked;
-        setIsLiked(newState);
-
-        if (newState) {
-            // AAN: Opslaan
-            const { error } = await supabase.from('favorites').insert({
-                user_id: userId,
-                item_id: itemId,
-                item_type: itemType
-            });
-            
-            if (!error) {
-                // Log voor Data Analyse: "Gebruiker toont sterke interesse"
-                trackActivity(supabase, userId, 'favorite_item', itemId, { type: itemType });
-            } else {
-                setIsLiked(false); // Revert bij fout
-            }
+        if (isLiked) {
+            // Verwijderen
+            await supabase.from('favorites').delete().eq('user_id', userId).eq('item_type', itemType).eq('item_id', itemId);
+            setIsLiked(false);
         } else {
-            // UIT: Verwijderen
-            const { error } = await supabase.from('favorites')
-                .delete()
-                .eq('user_id', userId)
-                .eq('item_id', itemId);
+            // Toevoegen
+            await supabase.from('favorites').insert({ user_id: userId, item_type: itemType, item_id: itemId });
+            setIsLiked(true);
             
-            if (error) setIsLiked(true); // Revert bij fout
+            // Track voor Badges (Curator badge etc.)
+            trackActivity(supabase, userId, 'favorite_item', itemId, { type: itemType });
         }
+        setLoading(false);
     };
-
-    if (isLoading) return <div className="w-10 h-10 flex items-center justify-center"><Loader2 className="animate-spin text-white/20" size={16} /></div>;
 
     return (
         <button 
             onClick={toggleLike}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border ${
                 isLiked 
-                ? 'bg-red-500 border-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] scale-110' 
+                ? 'bg-rose-600 border-rose-500 text-white shadow-[0_0_15px_rgba(225,29,72,0.6)] scale-110' 
                 : 'bg-white/10 border-white/10 text-white hover:bg-white/20'
             }`}
             aria-label={isLiked ? "Verwijder uit favorieten" : "Voeg toe aan favorieten"}
