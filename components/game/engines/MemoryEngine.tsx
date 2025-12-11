@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { trackActivity } from '@/lib/tracking'; // <--- IMPORT
-import { Trophy, Home, Sparkles } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking';
+import { hasPlayedToday, getDailyLeaderboard } from '@/lib/gameLogic';
+import { Trophy, Home, Sparkles, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 
@@ -23,38 +24,28 @@ export default function MemoryEngine({ game, items, userId }: { game: any, items
     const [moves, setMoves] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
     
-    // STARTTIJD
-    const startTimeRef = useRef(Date.now());
+    const [alreadyPlayed, setAlreadyPlayed] = useState(false);
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
+    const startTimeRef = useRef(Date.now());
     const supabase = createClient();
     const router = useRouter();
 
     useEffect(() => {
+        const check = async () => {
+            const played = await hasPlayedToday(supabase, userId, game.id);
+            setAlreadyPlayed(played);
+        };
+        check();
+
+        // Setup Cards
         let deck: Card[] = [];
         items.forEach((item, index) => {
-            // Kaart A: Plaatje
-            deck.push({ 
-                id: index * 2, 
-                itemId: item.id, 
-                content: item.image_url, 
-                type: 'image', 
-                isFlipped: false, 
-                isMatched: false 
-            });
-            // Kaart B: Tekst (Vraag)
-            deck.push({ 
-                id: index * 2 + 1, 
-                itemId: item.id, 
-                content: item.question, 
-                type: 'text', 
-                isFlipped: false, 
-                isMatched: false 
-            });
+            deck.push({ id: index * 2, itemId: item.id, content: item.image_url, type: 'image', isFlipped: false, isMatched: false });
+            deck.push({ id: index * 2 + 1, itemId: item.id, content: item.question, type: 'text', isFlipped: false, isMatched: false });
         });
-        // Shuffle
         deck = deck.sort(() => Math.random() - 0.5);
         setCards(deck);
-        // Reset timer bij start
         startTimeRef.current = Date.now();
     }, [items]);
 
@@ -74,7 +65,6 @@ export default function MemoryEngine({ game, items, userId }: { game: any, items
             const card2 = newCards[newFlipped[1]];
 
             if (card1.itemId === card2.itemId) {
-                // MATCH
                 setTimeout(() => {
                     newCards[newFlipped[0]].isMatched = true;
                     newCards[newFlipped[1]].isMatched = true;
@@ -87,7 +77,6 @@ export default function MemoryEngine({ game, items, userId }: { game: any, items
                     });
                 }, 500);
             } else {
-                // NO MATCH
                 setTimeout(() => {
                     newCards[newFlipped[0]].isFlipped = false;
                     newCards[newFlipped[1]].isFlipped = false;
@@ -103,24 +92,49 @@ export default function MemoryEngine({ game, items, userId }: { game: any, items
         confetti();
         
         const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
-        // Score: Max 100, min aantal zetten eraf
-        const score = Math.max(10, 100 - (finalMoves * 2));
+        // Score: Max 100, min aantal zetten eraf. Hoe minder moves, hoe hoger de score.
+        const score = Math.max(10, 200 - (finalMoves * 5)); 
         
-        await trackActivity(supabase, userId, 'complete_game', game.id, {
-            score: score,
-            moves: finalMoves,
-            type: 'memory',
-            duration: duration
-        });
+        if (!alreadyPlayed) {
+            await trackActivity(supabase, userId, 'complete_game', game.id, {
+                score: score,
+                moves: finalMoves,
+                type: 'memory',
+                duration: duration
+            });
+        }
+
+        const lb = await getDailyLeaderboard(supabase, game.id);
+        setLeaderboard(lb);
     };
 
     if (isFinished) {
         return (
-            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
+            <div className="max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl text-center">
                 <Sparkles size={48} className="mx-auto text-museum-gold mb-4"/>
                 <h2 className="text-3xl font-bold text-white mb-2">Geheugen als een olifant!</h2>
-                <p className="text-gray-400 mb-6">Je had {moves} beurten nodig.</p>
-                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto hover:bg-gray-200">Terug</button>
+                
+                {alreadyPlayed && (
+                    <div className="bg-blue-900/30 border border-blue-500/30 p-3 rounded-lg mb-4 text-xs text-blue-200">
+                        Reeds gespeeld. Geen XP.
+                    </div>
+                )}
+
+                <p className="text-gray-400 mb-6">Je had {moves} beurten nodig. Score: {Math.max(10, 200 - (moves * 5))}</p>
+                
+                <div className="mb-8 text-left bg-black/40 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Snelste Spelers</h4>
+                    <div className="space-y-2">
+                        {leaderboard.map((player, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                                <span className={idx < 3 ? "text-museum-gold font-bold" : "text-gray-400"}>{idx + 1}. {player.user_name}</span>
+                                <span className="font-mono text-white">{player.score}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold w-full hover:bg-gray-200">Terug</button>
             </div>
         );
     }
