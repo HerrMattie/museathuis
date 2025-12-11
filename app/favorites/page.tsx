@@ -67,7 +67,7 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
                     <ArrowLeft size={16}/> Terug naar Profiel
                 </Link>
                 <h1 className="text-4xl font-serif font-bold text-white flex items-center gap-3">
-                    <Heart className="text-red-500 fill-red-500" size={32} /> Mijn Collectie
+                    <Heart className="text-rose-600 fill-rose-600" size={32} /> Mijn Collectie
                 </h1>
             </div>
 
@@ -108,15 +108,18 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
                 let desc = '';
                 let bgImage = null;
 
-                if (fav.item_type === 'tour') { Icon = Headphones; link = `/tour/${fav.item_id}`; label = 'Audio Tour'; desc = details.intro; }
-                if (fav.item_type === 'focus') { Icon = Crosshair; link = `/focus/${fav.item_id}`; label = 'Focus Item'; desc = details.intro; }
-                if (fav.item_type === 'game') { Icon = Gamepad2; link = `/game/${fav.item_id}`; label = 'Quiz'; desc = details.short_description; }
+                // FIX: We gebruiken 'as any' om TypeScript tevreden te stellen
+                const d = details as any;
+
+                if (fav.item_type === 'tour') { Icon = Headphones; link = `/tour/${fav.item_id}`; label = 'Audio Tour'; desc = d.intro; }
+                if (fav.item_type === 'focus') { Icon = Crosshair; link = `/focus/${fav.item_id}`; label = 'Focus Item'; desc = d.intro; }
+                if (fav.item_type === 'game') { Icon = Gamepad2; link = `/game/${fav.item_id}`; label = 'Quiz'; desc = d.short_description; }
                 if (fav.item_type === 'artwork') { 
                     Icon = Brush; 
-                    link = `/crm/artworks`; // Of detailpagina als je die hebt
+                    link = '#'; // Artworks hebben voor nu geen eigen pagina
                     label = 'Kunstwerk'; 
-                    desc = details.artist; 
-                    bgImage = details.image_url;
+                    desc = d.artist; 
+                    bgImage = d.image_url;
                 }
 
                 return (
@@ -125,7 +128,7 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
                         {/* Afbeelding (voor artworks) of Patroon */}
                         <div className="h-40 bg-white/5 relative">
                             {bgImage ? (
-                                <img src={bgImage} alt={details.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                                <img src={bgImage} alt={d.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center opacity-10 group-hover:opacity-20 transition-opacity">
                                     <Icon size={64} />
@@ -138,7 +141,7 @@ export default async function FavoritesPage({ searchParams }: { searchParams: { 
 
                         <div className="p-6">
                             <h3 className="font-serif font-bold text-xl text-white mb-2 group-hover:text-museum-gold transition-colors line-clamp-1">
-                                {details.title}
+                                {d.title}
                             </h3>
                             <p className="text-sm text-gray-400 line-clamp-2">
                                 {desc || 'Geen beschrijving beschikbaar.'}
