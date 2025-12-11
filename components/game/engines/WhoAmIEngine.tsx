@@ -1,29 +1,38 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { trackActivity } from '@/lib/tracking'; // <--- IMPORT
-import { User, HelpCircle } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking';
+import { hasPlayedToday, getDailyLeaderboard } from '@/lib/gameLogic';
+import { User, HelpCircle, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 
 export default function WhoAmIEngine({ game, items, userId }: { game: any, items: any[], userId: string }) {
-    const [step, setStep] = useState(0); // 0=Hint 1, 1=Hint 2, 2=Hint 3
+    const [step, setStep] = useState(0); 
     const [score, setScore] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
     
-    // STARTTIJD
-    const startTimeRef = useRef(Date.now());
+    const [alreadyPlayed, setAlreadyPlayed] = useState(false);
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
     
+    const startTimeRef = useRef(Date.now());
     const currentItem = items[0]; 
     const hints = currentItem.extra_data?.hints || ["Hint 1", "Hint 2", "Hint 3"];
     
     const supabase = createClient();
     const router = useRouter();
 
+    useEffect(() => {
+        const check = async () => {
+            const played = await hasPlayedToday(supabase, userId, game.id);
+            setAlreadyPlayed(played);
+        };
+        check();
+    }, []);
+
     const handleAnswer = (answer: string) => {
         if (answer === currentItem.correct_answer) {
-            // Score: 30pt (bij hint 1), 20pt (bij hint 2), 10pt (bij hint 3)
             const points = (3 - step) * 10;
             finishGame(points);
         } else {
@@ -42,22 +51,41 @@ export default function WhoAmIEngine({ game, items, userId }: { game: any, items
 
         const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
         
-        await trackActivity(supabase, userId, 'complete_game', game.id, {
-            score: finalScore,
-            max_score: 30,
-            type: 'who_am_i',
-            duration: duration
-        });
+        if (!alreadyPlayed) {
+            await trackActivity(supabase, userId, 'complete_game', game.id, {
+                score: finalScore,
+                max_score: 30,
+                type: 'who_am_i',
+                duration: duration
+            });
+        }
+
+        const lb = await getDailyLeaderboard(supabase, game.id);
+        setLeaderboard(lb);
     };
 
     if (isFinished) {
         return (
-            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
+            <div className="max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl text-center">
                 <User size={48} className="mx-auto text-museum-gold mb-4"/>
                 <h2 className="text-3xl font-bold text-white mb-2">{score > 0 ? "Gevonden!" : "Niet geraden"}</h2>
                 <p className="text-gray-400 mb-6">Het was: <span className="text-white font-bold">{currentItem.correct_answer}</span></p>
-                <p className="text-museum-gold font-bold mb-6">Score: {score}</p>
-                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto hover:bg-gray-200">Terug</button>
+                
+                {alreadyPlayed && <div className="text-xs text-blue-200 mb-4">Reeds gespeeld.</div>}
+
+                <div className="mb-8 text-left bg-black/40 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Dagtoppers</h4>
+                    <div className="space-y-2">
+                        {leaderboard.map((player, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                                <span className={idx < 3 ? "text-museum-gold font-bold" : "text-gray-400"}>{idx + 1}. {player.user_name}</span>
+                                <span className="font-mono text-white">{player.score}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold w-full hover:bg-gray-200">Terug</button>
             </div>
         );
     }
