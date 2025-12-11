@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard } from 'lucide-react';
+import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, Edit3 } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
@@ -13,7 +13,7 @@ export default async function ProfilePage() {
 
   if (!user) redirect('/login');
 
-  // 1. Haal data op (inclusief ROLE)
+  // 1. Haal data op
   const { data: profile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
@@ -24,7 +24,7 @@ export default async function ProfilePage() {
   const { level, title: levelTitle, nextLevelXp } = getLevel(xp);
   const progress = (xp / nextLevelXp) * 100;
 
-  // Check of user admin is
+  // Check Admin
   const isAdmin = profile?.role === 'admin';
 
   return (
@@ -36,14 +36,31 @@ export default async function ProfilePage() {
             <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
             
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                <div className="w-24 h-24 rounded-full bg-museum-gold text-black flex items-center justify-center text-3xl font-black border-4 border-black shadow-lg shrink-0">
-                    {profile?.full_name?.[0] || user.email?.[0].toUpperCase()}
+                
+                {/* Avatar */}
+                <div className="w-24 h-24 rounded-full bg-museum-gold text-black flex items-center justify-center text-3xl font-black border-4 border-black shadow-lg shrink-0 overflow-hidden">
+                    {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                        <span>{profile?.full_name?.[0] || user.email?.[0].toUpperCase()}</span>
+                    )}
                 </div>
 
+                {/* Info */}
                 <div className="flex-1 text-center md:text-left w-full">
-                    <h1 className="text-3xl font-serif font-bold text-white mb-1">
-                        {profile?.full_name || "Kunstliefhebber"}
-                    </h1>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+                        <h1 className="text-3xl font-serif font-bold text-white">
+                            {profile?.full_name || "Kunstliefhebber"}
+                        </h1>
+                        
+                        {/* ADMIN KNOP (Verplaatst naar hier) */}
+                        {isAdmin && (
+                            <Link href="/crm" className="inline-flex items-center gap-1 px-3 py-1 bg-rose-600/20 text-rose-500 border border-rose-600/50 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-colors mx-auto md:mx-0">
+                                <LayoutDashboard size={12}/> Admin Dashboard
+                            </Link>
+                        )}
+                    </div>
+
                     <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
                         <span className="px-3 py-1 bg-museum-gold text-black text-xs font-bold uppercase tracking-widest rounded-full">
                             Level {level}
@@ -51,13 +68,9 @@ export default async function ProfilePage() {
                         <span className="text-museum-gold/80 text-sm font-serif italic">
                             {levelTitle}
                         </span>
-                        {isAdmin && (
-                            <Link href="/crm" className="px-3 py-1 bg-rose-600 text-white text-xs font-bold uppercase tracking-widest rounded-full flex items-center gap-1 hover:bg-rose-500 transition-colors">
-                                <LayoutDashboard size={12}/> Admin
-                            </Link>
-                        )}
                     </div>
 
+                    {/* XP Bar */}
                     <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden relative">
                         <div className="absolute top-0 left-0 h-full bg-museum-gold transition-all duration-1000" style={{ width: `${progress}%` }}></div>
                     </div>
@@ -67,6 +80,7 @@ export default async function ProfilePage() {
                     </div>
                 </div>
 
+                {/* Streak */}
                 <div className="flex flex-col items-center bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
                     <Flame className={profile?.current_streak > 0 ? "text-orange-500 fill-orange-500" : "text-gray-600"} size={32} />
                     <span className="text-2xl font-bold mt-2">{profile?.current_streak || 0}</span>
@@ -78,6 +92,7 @@ export default async function ProfilePage() {
         {/* DASHBOARD GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
+            {/* 1. Collectie */}
             <Link href="/favorites" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-rose-900/20 text-rose-500 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-colors">
@@ -89,6 +104,7 @@ export default async function ProfilePage() {
                 <p className="text-sm text-gray-500 mt-1">Bekijk uw bewaarde kunstwerken.</p>
             </Link>
 
+            {/* 2. Ere-Galerij */}
             <Link href="/profile/achievements" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-yellow-900/20 text-yellow-500 rounded-xl group-hover:bg-yellow-500 group-hover:text-black transition-colors">
@@ -100,28 +116,16 @@ export default async function ProfilePage() {
                 <p className="text-sm text-gray-500 mt-1">Bekijk uw behaalde medailles.</p>
             </Link>
 
-            {/* Alleen naar CRM gaan als je Admin bent, anders niets of settings placeholder */}
-            {isAdmin ? (
-                 <Link href="/crm" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-blue-900/20 text-blue-500 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                            <LayoutDashboard size={24} />
-                        </div>
+            {/* 3. Instellingen (NU ACTIEF) */}
+            <Link href="/profile/settings" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-blue-900/20 text-blue-500 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                        <Settings size={24} />
                     </div>
-                    <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">CRM Dashboard</h3>
-                    <p className="text-sm text-gray-500 mt-1">Beheer de website.</p>
-                </Link>
-            ) : (
-                <div className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl opacity-50 cursor-not-allowed">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-gray-800 text-gray-500 rounded-xl">
-                            <Settings size={24} />
-                        </div>
-                    </div>
-                    <h3 className="font-bold text-lg text-gray-400">Instellingen</h3>
-                    <p className="text-sm text-gray-600 mt-1">Binnenkort beschikbaar.</p>
                 </div>
-            )}
+                <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">Instellingen</h3>
+                <p className="text-sm text-gray-500 mt-1">Wijzig uw naam en foto.</p>
+            </Link>
         </div>
 
         <div className="mt-8 flex justify-center">
