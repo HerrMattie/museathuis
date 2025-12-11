@@ -24,12 +24,11 @@ export async function hasPlayedToday(supabase: SupabaseClient, userId: string, g
 /**
  * Haalt de Top 10 van VANDAAG op voor een specifieke game.
  */
-export async functiongetDailyLeaderboard(supabase: SupabaseClient, gameId: string) {
+export async function getDailyLeaderboard(supabase: SupabaseClient, gameId: string) { // <--- HIER ZAT DE FOUT (Spatie toegevoegd)
     const today = new Date().toISOString().split('T')[0];
     
     // Omdat metadata een JSONB kolom is, is sorteren op score soms lastig in pure SQL zonder view.
     // Voor MVP halen we de logs van vandaag op en sorteren we in Javascript.
-    // (Voor productie met duizenden spelers moet je hier een DB view voor maken!)
     
     const { data: logs } = await supabase
         .from('user_activity_logs')
@@ -50,7 +49,7 @@ export async functiongetDailyLeaderboard(supabase: SupabaseClient, gameId: strin
     }));
 
     // Sorteer: Hoogste score eerst. Bij gelijke score, snelste tijd.
-    scores.sort((a, b) => {
+    scores.sort((a: any, b: any) => {
         if (b.score !== a.score) return b.score - a.score;
         return a.time - b.time; // Minder tijd is beter
     });
