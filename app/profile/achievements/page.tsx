@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { 
     Award, Lock, HelpCircle, Brain, Crown, LayoutGrid, Star, 
-    BookOpen, Eye, Target, Globe, Map, Flame, Library, Trophy 
+    BookOpen, Eye, Target, Globe, Map, Flame, Library, Trophy, Scroll, Coffee, Target, Search, MoonStar, UserCheck, Compass, PenTool
 } from 'lucide-react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
