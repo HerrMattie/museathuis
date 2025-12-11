@@ -1,11 +1,34 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { Award, Lock, HelpCircle } from 'lucide-react';
+import { 
+    Award, Lock, HelpCircle, Brain, Crown, LayoutGrid, Star, 
+    BookOpen, Eye, Target, Globe, Map, Flame, Library, Trophy 
+} from 'lucide-react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
 export const revalidate = 0;
+
+// Helper om de string uit de database ("Brain") om te zetten naar een Icoon Component
+const getIcon = (iconName: string) => {
+    const icons: any = {
+        'Brain': Brain,
+        'Award': Award,
+        'Crown': Crown,
+        'Grid': LayoutGrid,
+        'Star': Star,
+        'BookOpen': BookOpen,
+        'Eye': Eye,
+        'Target': Target,
+        'Globe': Globe,
+        'Map': Map,
+        'Flame': Flame,
+        'Library': Library,
+        'Trophy': Trophy,
+    };
+    return icons[iconName] || Award; // Fallback naar Award als icoon niet bestaat
+};
 
 export default async function AchievementsPage() {
     const supabase = createClient(cookies());
@@ -13,9 +36,9 @@ export default async function AchievementsPage() {
 
     if (!user) return redirect('/login');
     
-    // 1. Haal ALLE mogelijke badges op
+    // 1. Haal ALLE mogelijke badges op uit de tabel 'badges'
     const { data: allBadges } = await supabase
-        .from('badge_definitions')
+        .from('badges') // <--- AANGEPAST: Was 'badge_definitions'
         .select('*')
         .order('xp_reward', { ascending: true });
 
@@ -25,8 +48,7 @@ export default async function AchievementsPage() {
         .select('badge_id')
         .eq('user_id', user.id);
 
-    // Maak een set voor snelle lookup (gebruik slug of id, afhankelijk van je DB)
-    // We gaan ervan uit dat user_badges.badge_id matcht met badge_definitions.slug
+    // Maak een set voor snelle lookup op ID
     const unlockedSet = new Set(userBadges?.map(b => b.badge_id));
 
     return (
@@ -49,9 +71,13 @@ export default async function AchievementsPage() {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {allBadges?.map((badge) => {
-                        const isUnlocked = unlockedSet.has(badge.slug);
-                        // Xbox Logic: Als hij geheim is EN niet behaald, toon niks.
-                        const isHidden = badge.is_secret && !isUnlocked;
+                        const isUnlocked = unlockedSet.has(badge.id);
+                        // Xbox Logic: Als hij geheim is (is_secret column, indien aanwezig) EN niet behaald
+                        // Omdat ik in je screenshot geen 'is_secret' zag, zet ik dit standaard op false tenzij je de kolom toevoegt.
+                        const isSecret = badge.is_secret || false; 
+                        const isHidden = isSecret && !isUnlocked;
+
+                        const BadgeIcon = getIcon(badge.icon_name);
 
                         return (
                             <div 
@@ -59,7 +85,7 @@ export default async function AchievementsPage() {
                                 className={`relative p-6 rounded-2xl border transition-all flex flex-col items-center text-center ${
                                     isUnlocked 
                                     ? 'bg-midnight-900 border-museum-gold/30 shadow-[0_0_30px_-10px_rgba(234,179,8,0.2)]' 
-                                    : 'bg-white/5 border-white/5'
+                                    : 'bg-white/5 border-white/5 opacity-70'
                                 }`}
                             >
                                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-inner ${
@@ -67,15 +93,15 @@ export default async function AchievementsPage() {
                                         ? 'bg-museum-gold text-black shadow-museum-gold/50' 
                                         : 'bg-black/30 text-gray-600'
                                 }`}>
-                                    {isUnlocked ? <Award size={40} /> : (isHidden ? <HelpCircle size={32}/> : <Lock size={32} />)}
+                                    {isUnlocked ? <BadgeIcon size={40} /> : (isHidden ? <HelpCircle size={32}/> : <Lock size={32} />)}
                                 </div>
 
-                                <div className="flex-1 flex flex-col justify-center">
+                                <div className="flex-1 flex flex-col justify-center w-full">
                                     <h3 className={`font-bold mb-2 ${isUnlocked ? 'text-white' : 'text-gray-500'}`}>
                                         {isHidden ? "Geheime Prestatie" : badge.name}
                                     </h3>
                                     
-                                    <p className="text-xs text-gray-500 mb-4 h-8 line-clamp-2 leading-relaxed">
+                                    <p className="text-xs text-gray-500 mb-4 h-8 line-clamp-2 leading-relaxed px-2">
                                         {isHidden ? "Blijf spelen om deze te ontgrendelen." : badge.description}
                                     </p>
                                     
