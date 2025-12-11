@@ -25,7 +25,7 @@ export default function Sidebar() {
         { icon: Headphones, label: 'Tours', href: '/crm/tours' },
         { icon: Gamepad2, label: 'Games', href: '/crm/games' },
         { icon: FileText, label: 'Focus', href: '/crm/focus' },
-        { icon: FileText, label: 'Salons', href: '/crm/salon' },
+        { icon: FileText, label: 'Salons', href: '/crm/salons' },
         { icon: FileText, label: 'Academie', href: '/crm/academie' },
         { icon: ImageIcon, label: 'Artworks', href: '/crm/artworks' },
         { type: 'divider' },
