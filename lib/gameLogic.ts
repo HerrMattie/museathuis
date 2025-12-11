@@ -16,27 +16,26 @@ export async function hasPlayedToday(supabase: SupabaseClient, userId: string, g
         .eq('action_type', 'complete_game')
         .gte('created_at', startOfDay)
         .lte('created_at', endOfDay)
-        .limit(1); // We hoeven er maar 1 te vinden
+        .limit(1);
 
-    return data && data.length > 0;
+    // FIX: De '!!' zet null om naar false. Hierdoor is de return value ALTIJD een boolean.
+    return !!(data && data.length > 0); 
 }
 
 /**
  * Haalt de Top 10 van VANDAAG op voor een specifieke game.
  */
-export async function getDailyLeaderboard(supabase: SupabaseClient, gameId: string) { // <--- HIER ZAT DE FOUT (Spatie toegevoegd)
+export async function getDailyLeaderboard(supabase: SupabaseClient, gameId: string) {
     const today = new Date().toISOString().split('T')[0];
     
-    // Omdat metadata een JSONB kolom is, is sorteren op score soms lastig in pure SQL zonder view.
-    // Voor MVP halen we de logs van vandaag op en sorteren we in Javascript.
-    
+    // Omdat metadata een JSONB kolom is, sorteren we in Javascript voor de MVP.
     const { data: logs } = await supabase
         .from('user_activity_logs')
-        .select('user_id, metadata, created_at, user_profiles(full_name)') // Join met profiel
+        .select('user_id, metadata, created_at, user_profiles(full_name)') 
         .eq('entity_id', gameId)
         .eq('action_type', 'complete_game')
         .gte('created_at', `${today}T00:00:00`)
-        .order('created_at', { ascending: false }); // Nieuwste eerst
+        .order('created_at', { ascending: false });
 
     if (!logs) return [];
 
@@ -48,10 +47,10 @@ export async function getDailyLeaderboard(supabase: SupabaseClient, gameId: stri
         date: log.created_at
     }));
 
-    // Sorteer: Hoogste score eerst. Bij gelijke score, snelste tijd.
-    scores.sort((a: any, b: any) => {
+    // Sorteer: Hoogste score eerst. Bij gelijke score, snelste tijd wint.
+    scores.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
-        return a.time - b.time; // Minder tijd is beter
+        return a.time - b.time; 
     });
 
     // Unieke gebruikers (alleen hun beste score telt)
