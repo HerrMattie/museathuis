@@ -3,7 +3,9 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { 
     Award, Lock, HelpCircle, Brain, Crown, LayoutGrid, Star, 
-    BookOpen, Eye, Target, Globe, Map, Flame, Library, Trophy, Scroll, Coffee, Target, Search, MoonStar, UserCheck, Compass, PenTool
+    BookOpen, Eye, Target, Globe, Map, Flame, Library, Trophy,
+    Scroll, Coffee, Search, MoonStar, UserCheck, Compass, PenTool,
+    Heart, CloudRain, Moon, Sun, Clock, Palette
 } from 'lucide-react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -17,6 +19,7 @@ const getIcon = (iconName: string) => {
         'Award': Award,
         'Crown': Crown,
         'Grid': LayoutGrid,
+        'LayoutGrid': LayoutGrid, // Dubbel voor zekerheid (soms heet het Grid of LayoutGrid)
         'Star': Star,
         'BookOpen': BookOpen,
         'Eye': Eye,
@@ -26,22 +29,19 @@ const getIcon = (iconName: string) => {
         'Flame': Flame,
         'Library': Library,
         'Trophy': Trophy,
-        'Moon': Moon,
-        'Sun': Sun,
-        'Clock': Clock,
-        'Palette': Palette,
-        'CloudRain': CloudRain,
-        'Heart': Heart,
-        'LayoutGrid': LayoutGrid,
-        'Flame': Flame
         'Scroll': Scroll,
         'Coffee': Coffee,
-        'Target': Target,
         'Search': Search,
         'MoonStar': MoonStar,
         'UserCheck': UserCheck,
         'Compass': Compass,
-        'PenTool': PenTool
+        'PenTool': PenTool,
+        'Heart': Heart,
+        'CloudRain': CloudRain,
+        'Moon': Moon,
+        'Sun': Sun,
+        'Clock': Clock,
+        'Palette': Palette
     };
     return icons[iconName] || Award; // Fallback naar Award als icoon niet bestaat
 };
@@ -54,7 +54,7 @@ export default async function AchievementsPage() {
     
     // 1. Haal ALLE mogelijke badges op uit de tabel 'badges'
     const { data: allBadges } = await supabase
-        .from('badges') // <--- AANGEPAST: Was 'badge_definitions'
+        .from('badges')
         .select('*')
         .order('xp_reward', { ascending: true });
 
@@ -87,9 +87,12 @@ export default async function AchievementsPage() {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {allBadges?.map((badge) => {
+                        // Omdat we in SQL insert geen UUIDs hebben gebruikt maar database auto-generate, 
+                        // is de kans groot dat user_badges nog leeg is of IDs niet matchen als je handmatig test.
+                        // Zorg dat je systeem straks op badge.id of badge.name checkt.
+                        // Hier gebruiken we ID.
                         const isUnlocked = unlockedSet.has(badge.id);
-                        // Xbox Logic: Als hij geheim is (is_secret column, indien aanwezig) EN niet behaald
-                        // Omdat ik in je screenshot geen 'is_secret' zag, zet ik dit standaard op false tenzij je de kolom toevoegt.
+                        
                         const isSecret = badge.is_secret || false; 
                         const isHidden = isSecret && !isUnlocked;
 
