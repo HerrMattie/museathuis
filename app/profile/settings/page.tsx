@@ -1,70 +1,124 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Loader2, User } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, User, Camera, Upload, Tag, MapPin, Users, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 
+// DATA OPTIES
+const INTEREST_OPTIONS = ["Oude Meesters", "Moderne Kunst", "Fotografie", "Design", "Geschiedenis", "Beeldhouwkunst", "Architectuur", "Mode", "Wetenschap"];
+const CARD_OPTIONS = ["Museumkaart", "CJP", "Rembrandtkaart", "ICOM", "VriendenLoterij VIP"];
+const AGE_OPTIONS = ["-18", "18-24", "25-39", "40-54", "55-64", "65+"];
+const BEHAVIOR_OPTIONS = [
+    { id: 'solo', label: 'Alleen' },
+    { id: 'partner', label: 'Met Partner' },
+    { id: 'family', label: 'Met Gezin/Kinderen' },
+    { id: 'friends', label: 'Met Vrienden' }
+];
+const PROVINCES = ["Drenthe", "Flevoland", "Friesland", "Gelderland", "Groningen", "Limburg", "Noord-Brabant", "Noord-Holland", "Overijssel", "Utrecht", "Zeeland", "Zuid-Holland", "Buitenland"];
+
 export default function ProfileSettingsPage() {
+    // Basic Info
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+    
+    // Cultuur Profiel Data
+    const [interests, setInterests] = useState<string[]>([]);
+    const [cards, setCards] = useState<string[]>([]);
+    const [ageGroup, setAgeGroup] = useState('');
+    const [province, setProvince] = useState('');
+    const [visitBehavior, setVisitBehavior] = useState('');
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
     const router = useRouter();
     const supabase = createClient();
 
     useEffect(() => {
         const fetchData = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                router.push('/login');
-                return;
-            }
+            if (!user) { router.push('/login'); return; }
+            
             setEmail(user.email || '');
 
-            const { data: profile } = await supabase
-                .from('user_profiles')
-                .select('full_name')
-                .eq('user_id', user.id)
-                .single();
+            const { data } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
             
-            if (profile) setFullName(profile.full_name || '');
+            if (data) {
+                setFullName(data.full_name || '');
+                setAvatarUrl(data.avatar_url);
+                setInterests(data.interests || []);
+                setCards(data.museum_cards || []);
+                setAgeGroup(data.age_group || '');
+                setProvince(data.province || '');
+                setVisitBehavior(data.visit_behavior || '');
+            }
             setLoading(false);
         };
         fetchData();
     }, []);
+
+    // Toggle functies voor arrays (Aan/Uit zetten)
+    const toggleInterest = (tag: string) => {
+        setInterests(prev => prev.includes(tag) ? prev.filter(i => i !== tag) : [...prev, tag]);
+    };
+    const toggleCard = (card: string) => {
+        setCards(prev => prev.includes(card) ? prev.filter(c => c !== card) : [...prev, card]);
+    };
+
+    const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || event.target.files.length === 0) return;
+        const file = event.target.files[0];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        setSaving(true);
+        try {
+            const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+            if (uploadError) throw uploadError;
+            const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+            setAvatarUrl(publicUrl);
+        } catch (error: any) {
+            alert('Error uploading avatar: ' + error.message);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const handleSave = async () => {
         setSaving(true);
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-            const { error } = await supabase
-                .from('user_profiles')
-                .update({ full_name: fullName })
-                .eq('user_id', user.id);
+            const { error } = await supabase.from('user_profiles').update({ 
+                full_name: fullName,
+                avatar_url: avatarUrl,
+                interests: interests,
+                museum_cards: cards,
+                age_group: ageGroup,
+                province: province,
+                visit_behavior: visitBehavior
+            }).eq('user_id', user.id);
 
-            if (error) {
-                alert("Er ging iets mis: " + error.message);
-            } else {
-                alert("Profiel bijgewerkt!");
-                router.refresh(); // Ververs data
-                router.push('/profile'); // Terug naar dashboard
+            if (error) alert("Er ging iets mis: " + error.message);
+            else {
+                alert("Profiel succesvol bijgewerkt!");
+                router.refresh();
+                router.push('/profile');
             }
         }
         setSaving(false);
     };
 
-    if (loading) return (
-        <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center">
-            <Loader2 className="animate-spin text-museum-gold" />
-        </div>
-    );
+    if (loading) return <div className="min-h-screen bg-midnight-950 text-white flex items-center justify-center"><Loader2 className="animate-spin text-museum-gold" /></div>;
 
     return (
         <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-3xl mx-auto">
                 
                 <Link href="/profile" className="text-gray-400 hover:text-white flex items-center gap-2 mb-8 text-sm font-bold uppercase tracking-widest transition-colors">
                     <ArrowLeft size={16}/> Terug naar Profiel
@@ -72,61 +126,125 @@ export default function ProfileSettingsPage() {
 
                 <h1 className="text-3xl font-serif font-bold text-white mb-8">Instellingen</h1>
 
-                <div className="bg-midnight-900 border border-white/10 rounded-2xl p-8">
-                    
-                    {/* AVATAR SECTION */}
+                {/* --- SECTIE 1: PERSOONSGEGEVENS --- */}
+                <div className="bg-midnight-900 border border-white/10 rounded-2xl p-8 mb-8">
                     <div className="flex items-center gap-6 mb-8 border-b border-white/5 pb-8">
-                        <div className="w-20 h-20 rounded-full bg-museum-gold text-black flex items-center justify-center text-2xl font-black border-4 border-black shrink-0">
-                            {fullName?.[0] || email?.[0]?.toUpperCase()}
+                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                            <div className="w-20 h-20 rounded-full bg-museum-gold text-black flex items-center justify-center text-2xl font-black border-4 border-black overflow-hidden relative">
+                                {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <span>{fullName?.[0] || email?.[0]?.toUpperCase()}</span>}
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="text-white" size={24} /></div>
+                            </div>
+                            <input type="file" ref={fileInputRef} onChange={handleAvatarUpload} className="hidden" accept="image/*" />
                         </div>
                         <div>
                             <h3 className="font-bold text-lg text-white">Profielfoto</h3>
-                            <p className="text-sm text-gray-400">
-                                Uw avatar wordt automatisch gegenereerd op basis van uw naam.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* FORMULIER */}
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2">E-mailadres</label>
-                            <input 
-                                type="text" 
-                                value={email} 
-                                disabled 
-                                className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-gray-500 cursor-not-allowed"
-                            />
-                            <p className="text-[10px] text-gray-600 mt-2">E-mailadres kan niet gewijzigd worden.</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2">Volledige Naam</label>
-                            <div className="relative">
-                                <User className="absolute left-4 top-4 text-gray-500" size={20}/>
-                                <input 
-                                    type="text" 
-                                    value={fullName} 
-                                    onChange={(e) => setFullName(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 pl-12 text-white focus:border-museum-gold focus:outline-none transition-colors"
-                                    placeholder="Uw naam"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="pt-4">
-                            <button 
-                                onClick={handleSave} 
-                                disabled={saving}
-                                className="w-full bg-museum-gold text-black font-bold py-4 rounded-xl hover:bg-white transition-colors flex items-center justify-center gap-2"
-                            >
-                                {saving ? <Loader2 className="animate-spin"/> : <Save size={20}/>}
-                                Wijzigingen Opslaan
+                            <button onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-museum-gold uppercase tracking-widest flex items-center gap-2 hover:underline mt-1">
+                                <Upload size={12}/> Wijzig Foto
                             </button>
                         </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2">Volledige Naam</label>
+                            <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold focus:outline-none"/>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2">E-mailadres</label>
+                            <input type="text" value={email} disabled className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-gray-500 cursor-not-allowed"/>
+                        </div>
+                    </div>
                 </div>
+
+                {/* --- SECTIE 2: CULTUUR PROFIEL (DATA) --- */}
+                <div className="bg-midnight-900 border border-white/10 rounded-2xl p-8 mb-8">
+                    <h2 className="text-xl font-serif font-bold text-museum-gold mb-6 flex items-center gap-2">
+                        <User size={20}/> Mijn Cultuur Profiel
+                    </h2>
+
+                    {/* INTERESSES */}
+                    <div className="mb-8">
+                        <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><Tag size={16}/> Wat vindt u interessant?</label>
+                        <div className="flex flex-wrap gap-2">
+                            {INTEREST_OPTIONS.map(opt => (
+                                <button 
+                                    key={opt} 
+                                    onClick={() => toggleInterest(opt)}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${interests.includes(opt) ? 'bg-museum-gold text-black border-museum-gold' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* DEMOGRAFIE */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <label className="block text-sm font-bold text-white mb-2">Leeftijdsgroep</label>
+                            <select value={ageGroup} onChange={e => setAgeGroup(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                                <option value="">Maak een keuze...</option>
+                                {AGE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-white mb-2 flex items-center gap-2"><MapPin size={16}/> Provincie</label>
+                            <select value={province} onChange={e => setProvince(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none">
+                                <option value="">Maak een keuze...</option>
+                                {PROVINCES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* KAARTEN */}
+                    <div className="mb-8">
+                        <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><CreditCard size={16}/> Welke cultuurkaarten heeft u?</label>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {CARD_OPTIONS.map(card => (
+                                <div 
+                                    key={card} 
+                                    onClick={() => toggleCard(card)}
+                                    className={`p-3 rounded-xl border cursor-pointer flex items-center gap-3 transition-all ${cards.includes(card) ? 'bg-blue-900/40 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                                >
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${cards.includes(card) ? 'bg-blue-500 border-blue-500' : 'border-gray-500'}`}>
+                                        {cards.includes(card) && <div className="w-2 h-2 bg-white rounded-full"/>}
+                                    </div>
+                                    <span className="text-xs font-bold">{card}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* GEDRAG */}
+                    <div>
+                        <label className="block text-sm font-bold text-white mb-3 flex items-center gap-2"><Users size={16}/> Met wie bezoekt u meestal een museum?</label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {BEHAVIOR_OPTIONS.map(opt => (
+                                <button 
+                                    key={opt.id}
+                                    onClick={() => setVisitBehavior(opt.id)}
+                                    className={`p-3 rounded-xl text-xs font-bold border transition-all ${visitBehavior === opt.id ? 'bg-museum-gold text-black border-museum-gold' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* OPSLAAN */}
+                <div className="flex justify-end">
+                    <button 
+                        onClick={handleSave} 
+                        disabled={saving}
+                        className="bg-museum-gold text-black font-bold px-8 py-4 rounded-xl hover:bg-white transition-colors flex items-center gap-2 shadow-[0_0_20px_rgba(234,179,8,0.3)]"
+                    >
+                        {saving ? <Loader2 className="animate-spin"/> : <Save size={20}/>}
+                        Profiel Opslaan
+                    </button>
+                </div>
+
             </div>
         </div>
     );
