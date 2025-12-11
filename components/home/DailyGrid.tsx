@@ -38,9 +38,9 @@ export default function DailyGrid({ items }: { items: any }) {
                 {items.tour && (
                     <Card 
                         title={items.tour.title} 
-                        type="Audio Tour" 
+                        type="Tour" 
                         icon={Headphones} 
-                        href={`/tour/${items.tour.id}`}
+                        href={`/tour`}
                         desc={items.tour.intro}
                         color="bg-purple-900"
                         image={items.tour.hero_image_url}
@@ -52,20 +52,20 @@ export default function DailyGrid({ items }: { items: any }) {
                         title={items.focus.title} 
                         type="Focus" 
                         icon={Crosshair} 
-                        href={`/focus/${items.focus.id}`}
+                        href={`/focus`}
                         desc={items.focus.intro}
-                        color="bg-blue-900"
+                        color="items.tour.hero_image_url"
                     />
                 )}
 
                 {items.game && (
                     <Card 
                         title={items.game.title} 
-                        type="Quiz" 
+                        type="Game" 
                         icon={Gamepad2} 
-                        href={`/game/${items.game.id}`}
+                        href={`/game`}
                         desc={items.game.short_description}
-                        color="bg-emerald-900"
+                        color="items.tour.hero_image_url"
                     />
                 )}
 
