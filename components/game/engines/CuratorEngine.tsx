@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { trackActivity } from '@/lib/tracking'; // <--- IMPORT
-import { Palette } from 'lucide-react';
+import { trackActivity } from '@/lib/tracking';
+import { hasPlayedToday, getDailyLeaderboard } from '@/lib/gameLogic';
+import { Palette, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 
@@ -14,18 +15,27 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
     const [showHint, setShowHint] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
     
-    // STARTTIJD
-    const startTimeRef = useRef(Date.now());
+    const [alreadyPlayed, setAlreadyPlayed] = useState(false);
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
     
+    const startTimeRef = useRef(Date.now());
     const supabase = createClient();
     const router = useRouter();
     const currentItem = items[currentIndex];
+
+    useEffect(() => {
+        const check = async () => {
+            const played = await hasPlayedToday(supabase, userId, game.id);
+            setAlreadyPlayed(played);
+        };
+        check();
+    }, []);
 
     const handleAnswer = (answer: string) => {
         const isCorrect = answer === currentItem.correct_answer;
         
         if (isCorrect) {
-            setScore(s => s + (showHint ? 5 : 10)); // Minder punten als je hint gebruikte
+            setScore(s => s + (showHint ? 5 : 10)); 
             confetti({ particleCount: 30, spread: 60, origin: { y: 0.8 } });
             
             setTimeout(() => {
@@ -52,21 +62,41 @@ export default function CuratorEngine({ game, items, userId }: { game: any, item
 
         const duration = Math.round((Date.now() - startTimeRef.current) / 1000);
 
-        await trackActivity(supabase, userId, 'complete_game', game.id, {
-            score: finalScore,
-            lives_left: lives,
-            type: 'curator',
-            duration: duration
-        });
+        if (!alreadyPlayed) {
+            await trackActivity(supabase, userId, 'complete_game', game.id, {
+                score: finalScore,
+                lives_left: lives,
+                type: 'curator',
+                duration: duration
+            });
+        }
+
+        const lb = await getDailyLeaderboard(supabase, game.id);
+        setLeaderboard(lb);
     };
 
     if (isFinished) {
         return (
-            <div className="text-center max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl">
+            <div className="max-w-md w-full bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-2xl text-center">
                 <Palette size={48} className="mx-auto text-museum-gold mb-4"/>
                 <h2 className="text-3xl font-bold text-white mb-2">{lives > 0 ? "Meesterlijk!" : "Helaas..."}</h2>
                 <p className="text-gray-400 mb-6">Score: {score}</p>
-                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold mx-auto hover:bg-gray-200">Terug</button>
+                
+                {alreadyPlayed && <div className="text-xs text-blue-200 mb-4">Reeds gespeeld.</div>}
+
+                <div className="mb-8 text-left bg-black/40 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-widest mb-3 border-b border-white/10 pb-2">Dagtoppers</h4>
+                    <div className="space-y-2">
+                        {leaderboard.map((player, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                                <span className={idx < 3 ? "text-museum-gold font-bold" : "text-gray-400"}>{idx + 1}. {player.user_name}</span>
+                                <span className="font-mono text-white">{player.score}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <button onClick={() => router.push('/game')} className="bg-white text-black px-6 py-3 rounded-xl font-bold w-full hover:bg-gray-200">Terug</button>
             </div>
         );
     }
