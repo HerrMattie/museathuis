@@ -33,7 +33,22 @@ export default async function RootLayout({
   return (
     <html lang="nl" className={`${inter.variable} ${playfair.variable}`}>
       <body className="bg-midnight-950 text-white font-sans antialiased min-h-screen flex flex-col">
-        
+        <script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{
+    __html: JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "EducationalOrganization",
+      "name": "MuseaThuis",
+      "url": "https://museathuis.nl",
+      "description": "Dagelijkse kunstgeschiedenis en interactieve audiotours voor thuis.",
+      "sameAs": [
+        "https://instagram.com/museathuis",
+        "https://facebook.com/museathuis"
+      ]
+    })
+  }}
+/>
         <Suspense fallback={null}>
             <PageTracker />
         </Suspense>
