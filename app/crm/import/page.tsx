@@ -18,12 +18,15 @@ export default function ImportPage() {
         setErrorMsg(null);
         try {
             const res = await fetch(`/api/crm/import-batch?offset=${offset}`);
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Server Error: ${res.status} - ${text}`);
+            }
             const data = await res.json();
             
             if (data.error) throw new Error(data.error);
 
             if (data.results && data.results.length > 0) {
-                // Voeg nieuwe toe aan de lijst, filter eventuele dubbelen in de state
                 setCandidates(prev => {
                     const existingIds = new Set(prev.map(p => p.wikidata_id));
                     const newUnique = data.results.filter((r: any) => !existingIds.has(r.wikidata_id));
@@ -32,9 +35,10 @@ export default function ImportPage() {
                 setOffset(data.nextOffset);
             } else {
                 alert("Geen nieuwe geschikte kandidaten gevonden in deze batch. Probeer nog eens voor de volgende batch.");
-                setOffset(data.nextOffset); // Toch ophogen om niet vast te lopen
+                setOffset(data.nextOffset);
             }
         } catch (e: any) {
+            console.error(e);
             setErrorMsg("Fout bij ophalen: " + e.message);
         }
         setLoading(false);
@@ -43,19 +47,18 @@ export default function ImportPage() {
     const handleImport = async (item: any) => {
         setProcessing(item.wikidata_id);
         
-        // 1. Insert in DB
+        // 1. Insert in DB as DRAFT (Review Queue)
         const { error } = await supabase.from('artworks').insert({
             title: item.title,
             artist: item.artist,
             image_url: item.image_url,
             year_created: item.year ? parseInt(item.year) : null,
             wikidata_id: item.wikidata_id,
-            status: 'published', // Direct publiceren zodat we ze kunnen gebruiken
+            status: 'draft', // <--- CHANGE: Goes to Review Queue
             description: `Geïmporteerd via Art Curator. Populariteitsscore: ${item.sitelinks}`
         });
 
         if (!error) {
-            // Verwijder uit de lijst na succes
             setCandidates(prev => prev.filter(c => c.wikidata_id !== item.wikidata_id));
         } else {
             alert("Database Error: " + error.message);
@@ -98,43 +101,25 @@ export default function ImportPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {candidates.map((item) => (
                     <div key={item.wikidata_id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col">
-                        
-                        {/* IMAGE */}
                         <div className="h-56 relative bg-slate-100">
                             <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
-                            
                             <div className="absolute top-2 left-2 bg-blue-600/90 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm z-10">
                                 {item.type}
                             </div>
                             <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm">
                                 ★ {item.sitelinks}
                             </div>
-                            
                             <a href={item.image_url} target="_blank" rel="noopener noreferrer" className="absolute bottom-2 right-2 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                                 <ExternalLink size={16}/>
                             </a>
                         </div>
-
-                        {/* INFO */}
                         <div className="p-4 flex-1 flex flex-col">
                             <h3 className="font-bold text-slate-800 mb-1 line-clamp-1" title={item.title}>{item.title}</h3>
                             <p className="text-sm text-slate-500 mb-4 line-clamp-1">{item.artist}, {item.year}</p>
-                            
                             <div className="mt-auto flex gap-2">
-                                <button 
-                                    onClick={() => handleReject(item.wikidata_id)}
-                                    className="flex-1 border border-red-100 text-red-400 hover:bg-red-50 py-2 rounded-lg font-bold transition-colors flex justify-center"
-                                    title="Overslaan"
-                                >
-                                    <X size={20}/>
-                                </button>
-                                <button 
-                                    onClick={() => handleImport(item)}
-                                    disabled={!!processing}
-                                    className="flex-[3] bg-slate-900 text-white hover:bg-slate-700 py-2 rounded-lg font-bold transition-colors flex justify-center gap-2 items-center"
-                                >
-                                    {processing === item.wikidata_id ? <Loader2 className="animate-spin" size={18}/> : <Check size={18}/>}
-                                    Toevoegen
+                                <button onClick={() => handleReject(item.wikidata_id)} className="flex-1 border border-red-100 text-red-400 hover:bg-red-50 py-2 rounded-lg font-bold transition-colors flex justify-center"><X size={20}/></button>
+                                <button onClick={() => handleImport(item)} disabled={!!processing} className="flex-[3] bg-slate-900 text-white hover:bg-slate-700 py-2 rounded-lg font-bold transition-colors flex justify-center gap-2 items-center">
+                                    {processing === item.wikidata_id ? <Loader2 className="animate-spin" size={18}/> : <Check size={18}/>} Toevoegen
                                 </button>
                             </div>
                         </div>
