@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Crosshair, ArrowRight, Lock, Calendar, FileText } from 'lucide-react';
+import { ArrowRight, Lock, Calendar, FileText } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
@@ -16,24 +16,26 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
   const today = new Date().toISOString().split('T')[0];
   const selectedDate = searchParams.date || today;
 
-  // Level logic
+  // Level Logic
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
-  // Haal artikelen
-  const { data: articles } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(10);
+  // Haal artikelen op
+  const { data: articles } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(20);
   
   let dailyFocus = articles || [];
+  
+  // Selecteer 3 items o.b.v. datum (zodat navigatie werkt)
   if (dailyFocus.length > 3) {
       const dayNum = new Date(selectedDate).getDate();
       const start = dayNum % (dailyFocus.length - 2);
       dailyFocus = dailyFocus.slice(start, start + 3);
   }
 
-  // Sort: 1 Free, 2 Premium
+  // Sorteren: Index 0 = Gratis (als er een gratis item is)
   if (dailyFocus.length > 0) {
       const freeIndex = dailyFocus.findIndex(a => !a.is_premium);
       if (freeIndex > 0) {
@@ -44,14 +46,20 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white">
-      <PageHeader title="In Focus" subtitle="Verdiepende achtergrondverhalen bij de collectie van vandaag." />
+      <PageHeader 
+        title="In Focus" 
+        subtitle="Duik dieper in de details. Achtergrondverhalen, analyses en context bij de meesterwerken." 
+      />
 
       <div className="max-w-7xl mx-auto px-6 pb-20 -mt-20 relative z-20">
+        
+        {/* NAVIGATIE BALK */}
         <DateNavigator basePath="/focus" currentDate={selectedDate} maxBack={access.days} mode="day" />
 
         {dailyFocus.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {dailyFocus.map((item, index) => {
+                    // Index 0 is het "Gratis Slot", tenzij het item zelf écht premium is ingesteld
                     const isPremiumSlot = index > 0;
                     const isLocked = (item.is_premium || isPremiumSlot) && !user;
 
@@ -63,13 +71,19 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><FileText size={48} className="opacity-20"/></div>
                                 )}
+                                
+                                {/* LABELS AANGEPAST */}
                                 <div className={`absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white border border-white/10 shadow-lg ${isLocked ? 'bg-black/80' : 'bg-museum-gold text-black'}`}>
-                                    {isLocked ? <span className="flex items-center gap-1"><Lock size={10}/> Premium</span> : 'Artikel'}
+                                    {isLocked ? <span className="flex items-center gap-1"><Lock size={10}/> Premium</span> : 'Gratis'}
                                 </div>
                             </div>
                             <div className="p-8 flex-1 flex flex-col">
-                                <h3 className="font-serif font-bold text-2xl mb-3 text-white group-hover:text-museum-gold transition-colors">{item.title}</h3>
-                                <p className="text-gray-400 text-sm leading-relaxed mb-6 line-clamp-3 flex-1">{item.intro}</p>
+                                <h3 className="font-serif font-bold text-2xl mb-3 text-white group-hover:text-museum-gold transition-colors">
+                                    {item.title}
+                                </h3>
+                                <p className="text-gray-400 text-sm leading-relaxed mb-6 line-clamp-3 flex-1">
+                                    {item.intro || "Lees het volledige achtergrondverhaal bij dit kunstwerk."}
+                                </p>
                                 <div className="mt-auto pt-4 border-t border-white/5 flex justify-between items-center text-sm text-gray-500">
                                     <span className="flex items-center gap-2"><Calendar size={14}/> {new Date(item.created_at).toLocaleDateString('nl-NL')}</span>
                                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest group-hover:text-white transition-colors">Lees Verder <ArrowRight size={14} className="text-museum-gold"/></div>
