@@ -9,6 +9,8 @@ export default async function Home() {
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
   const dailyProgram = await getDailyProgram(supabase);
+  const { data: randomArts } = await supabase.from('artworks').select('image_url').limit(3);
+  const randomUrls = randomArts?.map(a => a.image_url) || [];
 
   // Fallback data als er niets is ingepland
   const date = dailyProgram?.date ? new Date(dailyProgram.date) : new Date();
@@ -49,6 +51,7 @@ export default async function Home() {
       {/* DAILY GRID (De kaarten doen het werk) */}
       <div className="-mt-32 relative z-20 pb-20">
          <DailyGrid items={dailyProgram?.items || {}} />
+         <DailyGrid items={dailyItems} randomArtworks={randomUrls} />
       </div>
 
     </main>
