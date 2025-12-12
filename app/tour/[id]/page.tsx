@@ -1,85 +1,90 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
-import Link from 'next/link';
-import { ArrowLeft, Clock, MapPin } from 'lucide-react';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabaseClient';
+import { Play, Lock, Clock, Info } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import AudioPlayer from '@/components/ui/AudioPlayer';
 import LikeButton from '@/components/LikeButton';
-import AudioPlayer from '@/components/tour/AudioPlayer'; // <--- Import
+import Link from 'next/link';
 
-export const revalidate = 0;
+export default function TourDetailPage({ params }: { params: { id: string } }) {
+    const [tour, setTour] = useState<any>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [user, setUser] = useState<any>(null);
+    const supabase = createClient();
 
-export default async function TourDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient(cookies());
-  const { data: { user } } = await supabase.auth.getUser();
+    useEffect(() => {
+        const fetchData = async () => {
+            const { data: u } = await supabase.auth.getUser();
+            setUser(u?.user);
+            const { data } = await supabase.from('tours').select('*').eq('id', params.id).single();
+            setTour(data);
+        };
+        fetchData();
+    }, [params.id]);
 
-  const { data: tour } = await supabase
-    .from('tours')
-    .select('*')
-    .eq('id', params.id)
-    .single();
+    if (!tour) return <div className="min-h-screen bg-midnight-950"/>;
 
-  if (!tour) return <div className="text-center p-20 text-white">Tour niet gevonden.</div>;
+    const isLocked = tour.is_premium && !user;
 
-  // De stops zitten in een JSONB kolom 'stops_data'
-  // Structuur verwacht: { stops: [{ title: "", description: "" }] }
-  const stops = tour.stops_data?.stops || [];
+    return (
+        <div className="min-h-screen bg-midnight-950 text-white pb-24">
+            <PageHeader 
+                title={tour.title} 
+                subtitle={tour.intro} 
+                parentLink="/tour"
+                parentLabel="Terug naar Tours"
+                backgroundImage={tour.hero_image_url}
+            />
 
-  return (
-    <div className="min-h-screen bg-midnight-950 text-white pb-32"> {/* Extra padding onderkant voor de speler */}
-      
-      {/* HEADER IMAGE */}
-      <div className="relative h-[50vh] w-full">
-          <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 to-transparent z-10"></div>
-          {tour.hero_image_url && (
-              <img src={tour.hero_image_url} alt={tour.title} className="w-full h-full object-cover opacity-60" />
-          )}
-          
-          <div className="absolute bottom-0 left-0 w-full z-20 p-6 md:p-12">
-              <div className="max-w-4xl mx-auto">
-                  <Link href="/tour" className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-museum-gold mb-4 hover:underline">
-                      <ArrowLeft size={16}/> Alle Tours
-                  </Link>
-                  <div className="flex justify-between items-start gap-6">
-                      <h1 className="text-4xl md:text-6xl font-serif font-bold leading-tight drop-shadow-lg">{tour.title}</h1>
-                      <div className="shrink-0 pt-2">
-                          <LikeButton itemId={tour.id} itemType="tour" userId={user?.id} />
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </div>
+            <div className="max-w-4xl mx-auto px-6">
+                
+                {/* ACTIE BALK */}
+                <div className="flex flex-col md:flex-row gap-4 items-center mb-12 bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-sm -mt-24 relative z-20 shadow-xl">
+                    {isLocked ? (
+                        <Link href="/pricing" className="flex-1 w-full bg-museum-gold text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-white transition-colors">
+                            <Lock size={20}/> Word lid om te luisteren
+                        </Link>
+                    ) : (
+                        <button 
+                            onClick={() => setIsPlaying(true)}
+                            className="flex-1 w-full bg-white text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                        >
+                            <Play size={20} fill="black"/> Start Audiotour
+                        </button>
+                    )}
+                    
+                    <div className="flex items-center gap-4 text-sm font-bold text-gray-400">
+                        <span className="flex items-center gap-2 px-4 py-2 bg-black/20 rounded-lg"><Clock size={16}/> 15 min</span>
+                        <LikeButton itemId={tour.id} itemType="tour" userId={user?.id} />
+                    </div>
+                </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-          {/* INTRO */}
-          <p className="text-xl text-gray-300 leading-relaxed mb-12 border-l-4 border-museum-gold pl-6">
-              {tour.intro}
-          </p>
+                {/* CONTENT */}
+                <div className="prose prose-invert prose-lg max-w-none text-gray-300">
+                    {/* Hier zou je de stops kunnen tonen */}
+                    <div className="bg-blue-900/20 border border-blue-500/30 p-6 rounded-xl flex gap-4 items-start mb-8">
+                        <Info className="text-blue-400 shrink-0 mt-1"/>
+                        <div>
+                            <h4 className="font-bold text-white mb-1">Over deze tour</h4>
+                            <p className="text-sm">Deze audiotour neemt u mee langs de hoogtepunten. Druk op play en luister terwijl u door de afbeeldingen scrolt.</p>
+                        </div>
+                    </div>
+                    
+                    {/* Placeholder voor stops lijst */}
+                    <p>Hier komen de stops en de afbeeldingen van de tour...</p>
+                </div>
+            </div>
 
-          {/* STOPS LIJST (Visueel) */}
-          <h3 className="font-serif text-2xl text-white mb-8 flex items-center gap-3">
-              <MapPin className="text-museum-gold"/> {stops.length} Stops in deze tour
-          </h3>
-
-          <div className="space-y-8">
-              {stops.map((stop: any, index: number) => (
-                  <div key={index} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-colors">
-                      <div className="flex items-center gap-4 mb-4">
-                          <div className="w-8 h-8 rounded-full bg-museum-gold text-black flex items-center justify-center font-bold">
-                              {index + 1}
-                          </div>
-                          <h4 className="text-lg font-bold">{stop.title}</h4>
-                      </div>
-                      <p className="text-gray-400 text-sm leading-relaxed">{stop.description}</p>
-                  </div>
-              ))}
-          </div>
-      </div>
-
-      {/* DE SPELER (Fixed Bottom) */}
-      {/* Wordt alleen getoond als er stops zijn */}
-      {stops.length > 0 && (
-          <AudioPlayer stops={stops} title={tour.title} />
-      )}
-
-    </div>
-  );
+            {/* AUDIO PLAYER (Sticky) */}
+            {isPlaying && !isLocked && (
+                <AudioPlayer 
+                    src={tour.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} // Demo URL als fallback
+                    title={tour.title}
+                    onClose={() => setIsPlaying(false)}
+                />
+            )}
+        </div>
+    );
 }
