@@ -19,8 +19,8 @@ import {
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/crm' },
     { icon: Calendar, label: 'Weekplanning', href: '/crm/week' },
-    { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' }, // Punt 11 van eerder
-    { icon: Calendar, label: 'AI Regisseur', href: '/crm/planning' }, // NIEUW
+    { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' },
+    { icon: Calendar, label: 'AI Regisseur', href: '/crm/planning' },
     
     { type: 'divider' },
     
@@ -33,7 +33,7 @@ const menuItems = [
     { icon: Gamepad2, label: 'Games', href: '/crm/games' },
     { icon: FileText, label: 'Focus', href: '/crm/focus' },
     { icon: Layers, label: 'Salons', href: '/crm/salons' },
-    { icon: Award, label: 'Badge Manager', href: '/crm/badges' }, // NIEUW
+    { icon: Award, label: 'Badge Manager', href: '/crm/badges' },
     
     { type: 'divider' },
     
@@ -44,7 +44,7 @@ export default function Sidebar() {
     const pathname = usePathname();
 
     return (
-        <aside className="w-64 bg-midnight-950 border-r border-white/10 h-screen fixed left-0 top-0 overflow-y-auto">
+        <aside className="w-64 bg-midnight-950 border-r border-white/10 h-screen fixed left-0 top-0 overflow-y-auto z-50 hidden md:block">
             <div className="p-6">
                 <h1 className="text-2xl font-serif font-bold text-white tracking-wider mb-1">
                     MUSEA<span className="text-museum-gold">THUIS</span>
@@ -54,9 +54,13 @@ export default function Sidebar() {
 
             <nav className="px-4 pb-4 space-y-1">
                 {menuItems.map((item, idx) => {
+                    // 1. Render Divider
                     if (item.type === 'divider') {
                         return <div key={idx} className="h-px bg-white/10 my-4 mx-2" />;
                     }
+
+                    // 2. TypeScript Veiligheidscheck: Als er geen href is, render niets
+                    if (!item.href) return null;
 
                     const isActive = pathname === item.href;
                     // @ts-ignore
@@ -72,7 +76,7 @@ export default function Sidebar() {
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                         >
-                            <Icon size={18} />
+                            {Icon && <Icon size={18} />}
                             {item.label}
                         </Link>
                     );
