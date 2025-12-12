@@ -2,88 +2,173 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Play, Lock, Clock, Info } from 'lucide-react';
-import PageHeader from '@/components/ui/PageHeader';
-import AudioPlayer from '@/components/ui/AudioPlayer';
-import LikeButton from '@/components/LikeButton';
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight, X, Play, Pause, Headphones, CheckCircle } from 'lucide-react';
+import Image from 'next/image';
+import AudioPlayer from '@/components/ui/AudioPlayer';
 
-export default function TourDetailPage({ params }: { params: { id: string } }) {
+export default function TourPlayerPage({ params }: { params: { id: string } }) {
     const [tour, setTour] = useState<any>(null);
+    const [currentSlide, setCurrentSlide] = useState(0); // 0 = Intro, 1-6 = Stops, 7 = Outro
     const [isPlaying, setIsPlaying] = useState(false);
-    const [user, setUser] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    
     const supabase = createClient();
 
     useEffect(() => {
-        const fetchData = async () => {
-            const { data: u } = await supabase.auth.getUser();
-            setUser(u?.user);
+        const fetchTour = async () => {
             const { data } = await supabase.from('tours').select('*').eq('id', params.id).single();
             setTour(data);
+            setLoading(false);
         };
-        fetchData();
+        fetchTour();
     }, [params.id]);
 
-    if (!tour) return <div className="min-h-screen bg-midnight-950"/>;
+    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Tour laden...</div>;
+    if (!tour) return <div className="min-h-screen bg-black text-white p-8">Tour niet gevonden.</div>;
 
-    const isLocked = tour.is_premium && !user;
+    const stops = tour.stops_data?.stops || [];
+    const totalSlides = stops.length + 2; // Intro + Stops + Outro
+
+    // Navigatie functies
+    const nextSlide = () => {
+        if (currentSlide < totalSlides - 1) setCurrentSlide(curr => curr + 1);
+    };
+    const prevSlide = () => {
+        if (currentSlide > 0) setCurrentSlide(curr => curr - 1);
+    };
+
+    // Helper om de juiste content te bepalen per slide
+    const getSlideContent = () => {
+        // SLIDE 1: INTRO
+        if (currentSlide === 0) {
+            return {
+                title: tour.title,
+                text: tour.intro || "Welkom bij deze audiotour.",
+                image: tour.hero_image_url,
+                type: 'intro'
+            };
+        }
+        // SLIDE 8 (of laatste): OUTRO
+        if (currentSlide === totalSlides - 1) {
+            return {
+                title: "Einde van de Tour",
+                text: "Bedankt voor het luisteren. U heeft deze collectie voltooid!",
+                image: stops[stops.length - 1]?.image_url || tour.hero_image_url, // Herhaal laatste of cover
+                type: 'outro'
+            };
+        }
+        // SLIDE 2 t/m 7: STOPS
+        const stopIndex = currentSlide - 1;
+        const stop = stops[stopIndex];
+        return {
+            title: stop.title,
+            text: stop.description,
+            // In productie zou je hier de specifieke image_url van de stop/het kunstwerk ophalen
+            image: tour.hero_image_url, // Fallback voor nu
+            type: 'stop',
+            index: stopIndex + 1
+        };
+    };
+
+    const content = getSlideContent();
 
     return (
-        <div className="min-h-screen bg-midnight-950 text-white pb-24">
-            <PageHeader 
-                title={tour.title} 
-                subtitle={tour.intro} 
-                parentLink="/tour"
-                parentLabel="Terug naar Tours"
-                backgroundImage={tour.hero_image_url}
-            />
-
-            <div className="max-w-4xl mx-auto px-6">
-                
-                {/* ACTIE BALK */}
-                <div className="flex flex-col md:flex-row gap-4 items-center mb-12 bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-sm -mt-24 relative z-20 shadow-xl">
-                    {isLocked ? (
-                        <Link href="/pricing" className="flex-1 w-full bg-museum-gold text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-white transition-colors">
-                            <Lock size={20}/> Word lid om te luisteren
-                        </Link>
-                    ) : (
-                        <button 
-                            onClick={() => setIsPlaying(true)}
-                            className="flex-1 w-full bg-white text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)]"
-                        >
-                            <Play size={20} fill="black"/> Start Audiotour
-                        </button>
-                    )}
-                    
-                    <div className="flex items-center gap-4 text-sm font-bold text-gray-400">
-                        <span className="flex items-center gap-2 px-4 py-2 bg-black/20 rounded-lg"><Clock size={16}/> 15 min</span>
-                        <LikeButton itemId={tour.id} itemType="tour" userId={user?.id} />
-                    </div>
+        <div className="fixed inset-0 bg-black text-white flex flex-col z-50">
+            
+            {/* TOP BAR */}
+            <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+                <div className="flex gap-1">
+                    {/* Progress Indicator (8 streepjes) */}
+                    {Array.from({ length: totalSlides }).map((_, i) => (
+                        <div 
+                            key={i} 
+                            className={`h-1 w-8 rounded-full transition-colors ${i <= currentSlide ? 'bg-museum-gold' : 'bg-white/20'}`}
+                        />
+                    ))}
                 </div>
+                <Link href="/tour" className="bg-black/40 p-2 rounded-full hover:bg-white/10 transition-colors">
+                    <X size={24} />
+                </Link>
+            </div>
 
-                {/* CONTENT */}
-                <div className="prose prose-invert prose-lg max-w-none text-gray-300">
-                    {/* Hier zou je de stops kunnen tonen */}
-                    <div className="bg-blue-900/20 border border-blue-500/30 p-6 rounded-xl flex gap-4 items-start mb-8">
-                        <Info className="text-blue-400 shrink-0 mt-1"/>
-                        <div>
-                            <h4 className="font-bold text-white mb-1">Over deze tour</h4>
-                            <p className="text-sm">Deze audiotour neemt u mee langs de hoogtepunten. Druk op play en luister terwijl u door de afbeeldingen scrolt.</p>
-                        </div>
-                    </div>
+            {/* MAIN IMAGE AREA */}
+            <div className="flex-1 relative overflow-hidden">
+                {content.image && (
+                    <img 
+                        src={content.image} 
+                        alt={content.title} 
+                        className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-700"
+                        key={currentSlide} // Zorgt voor animatie bij wissel
+                    />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+            </div>
+
+            {/* TEXT & CONTROLS AREA */}
+            <div className="bg-black p-6 pb-24 md:pb-6 relative z-10 rounded-t-3xl -mt-6">
+                <div className="max-w-2xl mx-auto text-center">
                     
-                    {/* Placeholder voor stops lijst */}
-                    <p>Hier komen de stops en de afbeeldingen van de tour...</p>
+                    {content.type === 'stop' && (
+                        <p className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-2">
+                            Stop {content.index} van {stops.length}
+                        </p>
+                    )}
+
+                    <h1 className="text-2xl md:text-3xl font-serif font-bold mb-4 animate-in slide-in-from-bottom-2">
+                        {content.title}
+                    </h1>
+                    
+                    <div className="prose prose-invert prose-sm max-w-none text-gray-400 mb-8 leading-relaxed h-32 overflow-y-auto">
+                        {content.text}
+                    </div>
+
+                    {/* NAVIGATIE KNOPPEN */}
+                    <div className="flex items-center justify-between gap-4">
+                        <button 
+                            onClick={prevSlide} 
+                            disabled={currentSlide === 0}
+                            className="p-4 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft size={24}/>
+                        </button>
+
+                        {/* CENTER ACTION BUTTON */}
+                        {content.type === 'outro' ? (
+                            <Link href="/tour" className="flex-1 bg-museum-gold text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2">
+                                <CheckCircle size={20}/> Afronden
+                            </Link>
+                        ) : (
+                           <button 
+                                onClick={() => setIsPlaying(!isPlaying)}
+                                className="flex-1 bg-white text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200"
+                            >
+                                {isPlaying ? <Pause size={20} fill="black"/> : <Play size={20} fill="black"/>}
+                                {isPlaying ? 'Pauzeer Audio' : 'Start Audio'}
+                            </button>
+                        )}
+
+                        <button 
+                            onClick={nextSlide} 
+                            disabled={currentSlide === totalSlides - 1}
+                            className="p-4 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight size={24}/>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* AUDIO PLAYER (Sticky) */}
-            {isPlaying && !isLocked && (
-                <AudioPlayer 
-                    src={tour.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} // Demo URL als fallback
-                    title={tour.title}
-                    onClose={() => setIsPlaying(false)}
-                />
+            {/* AUDIO PLAYER (Invisible Logic) */}
+            {isPlaying && (
+                <div className="hidden">
+                    {/* Hier koppel je de audio file. Voor nu placeholder. In echt: tour.stops[i].audio_url */}
+                    <AudioPlayer 
+                        src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" 
+                        title={content.title}
+                        onClose={() => setIsPlaying(false)}
+                    />
+                </div>
             )}
         </div>
     );
