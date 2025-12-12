@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { Users, Crown, Activity, Image as ImageIcon, Gamepad2, Headphones, ArrowRight, Clock, TrendingUp } from 'lucide-react';
+import ExportButton from '@/components/crm/ExportButton'; // <--- TOEVOEGEN
 
 export default function CrmDashboardPage() {
     const [stats, setStats] = useState({
@@ -84,10 +85,15 @@ export default function CrmDashboardPage() {
     );
 
     return (
-        <div className="p-8 max-w-7xl mx-auto">
-            <header className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-800 mb-2">Dashboard</h1>
-                <p className="text-slate-500">Welkom terug, Directeur. Hier is het overzicht van vandaag.</p>
+<div className="p-8 max-w-7xl mx-auto">
+            <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-800 mb-2">Dashboard</h1>
+                    <p className="text-slate-500">Welkom terug, Directeur. Hier is het overzicht.</p>
+                </div>
+                
+                {/* DE EXPORT KNOP */}
+                <ExportButton /> 
             </header>
 
             {/* --- STATS GRID --- */}
