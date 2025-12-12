@@ -1,44 +1,26 @@
-// De "TV Gids" strategie: Welk spel op welke dag?
-// Slot 1 = Gratis, Slot 2 & 3 = Premium
-
-export const WEEKLY_STRATEGY: Record<number, any> = {
-    // 0 = Zondag, 1 = Maandag, etc.
-    1: { // MAANDAG
-        slot1: 'pixel_hunt', slot2: 'memory', slot3: 'timeline'
-    },
-    2: { // DINSDAG
-        slot1: 'quiz', slot2: 'timeline', slot3: 'curator'
-    },
-    3: { // WOENSDAG
-        slot1: 'pixel_hunt', slot2: 'quiz', slot3: 'memory'
-    },
-    4: { // DONDERDAG
-        slot1: 'who_am_i', slot2: 'curator', slot3: 'timeline'
-    },
-    5: { // VRIJDAG
-        slot1: 'quiz', slot2: 'pixel_hunt', slot3: 'who_am_i'
-    },
-    6: { // ZATERDAG (Weekend = Uitdaging)
-        slot1: 'memory', slot2: 'curator', slot3: 'timeline'
-    },
-    0: { // ZONDAG (Rustig aan)
-        slot1: 'pixel_hunt', slot2: 'quiz', slot3: 'who_am_i'
-    }
+export const WEEKLY_STRATEGY: Record<number, { slot1: string; slot2: string; slot3: string }> = {
+    0: { slot1: 'quiz', slot2: 'details', slot3: 'timeline' }, // Zondag
+    1: { slot1: 'details', slot2: 'quiz', slot3: 'pixel_hunt' }, // Maandag
+    2: { slot1: 'quiz', slot2: 'timeline', slot3: 'details' }, // Dinsdag
+    3: { slot1: 'pixel_hunt', slot2: 'quiz', slot3: 'timeline' }, // Woensdag
+    4: { slot1: 'timeline', slot2: 'details', slot3: 'quiz' }, // Donderdag
+    5: { slot1: 'quiz', slot2: 'pixel_hunt', slot3: 'details' }, // Vrijdag
+    6: { slot1: 'details', slot2: 'timeline', slot3: 'quiz' }, // Zaterdag
 };
 
-// Welke prompt sturen we naar de AI voor welk type?
 export const PROMPTS = {
-    theme: "Verzin een boeiend kunstthema voor een dagprogramma. Bijv: 'De Hollandse Lucht', 'Vrouwen in de Kunst', 'Het Blauw van Vermeer'. Geef JSON terug: { title: string, description: string, topic_keywords: string[] }.",
+    theme: `Je bent een kunstcurator. Bedenk een creatief, overkoepelend dagthema op basis van de volgende kunstwerken: {CONTEXT}.
+    Geef antwoord als JSON: { "title": "Korte Pakkende Titel", "description": "Wervende introductie van 2 zinnen." }`,
     
-    quiz: "Maak een multiple choice quiz van 5 vragen over thema '{THEME}'. JSON format: [{ question, correct_answer, wrong_answers: [a,b,c] }].",
+    quiz: `Maak een multiple choice vraag over de kunstwerken in dit thema: "{THEME}". Context: {CONTEXT}.
+    JSON: { "question": "...", "correct_answer": "...", "wrong_answers": ["...", "...", "..."], "extra_data": { "fact": "Kort weetje na afloop" } }`,
     
-    timeline: "Kies 5 kunstwerken die passen bij thema '{THEME}' voor een tijdlijn-spel. Zorg voor duidelijke jaartal-verschillen. JSON: [{ question: 'Titel', correct_answer: 'Jaar', extra_data: { year: 1642 } }].",
+    timeline: `Welk van de kunstwerken uit "{THEME}" (Context: {CONTEXT}) is het oudst/nieuwst of uit welk jaar komt het? Maak een vraag waarbij de speler het jaartal moet raden.
+    JSON: { "question": "Uit welk jaar komt [Kunstwerk]?", "correct_answer": "1642", "wrong_answers": ["1630", "1650", "1660"], "extra_data": { "year": 1642 } }`,
     
-    memory: "Maak 6 paren voor Memory over thema '{THEME}'. Set A is de titel, Set B is de maker. JSON: [{ question: 'Titel', correct_answer: 'Maker' }].",
+    details: `Beschrijf een specifiek detail uit een van de werken ({CONTEXT}) voor het thema "{THEME}" zonder de naam te noemen. De speler moet raden welk werk het is.
+    JSON: { "question": "In welk schilderij zie je [Detail]?", "correct_answer": "[Titel Werk]", "wrong_answers": ["[Ander Werk]", "[Ander Werk]", "[Ander Werk]"] }`,
     
-    pixel_hunt: "Kies 1 beroemd schilderij dat past bij '{THEME}'. JSON: [{ question: 'Welk werk is dit?', correct_answer: 'Titel', image_search_term: 'Titel Artist' }].",
-    
-    curator: "Kies een schilderij voor 'Raad de Maker' bij thema '{THEME}'. JSON: [{ question: 'Wie schilderde dit?', correct_answer: 'Artist', wrong_answers: [a,b,c], image_search_term: 'Titel Artist' }].",
-    
-    who_am_i: "Beschrijf een beroemde kunstenaar die past bij '{THEME}' in 3 hints. JSON: [{ correct_answer: 'Artist', wrong_answers: [a,b,c], extra_data: { hints: ['Hint 1', 'Hint 2', 'Hint 3'] } }]."
+    pixel_hunt: `Kies een werk uit {CONTEXT}. We gaan dit vervagen. De vraag is simpel: Wat is dit?
+    JSON: { "question": "Herken jij dit meesterwerk?", "correct_answer": "[Titel]", "wrong_answers": ["...", "...", "..."] }`
 };
