@@ -17,11 +17,50 @@ const lato = Lato({
 });
 
 // Metadata voor SEO & PWA
+// ... imports ...
+
 export const metadata: Metadata = {
-  title: "MuseaThuis | Jouw dagelijkse dosis kunst",
-  description: "Ontdek interactieve audiotours, games en verdiepende verhalen.",
-  manifest: "/manifest.json", // Verwijst naar de file die we in stap 1 maakten
+  metadataBase: new URL('https://museathuis.nl'), // Belangrijk voor relatieve plaatjes!
+  title: {
+    default: 'MuseaThuis | Jouw dagelijkse dosis kunst',
+    template: '%s | MuseaThuis', // Zorgt voor titels als "De Nachtwacht | MuseaThuis"
+  },
+  description: 'Ontdek interactieve audiotours, games en verdiepende verhalen vanuit je woonkamer. Elke dag een nieuwe collectie.',
+  keywords: ['kunst', 'museum', 'audiotour', 'geschiedenis', 'educatie', 'thuismuseum', 'rijksmuseum', 'van gogh'],
+  authors: [{ name: 'MuseaThuis Team' }],
+  creator: 'MuseaThuis',
+  
+  // PWA instellingen
+  manifest: "/manifest.json",
+  
+  // Social Media (Open Graph)
+  openGraph: {
+    title: 'MuseaThuis | Jouw dagelijkse dosis kunst',
+    description: 'Ontdek interactieve audiotours, games en verdiepende verhalen.',
+    url: 'https://museathuis.nl',
+    siteName: 'MuseaThuis',
+    images: [
+      {
+        url: '/og-image.jpg', // Zorg voor een mooi plaatje (1200x630px) in je public map!
+        width: 1200,
+        height: 630,
+        alt: 'MuseaThuis Preview',
+      },
+    ],
+    locale: 'nl_NL',
+    type: 'website',
+  },
+  
+  // Twitter Card
+  twitter: {
+    card: 'summary_large_image',
+    title: 'MuseaThuis',
+    description: 'Breng het museum naar je woonkamer.',
+    images: ['/og-image.jpg'],
+  },
 };
+
+// ... rest van de layout ...
 
 // Viewport settings (belangrijk voor mobiel: voorkomt inzoomen bij input)
 export const viewport: Viewport = {
