@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { generateWithAI } from '@/lib/aiHelper';
+import { generateWithAI } from '@/lib/aiHelper'; // <-- Gebruikt nu Google!
 import { addDays, format } from 'date-fns';
 import { WEEKLY_STRATEGY, PROMPTS } from '@/lib/scheduleConfig';
 
@@ -11,6 +11,7 @@ const supabase = createClient(
 );
 
 export const maxDuration = 60; // Timeout verhogen
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   // Beveiliging: Check Secret Header
@@ -46,23 +47,22 @@ export async function GET(req: Request) {
         // ---------------------------------------------------------
         // STAP A: HAAL ECHTE KUNST UIT JE EIGEN DATABASE
         // ---------------------------------------------------------
-        // We halen 10 willekeurige werken op om als bronmateriaal te dienen
         const { data: realArtworks } = await supabase
             .from('artworks')
             .select('id, title, artist, image_url')
-            .limit(10); // In productie zou je hier .rpc('random_artworks') gebruiken
+            .limit(10); 
 
         if (!realArtworks || realArtworks.length < 3) {
             console.log("Te weinig kunstwerken in database. Sla over.");
             continue;
         }
 
-        // Maak een lijstje voor de AI context
         const artContext = realArtworks.map(a => `"${a.title}" van ${a.artist}`).join(', ');
 
         // ---------------------------------------------------------
-        // STAP B: THEMA BEPALEN O.B.V. ECHTE KUNST
+        // STAP B: THEMA BEPALEN
         // ---------------------------------------------------------
+        // generateWithAI gebruikt nu automatisch Google Gemini
         const themePrompt = `Ik heb deze kunstwerken in mijn collectie: ${artContext}. Verzin een creatief dagthema dat een aantal van deze werken met elkaar verbindt. JSON: { "title": "...", "description": "..." }`;
         const themeJson: any = await generateWithAI(themePrompt, true);
         
@@ -72,11 +72,10 @@ export async function GET(req: Request) {
         const createdIds = { tours: [] as string[], focus: [] as string[], games: [] as string[], salons: [] as string[] };
 
         // ---------------------------------------------------------
-        // STAP C: TOURS GENEREREN (Over de echte werken)
+        // STAP C: TOURS GENEREREN
         // ---------------------------------------------------------
         for (let t = 0; t < 3; t++) {
             try {
-                // We pakken 3 random kunstwerken uit de opgehaalde lijst voor deze tour
                 const tourArt = realArtworks.sort(() => 0.5 - Math.random()).slice(0, 3);
                 const tourArtNames = tourArt.map(a => a.title).join(', ');
 
@@ -88,7 +87,7 @@ export async function GET(req: Request) {
                         title: tourData.title,
                         intro: tourData.intro_text,
                         stops_data: { stops: tourData.stops || [] },
-                        hero_image_url: tourArt[0]?.image_url, // Gebruik ECHTE afbeelding!
+                        hero_image_url: tourArt[0]?.image_url, 
                         status: 'published',
                         type: 'daily',
                         is_premium: t > 0,
@@ -100,13 +99,11 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP D: FOCUS ARTIKELEN (Over 1 specifiek werk)
+        // STAP D: FOCUS ARTIKELEN
         // ---------------------------------------------------------
         for (let f = 0; f < 2; f++) {
             try {
-                // Pak 1 specifiek kunstwerk
                 const focusArt = realArtworks[f]; 
-                
                 const focusPrompt = `Schrijf een verdiepend artikel over "${focusArt.title}" van ${focusArt.artist}. JSON: { "title": "...", "intro": "...", "content_markdown": "..." }`;
                 const focusData: any = await generateWithAI(focusPrompt, true);
                 
@@ -115,7 +112,7 @@ export async function GET(req: Request) {
                         title: focusData.title,
                         intro: focusData.intro,
                         content_markdown: focusData.content_markdown,
-                        cover_image: focusArt.image_url, // Gebruik ECHTE afbeelding!
+                        cover_image: focusArt.image_url,
                         status: 'published',
                         is_premium: f > 0
                     }).select().single();
@@ -125,7 +122,7 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP E: GAMES (Over de collectie)
+        // STAP E: GAMES
         // ---------------------------------------------------------
         const strategy = WEEKLY_STRATEGY[dayOfWeek];
         const gameTypes = [strategy.slot1, strategy.slot2, strategy.slot3];
@@ -133,10 +130,9 @@ export async function GET(req: Request) {
         for (let g = 0; g < 3; g++) {
             try {
                 const type = gameTypes[g];
-                // Geef de context mee aan de game generator
                 const gamePrompt = PROMPTS[type as keyof typeof PROMPTS]
                     .replace('{THEME}', theme)
-                    .replace('{CONTEXT}', artContext); // Nieuw: voeg context toe aan prompt config
+                    .replace('{CONTEXT}', artContext);
 
                 const gameItems: any = await generateWithAI(gamePrompt, true);
                 
@@ -152,7 +148,6 @@ export async function GET(req: Request) {
 
                     if (newGame) {
                         createdIds.games.push(newGame.id);
-                        // Voeg items toe (zelfde logica als voorheen)
                         const itemsToInsert = Array.isArray(gameItems) ? gameItems : [gameItems];
                         await supabase.from('game_items').insert(
                             itemsToInsert.map((item: any, idx: number) => ({
@@ -161,7 +156,6 @@ export async function GET(req: Request) {
                                 correct_answer: item.correct_answer,
                                 wrong_answers: item.wrong_answers || [],
                                 extra_data: item.extra_data || {},
-                                // Probeer hier eventueel een image van realArtworks te matchen als de AI slim is
                                 image_url: realArtworks[idx % realArtworks.length].image_url, 
                                 order_index: idx
                             }))
@@ -174,7 +168,6 @@ export async function GET(req: Request) {
         // ---------------------------------------------------------
         // STAP F: SALON
         // ---------------------------------------------------------
-        // Salon is een collectie, dus we gebruiken de cover van het 1e werk
         try {
             const salonData: any = await generateWithAI(`Schrijf een inleiding voor de Salon collectie: "${theme}". JSON: {"title": "...", "short_description": "...", "content_markdown": "..."}`, true);
             if (salonData) {
@@ -182,14 +175,12 @@ export async function GET(req: Request) {
                     title: salonData.title,
                     short_description: salonData.short_description,
                     content_markdown: salonData.content_markdown,
-                    image_url: realArtworks[0].image_url, // Echte cover!
+                    image_url: realArtworks[0].image_url,
                     status: 'published'
                 }).select().single();
                 
-                // Koppel de items ook aan de salon (belangrijk voor navigatie)
                 if(salon) {
                     createdIds.salons.push(salon.id);
-                    // Maak salon_items aan voor de 10 kunstwerken
                     const salonItems = realArtworks.map((art, idx) => ({
                         salon_id: salon.id,
                         artwork_id: art.id,
