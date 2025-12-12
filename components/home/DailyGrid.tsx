@@ -3,28 +3,28 @@
 import Link from 'next/link';
 import { Headphones, Crosshair, Gamepad2, ArrowRight } from 'lucide-react';
 
-export default function DailyGrid({ items }: { items: any }) {
+export default function DailyGrid({ items, randomArtworks }: { items: any, randomArtworks: string[] }) {
+    // randomArtworks is een array van 3 image URLs die we van de server meekrijgen
     
     const Card = ({ label, subLabel, icon: Icon, href, image, color }: any) => (
         <Link href={href} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-900 h-full flex flex-col hover:border-museum-gold/50 transition-all hover:-translate-y-2 hover:shadow-2xl">
             
-            {/* Header met Dynamische Afbeelding van de dag */}
-            <div className={`h-48 relative overflow-hidden ${!image ? color : 'bg-black'}`}>
+            {/* Afbeelding: Gebruik de specifieke image, OF een random fallback */}
+            <div className={`h-48 relative overflow-hidden bg-black`}>
                 {image ? (
                     <img src={image} alt={label} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100" />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-50 transition-opacity">
+                    // Fallback naar icoon met mooie achtergrondkleur als er écht niks is
+                    <div className={`w-full h-full flex items-center justify-center opacity-30 ${color}`}>
                         <Icon size={64} className="text-white"/>
                     </div>
                 )}
                 
-                {/* Categorie Label */}
                 <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white flex items-center gap-2 border border-white/10 shadow-lg">
                     <Icon size={12} className="text-museum-gold"/> {label}
                 </div>
             </div>
             
-            {/* Content: Nu Generiek */}
             <div className="p-6 flex-1 flex flex-col">
                 <h3 className="text-2xl font-serif font-bold text-white mb-2 group-hover:text-museum-gold transition-colors">
                     {label}
@@ -35,7 +35,7 @@ export default function DailyGrid({ items }: { items: any }) {
                 
                 <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-auto">
                     <span className="text-xs font-bold uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors flex items-center gap-2">
-                        Bekijk overzicht <ArrowRight size={14} className="text-museum-gold"/>
+                        Open Overzicht <ArrowRight size={14} className="text-museum-gold"/>
                     </span>
                 </div>
             </div>
@@ -52,24 +52,26 @@ export default function DailyGrid({ items }: { items: any }) {
                     icon={Headphones} 
                     href="/tour" 
                     color="bg-purple-900"
-                    image={items?.tour?.hero_image_url} // We gebruiken wel het plaatje van de dag!
+                    image={items?.tour?.hero_image_url || randomArtworks[0]} 
                 />
 
                 <Card 
                     label="In Focus"
-                    subLabel="Duik dieper in de details met achtergrondartikelen en analyses."
+                    subLabel="Verdiepende artikelen en analyses."
                     icon={Crosshair} 
                     href="/focus" 
                     color="bg-blue-900"
-                    // Focus heeft vaak geen plaatje in de root, fallback is prima
+                    image={items?.focus?.cover_image || randomArtworks[1]}
                 />
 
                 <Card 
                     label="Games"
-                    subLabel="Test je kennis en train je oog met dagelijkse uitdagingen."
+                    subLabel="Train je oog en kennis met dagelijkse uitdagingen."
                     icon={Gamepad2} 
                     href="/game" 
                     color="bg-emerald-900"
+                    // Games hebben vaak geen plaatje, dus we gebruiken hier een random kunstwerk
+                    image={randomArtworks[2]}
                 />
 
             </div>
