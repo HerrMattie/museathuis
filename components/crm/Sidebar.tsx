@@ -18,7 +18,7 @@ import {
 
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/crm' },
-    { icon: Calendar, label: 'Weekplanning', href: '/crm/week' },
+    { icon: Calendar, label: 'Weekplanning', href: '/crm/schedule' },
     { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' },
     { icon: Calendar, label: 'AI Regisseur', href: '/crm/planning' },
     
