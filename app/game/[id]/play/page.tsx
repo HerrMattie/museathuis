@@ -1,73 +1,135 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+'use client';
 
-// IMPORTEER ALLE 6 DE ENGINES
-import QuizEngine from '@/components/game/engines/QuizEngine';
-import TimelineEngine from '@/components/game/engines/TimelineEngine';
-import PixelHuntEngine from '@/components/game/engines/PixelHuntEngine';
-import MemoryEngine from '@/components/game/engines/MemoryEngine';
-import CuratorEngine from '@/components/game/engines/CuratorEngine';
-import WhoAmIEngine from '@/components/game/engines/WhoAmIEngine';
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import { X, CheckCircle, XCircle, Trophy } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
-export const revalidate = 0;
+export default function GamePlayPage({ params }: { params: { id: string } }) {
+    const [questions, setQuestions] = useState<any[]>([]);
+    const [currentQ, setCurrentQ] = useState(0);
+    const [score, setScore] = useState(0);
+    const [finished, setFinished] = useState(false);
+    const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+    const [showResult, setShowResult] = useState(false); // Laat goed/fout zien
+    
+    const router = useRouter();
+    const supabase = createClient();
 
-export default async function PlayGamePage({ params }: { params: { id: string } }) {
-  const supabase = createClient(cookies());
-  const { data: { user } } = await supabase.auth.getUser();
+    useEffect(() => {
+        // Mock data laden (in het echt haal je dit uit 'game_questions' tabel)
+        setQuestions([
+            { text: "Wie schilderde de Nachtwacht?", options: ["Vermeer", "Rembrandt", "Van Gogh", "Hals"], correct: 1, image: "https://upload.wikimedia.org/wikipedia/commons/5/5a/The_Night_Watch_-_HD.jpg" },
+            { text: "In welke stad hangt het?", options: ["Den Haag", "Rotterdam", "Amsterdam", "Utrecht"], correct: 2 },
+            { text: "Welk jaar?", options: ["1642", "1500", "1900", "1750"], correct: 0 }
+        ]);
+    }, []);
 
-  if (!user) redirect('/login'); 
+    const handleAnswer = (index: number) => {
+        if (showResult) return; // Niet dubbel klikken
+        setSelectedAnswer(index);
+        setShowResult(true);
 
-  // 1. Haal Game Data
-  const { data: game } = await supabase
-    .from('games')
-    .select('*, game_items(*)')
-    .eq('id', params.id)
-    .single();
+        const isCorrect = index === questions[currentQ].correct;
+        if (isCorrect) {
+            setScore(prev => prev + 100);
+            confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+        }
 
-  if (!game) return <div className="text-white p-10">Game niet gevonden</div>;
+        // Wacht even en ga dan door
+        setTimeout(() => {
+            if (currentQ < questions.length - 1) {
+                setCurrentQ(curr => curr + 1);
+                setSelectedAnswer(null);
+                setShowResult(false);
+            } else {
+                finishGame();
+            }
+        }, 1500);
+    };
 
-  return (
-    <div className="min-h-screen bg-midnight-950 text-white flex flex-col">
-      
-      {/* Header tijdens spelen */}
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-midnight-950/50 backdrop-blur-md sticky top-0 z-50">
-          <Link href="/game" className="text-gray-400 hover:text-white flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors">
-              <ArrowLeft size={16}/> Stoppen
-          </Link>
-          <div className="font-serif font-bold text-lg text-museum-gold hidden md:block">{game.title}</div>
-          <div className="w-20"></div> 
-      </div>
+    const finishGame = async () => {
+        setFinished(true);
+        // Hier zou je de score opslaan naar de database (user_activity_logs)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase.from('user_activity_logs').insert({
+                user_id: user.id,
+                action_type: 'complete_game',
+                metadata: { game_id: params.id, score: score }
+            });
+        }
+    };
 
-      {/* 2. DE ENGINE KIEZER */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-          
-          {/* Achtergrond sfeer */}
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
+    if (questions.length === 0) return <div className="bg-midnight-950 min-h-screen"/>;
 
-          {game.type === 'quiz' && <QuizEngine game={game} items={game.game_items} userId={user.id} />}
-          
-          {game.type === 'timeline' && <TimelineEngine game={game} items={game.game_items} userId={user.id} />}
-          
-          {game.type === 'pixel_hunt' && <PixelHuntEngine game={game} items={game.game_items} userId={user.id} />}
-          
-          {game.type === 'memory' && <MemoryEngine game={game} items={game.game_items} userId={user.id} />}
-          
-          {game.type === 'curator' && <CuratorEngine game={game} items={game.game_items} userId={user.id} />}
-          
-          {game.type === 'who_am_i' && <WhoAmIEngine game={game} items={game.game_items} userId={user.id} />}
+    if (finished) {
+        return (
+            <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center text-white">
+                <div>
+                    <Trophy className="w-24 h-24 text-museum-gold mx-auto mb-6 animate-bounce"/>
+                    <h1 className="text-4xl font-serif font-black mb-2">Goed Gedaan!</h1>
+                    <p className="text-gray-400 mb-8">Je hebt de quiz voltooid.</p>
+                    <div className="text-6xl font-black text-white mb-12">{score} <span className="text-xl text-gray-500">PTN</span></div>
+                    <button onClick={() => router.push('/game')} className="bg-white text-black px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform">
+                        Terug naar Overzicht
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
-          {/* Foutafhandeling */}
-          {!['quiz', 'timeline', 'pixel_hunt', 'memory', 'curator', 'who_am_i'].includes(game.type) && (
-              <div className="text-center text-gray-400 bg-white/5 p-8 rounded-xl border border-white/10">
-                  <p className="mb-2">Onbekend speltype: <span className="text-white font-mono">{game.type}</span></p>
-                  <p className="text-sm">Controleer de database configuratie.</p>
-              </div>
-          )}
+    const q = questions[currentQ];
 
-      </div>
-    </div>
-  );
+    return (
+        <div className="min-h-screen bg-midnight-950 text-white flex flex-col">
+            
+            {/* Header met voortgang */}
+            <div className="p-6 flex justify-between items-center">
+                <button onClick={() => router.back()}><X className="text-gray-500 hover:text-white"/></button>
+                <div className="flex gap-1">
+                    {questions.map((_, i) => (
+                        <div key={i} className={`h-1 w-8 rounded-full ${i === currentQ ? 'bg-museum-gold' : i < currentQ ? 'bg-green-500' : 'bg-gray-800'}`}/>
+                    ))}
+                </div>
+                <div className="font-mono text-museum-gold">{score}</div>
+            </div>
+
+            {/* Vraag Content */}
+            <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full p-6">
+                {q.image && (
+                    <div className="h-48 mb-6 rounded-xl overflow-hidden border border-white/10 shadow-lg">
+                        <img src={q.image} className="w-full h-full object-cover"/>
+                    </div>
+                )}
+                
+                <h2 className="text-2xl md:text-3xl font-serif font-bold text-center mb-12">{q.text}</h2>
+
+                <div className="grid grid-cols-1 gap-4">
+                    {q.options.map((opt: string, i: number) => {
+                        let btnClass = "bg-white/5 border-white/10 hover:bg-white/10";
+                        if (showResult) {
+                            if (i === q.correct) btnClass = "bg-green-500/20 border-green-500 text-green-400";
+                            else if (i === selectedAnswer) btnClass = "bg-red-500/20 border-red-500 text-red-400";
+                            else btnClass = "opacity-50";
+                        }
+
+                        return (
+                            <button 
+                                key={i}
+                                onClick={() => handleAnswer(i)}
+                                disabled={showResult}
+                                className={`p-4 rounded-xl border text-left font-bold transition-all flex justify-between items-center ${btnClass}`}
+                            >
+                                <span>{opt}</span>
+                                {showResult && i === q.correct && <CheckCircle size={20}/>}
+                                {showResult && i === selectedAnswer && i !== q.correct && <XCircle size={20}/>}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
 }
