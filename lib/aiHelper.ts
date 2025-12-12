@@ -1,3 +1,4 @@
+// lib/aiHelper.ts
 export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
   const apiKey = process.env.GOOGLE_API_KEY;
 
@@ -6,9 +7,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     throw new Error("Server configuratie fout: API Key ontbreekt.");
   }
 
-  // UPDATE: We kiezen voor KWALITEIT boven snelheid.
-  // 'gemini-2.5-pro' is het slimste model in jouw lijst.
-  // Dit zorgt voor betere 'High End' museumteksten.
+  // We kiezen voor KWALITEIT. 'gemini-1.5-pro' is op dit moment de standaard voor complexe taken.
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   try {
@@ -16,13 +15,16 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
+        contents: [{ parts: [{ text: prompt }] }],
+        // Forceer JSON output via de API configuratie (optioneel, maar veiliger)
+        generationConfig: {
+            response_mime_type: jsonMode ? "application/json" : "text/plain"
+        }
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      // Vang specifieke Google fouten af
       throw new Error(`Google AI Fout (${response.status}): ${errorData.error?.message || response.statusText}`);
     }
 
@@ -32,6 +34,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
     if (!rawText) throw new Error("AI gaf leeg antwoord.");
 
     if (jsonMode) {
+      // Soms geeft Gemini markdown mee (```json ... ```), dat strippen we hier
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       try {
         return JSON.parse(cleanJson);
@@ -45,6 +48,6 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
 
   } catch (error: any) {
     console.error("AI Helper Fout:", error);
-    throw error; 
+    return null; // Return null zodat het script niet crasht, maar de fout wel logt
   }
 }
