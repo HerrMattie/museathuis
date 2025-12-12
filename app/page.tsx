@@ -3,14 +3,15 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { ArrowRight, Calendar } from 'lucide-react';
 import DailyGrid from '@/components/home/DailyGrid';
-import PageHeader from '@/components/ui/PageHeader'; // Zorg dat je deze hebt (uit stap 5 vorige bericht)
+import OnboardingCheck from '@/components/onboarding/OnboardingCheck';
 
-export const revalidate = 0; // Altijd verse data
+// Zorgt dat de pagina altijd vers wordt opgebouwd (voor random items en dagprogramma)
+export const revalidate = 0; 
 
 export default async function Home() {
   const supabase = createClient(cookies());
 
-  // 1. Haal dagprogramma op (Jouw bestaande logica)
+  // 1. Haal dagprogramma op voor vandaag
   const today = new Date().toISOString().split('T')[0];
   const { data: dailyProgram } = await supabase
     .from('day_programs')
@@ -24,26 +25,34 @@ export default async function Home() {
     .select('*')
     .in('key', ['home_title', 'home_subtitle']);
   
+  // Zet om naar een handig object: { home_title: "...", home_subtitle: "..." }
   const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
 
-  // 3. NIEUW: Haal 3 willekeurige kunstwerken op voor de homepage blokken
-  // We halen er 10 op en pakken er 3 om zeker te zijn dat we plaatjes hebben
+  // 3. Haal 3 willekeurige kunstwerken op voor de homepage blokken (sfeerplaatjes)
   const { data: randomArts } = await supabase
     .from('artworks')
     .select('image_url')
-    .not('image_url', 'is', null) // Alleen met foto
+    .not('image_url', 'is', null) // Alleen items met een foto
     .limit(10);
 
-  // Hussel ze en pak de eerste 3 (Client-side shuffle nabootsen voor variatie bij refresh)
+  // Hussel ze en pak de eerste 3
   const shuffled = randomArts ? randomArts.sort(() => 0.5 - Math.random()) : [];
   const randomUrls = shuffled.slice(0, 3).map(a => a.image_url);
+
+  // Veiligheid: Als er te weinig kunstwerken zijn, vul aan met placeholders
+  while (randomUrls.length < 3) {
+      randomUrls.push('https://images.unsplash.com/photo-1578320339910-410a3048c105'); 
+  }
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white">
       
+      {/* ONBOARDING CHECK: Toont pop-up voor nieuwe gebruikers */}
+      <OnboardingCheck />
+
       {/* HERO SECTIE */}
       <div className="relative pt-32 pb-48 px-6 overflow-hidden">
-          {/* Sfeervolle achtergrond (gradient + evt. kunstwerk) */}
+          {/* Sfeervolle achtergrond */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/40 via-midnight-950 to-midnight-950 z-0"></div>
           
           <div className="relative z-10 max-w-4xl mx-auto text-center">
@@ -64,9 +73,8 @@ export default async function Home() {
           </div>
       </div>
 
-      {/* DAILY GRID (Hier zat de fout) */}
+      {/* DAILY GRID (Navigatie naar Tour/Game/Focus) */}
       <div className="-mt-32 relative z-20 pb-20">
-          {/* We geven nu randomArtworks mee aan de component */}
           <DailyGrid items={dailyProgram?.items || {}} randomArtworks={randomUrls} />
       </div>
 
