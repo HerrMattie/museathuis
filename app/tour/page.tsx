@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Headphones, ArrowRight, Lock, Clock } from 'lucide-react';
+import { Headphones, ArrowRight, Lock, Clock, Crown } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
@@ -13,43 +13,29 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. Datum & Level bepalen
   const today = new Date().toISOString().split('T')[0];
   const selectedDate = searchParams.date || today;
   
-  // Haal XP op voor level check
+  // Level check
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
-  // 2. Haal items op voor DEZE datum
-  // We simuleren hier dat er 3 items zijn geselecteerd voor deze dag.
-  // In een echte DB zou je een 'day_programs' tabel joinen, of filteren op 'available_from'.
-  // Voor nu halen we 3 items op die 'published' zijn, en gebruiken we de datum als seed voor variatie (zodat je terug kunt bladeren).
-  
-  const { data: tours } = await supabase
-    .from('tours')
-    .select('*')
-    .eq('status', 'published')
-    // In werkelijkheid: .eq('date', selectedDate)
-    .limit(10); // We halen er meer op om te kunnen filteren/sorteren
+  // Data ophalen
+  const { data: tours } = await supabase.from('tours').select('*').eq('status', 'published').limit(10);
 
-  // Hack voor demo: Selecteer 3 items o.b.v. de datum string (zodat navigatie werkt)
-  // In productie: Gebruik je tabel 'day_programs' -> items->tour_ids
+  // Selecteer 3 items voor de dag
   let dailyTours = tours || [];
   if (dailyTours.length > 3) {
-      // Simpele shuffle o.b.v. datum zodat elke dag anders is, maar wel vaststaat per dag
       const dayNum = new Date(selectedDate).getDate(); 
       const start = dayNum % (dailyTours.length - 2);
       dailyTours = dailyTours.slice(start, start + 3);
   }
 
-  // 3. Sorteer: 1 Gratis (Links), 2 Premium (Midden/Rechts)
-  // We forceren de eerste op 'gratis' voor weergave als er geen echte gratis tour is
+  // Sorteer: Probeer een GRATIS item op plek 1 (index 0) te krijgen
   if (dailyTours.length > 0) {
-      // Zorg dat index 0 gratis lijkt (of is)
       const freeIndex = dailyTours.findIndex(t => !t.is_premium);
       if (freeIndex > 0) {
           const [freeItem] = dailyTours.splice(freeIndex, 1);
@@ -59,27 +45,23 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white">
-      <PageHeader 
-        title="Audiotours" 
-        subtitle="Het dagprogramma: Elke dag 3 nieuwe tours."
-      />
+      <PageHeader title="Audiotours" subtitle="Elke dag 3 nieuwe tours: 1 Gratis, 2 Premium." />
 
       <div className="max-w-7xl mx-auto px-6 pb-20 -mt-20 relative z-20">
-        
-        {/* NAVIGATIE */}
-        <DateNavigator 
-            basePath="/tour" 
-            currentDate={selectedDate} 
-            maxBack={access.days} 
-            mode="day" 
-        />
+        <DateNavigator basePath="/tour" currentDate={selectedDate} maxBack={access.days} mode="day" />
 
         {dailyTours.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {dailyTours.map((tour, index) => {
-                    // Logica: Index 0 is gratis, rest is premium (tenzij item zelf al premium is)
-                    const isPremiumSlot = index > 0; 
-                    const isLocked = (tour.is_premium || isPremiumSlot) && !user;
+                    // LOGICA UPDATE:
+                    // Slot 2 (index 1) en 3 (index 2) zijn ALTIJD Premium.
+                    const isPremiumSlot = index > 0;
+                    
+                    // Is dit contentstuk Premium? (Ja als het slot Premium is, OF als de content zelf Premium is)
+                    const isContentPremium = isPremiumSlot || tour.is_premium;
+                    
+                    // Is het op slot voor DEZE gebruiker?
+                    const isLocked = isContentPremium && !user;
 
                     return (
                         <Link key={tour.id} href={isLocked ? '/pricing' : `/tour/${tour.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl flex flex-col h-full">
@@ -89,8 +71,14 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><Headphones size={48} className="opacity-20"/></div>
                                 )}
-                                <div className={`absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white border border-white/10 shadow-lg ${isLocked ? 'bg-black/80' : 'bg-museum-gold text-black'}`}>
-                                    {isLocked ? <span className="flex items-center gap-1"><Lock size={10}/> Premium</span> : 'Gratis'}
+                                
+                                {/* LABEL LOGICA: Toon Premium/Gratis op basis van de content, niet de user access */}
+                                <div className={`absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest border border-white/10 shadow-lg ${isContentPremium ? 'bg-black/80 text-white' : 'bg-museum-gold text-black'}`}>
+                                    {isContentPremium ? (
+                                        <span className="flex items-center gap-1">
+                                            {isLocked ? <Lock size={10}/> : <Crown size={10}/>} Premium
+                                        </span>
+                                    ) : 'Gratis'}
                                 </div>
                             </div>
                             <div className="p-8 flex-1 flex flex-col">
@@ -106,10 +94,7 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
                 })}
             </div>
         ) : (
-            <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10">
-                <Headphones size={48} className="mx-auto text-gray-600 mb-4"/>
-                <p className="text-gray-400">Geen programma gevonden voor deze datum.</p>
-            </div>
+            <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10 text-gray-400">Geen tours voor deze datum.</div>
         )}
       </div>
     </div>
