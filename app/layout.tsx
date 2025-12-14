@@ -1,74 +1,23 @@
-import type { Metadata, Viewport } from "next";
-import { Playfair_Display, Lato } from "next/font/google";
+import type { Metadata } from "next";
+import { Inter, Playfair_Display } from "next/font/google"; 
 import "./globals.css";
-import BottomNav from "@/components/ui/BottomNav";
-import Sidebar from "@/components/crm/Sidebar"; // Als je die hebt voor desktop
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
-// Fonts laden
-const playfair = Playfair_Display({ 
-  subsets: ["latin"],
-  variable: '--font-serif',
-});
-
-const lato = Lato({ 
+// 1. We gebruiken nu Inter (voor leesbare tekst) en Playfair Display (voor titels)
+const inter = Inter({ 
   subsets: ["latin"], 
-  weight: ["300", "400", "700", "900"],
-  variable: '--font-sans',
+  variable: "--font-inter" 
 });
 
-// Metadata voor SEO & PWA
-// ... imports ...
+const playfair = Playfair_Display({ 
+  subsets: ["latin"], 
+  variable: "--font-serif" // We noemen hem intern 'serif'
+});
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://museathuis.nl'), // Belangrijk voor relatieve plaatjes!
-  title: {
-    default: 'MuseaThuis | Jouw dagelijkse dosis kunst',
-    template: '%s | MuseaThuis', // Zorgt voor titels als "De Nachtwacht | MuseaThuis"
-  },
-  description: 'Ontdek interactieve audiotours, games en verdiepende verhalen vanuit je woonkamer. Elke dag een nieuwe collectie.',
-  keywords: ['kunst', 'museum', 'audiotour', 'geschiedenis', 'educatie', 'thuismuseum', 'rijksmuseum', 'van gogh'],
-  authors: [{ name: 'MuseaThuis Team' }],
-  creator: 'MuseaThuis',
-  
-  // PWA instellingen
-  manifest: "/manifest.json",
-  
-  // Social Media (Open Graph)
-  openGraph: {
-    title: 'MuseaThuis | Jouw dagelijkse dosis kunst',
-    description: 'Ontdek interactieve audiotours, games en verdiepende verhalen.',
-    url: 'https://museathuis.nl',
-    siteName: 'MuseaThuis',
-    images: [
-      {
-        url: '/og-image.jpg', // Zorg voor een mooi plaatje (1200x630px) in je public map!
-        width: 1200,
-        height: 630,
-        alt: 'MuseaThuis Preview',
-      },
-    ],
-    locale: 'nl_NL',
-    type: 'website',
-  },
-  
-  // Twitter Card
-  twitter: {
-    card: 'summary_large_image',
-    title: 'MuseaThuis',
-    description: 'Breng het museum naar je woonkamer.',
-    images: ['/og-image.jpg'],
-  },
-};
-
-// ... rest van de layout ...
-
-// Viewport settings (belangrijk voor mobiel: voorkomt inzoomen bij input)
-export const viewport: Viewport = {
-  themeColor: "#020617",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  title: "MuseaThuis | Jouw dagelijkse kunst dosis",
+  description: "Ontdek elke dag nieuwe kunstwerken.",
 };
 
 export default function RootLayout({
@@ -77,22 +26,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="nl" className={`${playfair.variable} ${lato.variable}`}>
-      <body className="bg-midnight-950 text-white antialiased font-sans pb-16 md:pb-0">
+    <html lang="nl" className={`${inter.variable} ${playfair.variable}`}>
+      {/* 2. De body krijgt flex-col om de footer naar beneden te duwen */}
+      <body className="bg-midnight-950 text-slate-200 font-sans antialiased flex flex-col min-h-screen selection:bg-museum-gold selection:text-black">
         
-        {/* DESKTOP: Sidebar (Alleen zichtbaar op grote schermen via CSS in Sidebar component) */}
-        {/* Zorg dat in Sidebar.tsx staat: className="... hidden md:block" */}
-        <div className="hidden md:block">
-            {/* Hier zou je Sidebar component kunnen renderen als je die globaal wilt */}
-        </div>
-
-        {/* MAIN CONTENT */}
-        <main className="min-h-screen">
-            {children}
+        {/* HEADER: Moet bovenaan staan */}
+        <Header />
+        
+        {/* MAIN: Vult de ruimte */}
+        <main className="flex-1 flex flex-col pt-20"> 
+          {/* pt-20 zorgt dat de inhoud niet ONDER de header verdwijnt */}
+          {children}
         </main>
 
-        {/* MOBIEL: Bottom Navigation (Alleen zichtbaar op kleine schermen) */}
-        <BottomNav />
+        {/* FOOTER: Moet onderaan staan */}
+        <Footer />
         
       </body>
     </html>
