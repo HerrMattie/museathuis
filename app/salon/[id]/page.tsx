@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { ArrowLeft, Play, Info, Lock } from 'lucide-react';
-import LikeButton from '@/components/LikeButton'; // Zorg dat deze import klopt
+import { ArrowLeft, Info, Lock } from 'lucide-react';
+import LikeButton from '@/components/LikeButton';
+import PageAudioController from '@/components/PageAudioController'; 
 
 export const revalidate = 0;
 
@@ -17,11 +18,9 @@ export default async function SalonDetailPage({ params }: { params: { id: string
     .eq('id', params.id)
     .single();
 
-  if (!salon) {
-      return <div className="text-white p-8">Salon niet gevonden.</div>;
-  }
+  if (!salon) return <div className="text-white p-8">Salon niet gevonden.</div>;
 
-  // 2. Haal de items in de salon op
+  // 2. Haal de items in de salon op (inclusief artwork data)
   const { data: items } = await supabase
     .from('salon_items')
     .select('*, artwork:artworks(*)')
@@ -31,8 +30,12 @@ export default async function SalonDetailPage({ params }: { params: { id: string
   // 3. Premium Check
   const isLocked = salon.is_premium && !user;
 
+  // 4. Bepaal Audio voor de Hoofdknop (Pak de audio van het 1e item als fallback)
+  // Als je in de toekomst een 'intro_audio' op de salon tabel zet, kun je die hier voorrang geven.
+  const mainAudio = items?.[0]?.artwork?.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
   return (
-    <div className="min-h-screen bg-midnight-950 text-white pt-20">
+    <div className="min-h-screen bg-midnight-950 text-white pt-20 pb-32">
       
       {/* HERO HEADER */}
       <div className="relative h-[60vh]">
@@ -58,21 +61,21 @@ export default async function SalonDetailPage({ params }: { params: { id: string
                       {salon.description}
                   </p>
 
-                  <div className="flex items-center gap-4">
-                        {/* ACTIES */}
+                  <div className="flex flex-wrap items-center gap-4">
+                        {/* DE ACTIE KNOPPEN */}
                         {isLocked ? (
-                            <Link href="/pricing" className="bg-museum-gold text-black px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-white transition-colors">
+                            <Link href="/pricing" className="bg-museum-gold text-black px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-white transition-colors shadow-lg">
                                 <Lock size={20}/> Word lid om te bekijken
                             </Link>
                         ) : (
-                            <button className="bg-white text-black px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors">
-                                <Play size={20} fill="currentColor"/> Start Rondleiding
-                            </button>
+                            <PageAudioController 
+                                title={`Rondleiding: ${salon.title}`}
+                                audioSrc={mainAudio}
+                                btnLabel="Start Rondleiding"
+                            />
                         )}
 
-                        {/* LIKE BUTTON (Hier zat de fout) */}
-                        <div className="bg-white/10 p-1 rounded-full border border-white/10 backdrop-blur-md">
-                            {/* FIX: Geef user?.id door (undefined als null), nooit null hardcoded */}
+                        <div className="bg-white/10 p-2 rounded-xl border border-white/10 backdrop-blur-md">
                             <LikeButton itemId={salon.id} itemType="salon" userId={user?.id} />
                         </div>
                   </div>
@@ -81,7 +84,7 @@ export default async function SalonDetailPage({ params }: { params: { id: string
       </div>
 
       {/* ITEMS LIJST */}
-      <div className="max-w-4xl mx-auto px-6 pb-24">
+      <div className="max-w-4xl mx-auto px-6">
           <h2 className="text-2xl font-bold mb-8 border-b border-white/10 pb-4">In deze collectie</h2>
           
           {isLocked ? (
@@ -92,28 +95,47 @@ export default async function SalonDetailPage({ params }: { params: { id: string
           ) : (
               <div className="space-y-12">
                   {items?.map((item, index) => (
-                      <div key={item.id} className="flex flex-col md:flex-row gap-8 items-start group">
+                      <div key={item.id} className="flex flex-col md:flex-row gap-8 items-start group bg-white/5 p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                          
+                          {/* Afbeelding Artwork */}
                           <div className="w-full md:w-1/3 aspect-[3/4] bg-black rounded-lg overflow-hidden relative shadow-2xl">
                               <span className="absolute top-2 left-2 w-8 h-8 bg-black/60 text-white flex items-center justify-center font-bold rounded-full backdrop-blur-md z-10 border border-white/10">
                                   {index + 1}
                               </span>
-                              <img src={item.artwork?.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                              {item.artwork?.image_url && (
+                                <img src={item.artwork.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                              )}
                           </div>
-                          <div className="flex-1 pt-4">
+
+                          {/* Info Artwork */}
+                          <div className="flex-1 pt-2">
                               <h3 className="text-2xl font-serif font-bold text-museum-gold mb-1">{item.artwork?.title}</h3>
-                              <p className="text-sm font-bold text-gray-400 mb-6">{item.artwork?.artist} ({item.artwork?.year_created})</p>
+                              <p className="text-sm font-bold text-gray-400 mb-4">{item.artwork?.artist} ({item.artwork?.year_created})</p>
                               
-                              <div className="prose prose-invert prose-sm text-gray-300 leading-relaxed">
-                                  {/* Hier zou je curator_note kunnen tonen als die gevuld is, anders artwork description */}
+                              <div className="prose prose-invert prose-sm text-gray-300 leading-relaxed mb-6">
                                   {item.curator_note || item.artwork?.description || "Geen toelichting beschikbaar."}
                               </div>
 
-                              <div className="mt-6 flex gap-4">
-                                  <Link href={`/tour/${item.artwork_id}`} className="text-xs font-bold uppercase tracking-widest text-white hover:text-museum-gold flex items-center gap-2 transition-colors">
-                                      <Info size={16}/> Meer Info
+                              <div className="flex flex-wrap gap-4 items-center">
+                                  {/* Knop naar Detail pagina van kunstwerk */}
+                                  <Link href={`/tour/${item.artwork_id}`} className="text-xs font-bold uppercase tracking-widest text-white hover:text-museum-gold flex items-center gap-2 transition-colors bg-white/10 px-4 py-2 rounded-lg">
+                                      <Info size={16}/> Details
                                   </Link>
-                                  {/* Je kunt hier ook Like knoppen per artwork toevoegen */}
-                                  <LikeButton itemId={item.artwork_id} itemType="artwork" userId={user?.id} className="!p-2 !bg-transparent hover:!text-rose-500 !shadow-none" />
+                                  
+                                  {/* Audio afspelen van DIT specifieke werk */}
+                                  {item.artwork?.audio_url && (
+                                     <div className="scale-90 origin-left">
+                                        <PageAudioController 
+                                            title={item.artwork.title}
+                                            audioSrc={item.artwork.audio_url}
+                                            btnLabel="Luister"
+                                        />
+                                     </div>
+                                  )}
+
+                                  <div className="ml-auto">
+                                    <LikeButton itemId={item.artwork_id} itemType="artwork" userId={user?.id} className="!p-2 !bg-transparent hover:!text-rose-500 !shadow-none" />
+                                  </div>
                               </div>
                           </div>
                       </div>
