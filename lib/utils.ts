@@ -1,12 +1,6 @@
-import { cn } from "@/lib/utils";
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export default function Skeleton({ className, ...props }: SkeletonProps) {
-  return (
-    <div
-      className={cn("animate-pulse rounded-md bg-white/10", className)}
-      {...props}
-    />
-  );
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
 }
