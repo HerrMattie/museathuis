@@ -1,80 +1,43 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import { Mail, Phone, MapPin, Send } from 'lucide-react';
-import PageHeader from '@/components/ui/PageHeader';
+import Header from "@/components/layout/Header"; // Of gewoon "@/components/Header" als je die structuur hebt
+import Footer from "@/components/layout/Footer";
 
-export const revalidate = 0;
+export const revalidate = 0; // Zorg dat we altijd verse data hebben
 
 export default async function ContactPage() {
   const supabase = createClient(cookies());
-  
-  // Haal teksten op
-  const { data: content } = await supabase.from('site_content').select('*').like('key', 'contact_%');
-  const txt: any = {};
-  content?.forEach((item: any) => txt[item.key] = item.content);
+
+  // 1. HAAL DE TEKSTEN OP UIT DE DB
+  const { data: content } = await supabase
+    .from('site_content')
+    .select('*')
+    .in('key', ['contact_title', 'contact_text']); // <--- Hier geef je aan welke keys je nodig hebt
+
+  // 2. Zet ze om naar een handig object: { contact_title: "...", contact_text: "..." }
+  const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white">
-      <PageHeader 
-        title={txt.contact_title || "Contact"} 
-        subtitle={txt.contact_intro || "We horen graag van u."}
-      />
+    <div className="min-h-screen bg-midnight-950 text-slate-200">
+      {/* Header en Footer zitten vaak al in layout.tsx, dus check even of je ze hier nodig hebt.
+          Als ze dubbel verschijnen, haal ze dan hier weg! */}
+      
+      <div className="max-w-4xl mx-auto px-6 py-24">
+        
+        {/* 3. GEBRUIK DE VARIABELEN */}
+        <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-6">
+            {texts.contact_title || "Neem Contact Op"} 
+        </h1>
+        
+        <p className="text-xl text-slate-400 mb-12 leading-relaxed">
+            {texts.contact_text || "Heb je vragen? Stuur ons een bericht."}
+        </p>
 
-      <div className="max-w-4xl mx-auto px-6 pb-24 -mt-10 relative z-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            
-            {/* GEGEVENS */}
-            <div className="space-y-8">
-                <div className="bg-midnight-900 border border-white/10 p-6 rounded-2xl flex items-start gap-4">
-                    <div className="p-3 bg-museum-gold/10 text-museum-gold rounded-xl"><Mail size={24}/></div>
-                    <div>
-                        <h3 className="font-bold text-lg mb-1">E-mail</h3>
-                        <a href={`mailto:${txt.contact_email}`} className="text-gray-400 hover:text-white transition-colors">{txt.contact_email || 'info@museathuis.nl'}</a>
-                    </div>
-                </div>
-
-                {txt.contact_phone && (
-                    <div className="bg-midnight-900 border border-white/10 p-6 rounded-2xl flex items-start gap-4">
-                        <div className="p-3 bg-museum-gold/10 text-museum-gold rounded-xl"><Phone size={24}/></div>
-                        <div>
-                            <h3 className="font-bold text-lg mb-1">Telefoon</h3>
-                            <p className="text-gray-400">{txt.contact_phone}</p>
-                        </div>
-                    </div>
-                )}
-
-                <div className="bg-midnight-900 border border-white/10 p-6 rounded-2xl flex items-start gap-4">
-                    <div className="p-3 bg-museum-gold/10 text-museum-gold rounded-xl"><MapPin size={24}/></div>
-                    <div>
-                        <h3 className="font-bold text-lg mb-1">Kantoor</h3>
-                        <p className="text-gray-400">{txt.contact_address || 'Amsterdam'}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* SIMPEL FORMULIER (Visueel) */}
-            <div className="bg-white text-black p-8 rounded-2xl shadow-2xl">
-                <h3 className="text-2xl font-serif font-bold mb-6">Stuur een bericht</h3>
-                <form className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Naam</label>
-                        <input type="text" className="w-full border border-gray-200 p-3 rounded-lg bg-gray-50" placeholder="Uw naam"/>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">E-mail</label>
-                        <input type="email" className="w-full border border-gray-200 p-3 rounded-lg bg-gray-50" placeholder="uw@email.nl"/>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Bericht</label>
-                        <textarea className="w-full border border-gray-200 p-3 rounded-lg bg-gray-50 h-32" placeholder="Waar kunnen we mee helpen?"/>
-                    </div>
-                    <button type="button" className="w-full bg-black text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors">
-                        <Send size={18}/> Verstuur Bericht
-                    </button>
-                </form>
-            </div>
-
+        {/* Hieronder de rest van je formulier of contactgegevens... */}
+        <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
+            <p className="text-museum-gold">info@museathuis.nl</p>
         </div>
+
       </div>
     </div>
   );
