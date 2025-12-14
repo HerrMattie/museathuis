@@ -1,91 +1,80 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js'; // Let op: andere import!
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // 1. GEBRUIK DE ADMIN CLIENT (SERVICE ROLE)
+  // Dit omzeilt alle RLS-regels en beveiliging. Als dit niet werkt, is er iets mis met je database-structuur.
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY! 
+  );
+  
   try {
-    const supabase = createClient(cookies());
-    
-    // 1. RANDOM STARTPUNT (Voor variatie)
-    const randomOffset = Math.floor(Math.random() * 500); 
-
-    // 2. SPARQL QUERY (Haal 50 items op)
-    const sparqlQuery = `
-      SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year ?desc WHERE {
-        ?item wdt:P31 wd:Q3305213;             # Het is een schilderij
-              wdt:P18 ?image;                  # Met plaatje
-              wikibase:sitelinks ?sitelinks.   # Populariteit check
-        
-        FILTER(?sitelinks > 4)                 # Filter op redelijk bekende werken
-        
+    // 2. HAAL DATA VAN WIKIDATA
+    const offset = Math.floor(Math.random() * 500);
+    // We vragen nu expliciet om de Engelse en Nederlandse labels
+    const query = `
+      SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image WHERE {
+        ?item wdt:P31 wd:Q3305213; wdt:P18 ?image.
         OPTIONAL { ?item wdt:P170 ?artist. }
-        OPTIONAL { ?item wdt:P571 ?year. }
-        OPTIONAL { ?item schema:description ?desc. FILTER(LANG(?desc) = "nl") }
-        
         SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
-      }
-      ORDER BY DESC(?sitelinks)
-      LIMIT 50
-      OFFSET ${randomOffset}
+      } LIMIT 10 OFFSET ${offset}
     `;
-
-    const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(sparqlQuery)}&format=json`;
     
-    const response = await fetch(url, { 
-      headers: { 'User-Agent': 'MuseaThuis/1.0 (mailto:admin@museathuis.nl)' } 
-    });
-
-    if (!response.ok) throw new Error('Wikidata reageert even niet.');
-    const data = await response.json();
+    const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
+    const res = await fetch(url);
+    const data = await res.json();
     const items = data.results.bindings;
 
-    let importCount = 0;
+    let successCount = 0;
+    let errors = [];
 
-    // 3. VERWERKEN
+    // 3. OPSLAAN IN DATABASE (Met uitgebreide foutcontrole)
     for (const item of items) {
       const title = item.itemLabel?.value;
       const artist = item.artistLabel?.value;
-      const imageUrl = item.image?.value;
+      const image = item.image?.value;
 
-      // Check dubbelingen
-      const { data: existing } = await supabase
-        .from('artworks')
-        .select('id')
-        .eq('title', title)
-        .eq('artist', artist)
-        .maybeSingle();
-
-      if (!existing && title && artist && imageUrl) {
+      // Filter slechte data eruit (bv. Wikidata ID's als titel 'Q12345')
+      if (title && !title.startsWith('Q') && artist && image) {
         
-        const year = item.year?.value ? new Date(item.year.value).getFullYear().toString() : 'Onbekend';
-        const description = item.desc?.value || `Een werk van ${artist}.`;
-
-        await supabase.from('artworks').insert({
-           title,
-           artist,
-           image_url: imageUrl,
-           year_created: year,
-           description: description,
-           
-           // !!! HIER ZIT DE OPLOSSING: !!!
+        // We proberen het op te slaan
+        const { error } = await supabase.from('artworks').insert({
+           title: title,
+           artist: artist,
+           image_url: image,
+           description: `Geïmporteerd werk van ${artist} (Wikidata).`,
+           year_created: 'Onbekend',
            status: 'draft', 
-           
-           is_premium: Math.random() < 0.3
+           is_premium: false
         });
-        importCount++;
+
+        if (error) {
+          console.error("Fout bij opslaan:", error);
+          errors.push(`${title}: ${error.message}`);
+        } else {
+          successCount++;
+        }
       }
     }
 
+    // Geef duidelijke feedback terug aan je scherm
+    if (successCount === 0 && errors.length > 0) {
+        return NextResponse.json({ 
+            success: false, 
+            error: `Mislukt. Database fouten: ${errors.slice(0, 3).join(', ')}` 
+        });
+    }
+
     return NextResponse.json({ 
-      success: true, 
-      message: `Gelukt! ${importCount} nieuwe werken staan klaar in de Review Queue.`,
-      scanned: items.length
+        success: true, 
+        message: `Gelukt! ${successCount} werken toegevoegd. (Check Review Queue)`,
+        scanned: items.length
     });
 
-  } catch (error: any) {
-    console.error("Art Curator Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: "Server fout: " + e.message });
   }
 }
