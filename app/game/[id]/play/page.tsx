@@ -34,6 +34,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
         const isCorrect = index === questions[currentQ].correct;
         if (isCorrect) {
             setScore(prev => prev + 100);
+            // Knal confetti!
             confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
         }
 
@@ -66,7 +67,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
 
     if (finished) {
         return (
-            <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center text-white">
+            <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center text-white animate-in zoom-in-95">
                 <div>
                     <Trophy className="w-24 h-24 text-museum-gold mx-auto mb-6 animate-bounce"/>
                     <h1 className="text-4xl font-serif font-black mb-2">Goed Gedaan!</h1>
@@ -90,7 +91,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
                 <button onClick={() => router.back()}><X className="text-gray-500 hover:text-white"/></button>
                 <div className="flex gap-1">
                     {questions.map((_, i) => (
-                        <div key={i} className={`h-1 w-8 rounded-full ${i === currentQ ? 'bg-museum-gold' : i < currentQ ? 'bg-green-500' : 'bg-gray-800'}`}/>
+                        <div key={i} className={`h-1 w-8 rounded-full transition-colors ${i === currentQ ? 'bg-museum-gold' : i < currentQ ? 'bg-green-500' : 'bg-gray-800'}`}/>
                     ))}
                 </div>
                 <div className="font-mono text-museum-gold">{score}</div>
@@ -99,12 +100,13 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
             {/* Vraag Content */}
             <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full p-6">
                 {q.image && (
-                    <div className="h-48 mb-6 rounded-xl overflow-hidden border border-white/10 shadow-lg">
+                    <div className="h-48 mb-6 rounded-xl overflow-hidden border border-white/10 shadow-lg relative">
+                         {/* Fallback image check of Next/Image gebruiken in productie */}
                         <img src={q.image} className="w-full h-full object-cover"/>
                     </div>
                 )}
                 
-                <h2 className="text-2xl md:text-3xl font-serif font-bold text-center mb-12">{q.text}</h2>
+                <h2 className="text-2xl md:text-3xl font-serif font-bold text-center mb-12 leading-tight">{q.text}</h2>
 
                 <div className="grid grid-cols-1 gap-4">
                     {q.options.map((opt: string, i: number) => {
