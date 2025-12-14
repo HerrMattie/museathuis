@@ -11,7 +11,9 @@ export async function POST() {
   );
 
   try {
-    const offset = Math.floor(Math.random() * 2000); 
+    // AANPASSING: We vissen nu in een vijver van 50.000 werken (ipv 2.000)
+    // Hierdoor is de kans op een dubbele véél kleiner.
+    const offset = Math.floor(Math.random() * 50000); 
 
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image WHERE {
@@ -23,25 +25,20 @@ export async function POST() {
 
     const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
     
-    // BELANGRIJK: User-Agent toevoegen om 'Too many requests' te voorkomen
     const res = await fetch(url, { 
         method: 'GET',
         headers: { 
             'Accept': 'application/json',
-            'User-Agent': 'MuseaThuisBot/1.0 (contact@museathuis.nl) NextJS-Client' 
+            'User-Agent': 'MuseaThuisBot/1.0 (contact@museathuis.nl)' 
         },
         cache: 'no-store'
     });
 
-    if (res.status === 429) {
-        throw new Error('Te veel verzoeken aan Wikidata. Wacht 5 minuten.');
-    }
-
-    if (!res.ok) throw new Error(`Wikidata Server Error: ${res.status}`);
+    if (res.status === 429) throw new Error('Even wachten (429), Wikidata is druk.');
+    if (!res.ok) throw new Error(`Wikidata Fout: ${res.status}`);
     
     const data = await res.json();
     const items = data.results.bindings;
-
     let addedCount = 0;
 
     for (const item of items) {
@@ -50,14 +47,13 @@ export async function POST() {
       const image = item.image?.value;
 
       if (title && !title.startsWith('Q') && artist && image) {
-        // Upsert om dubbelingen te negeren
         const { error } = await supabase.from('artworks').upsert({
            title: title,
            artist: artist,
            image_url: image,
            description: `Import uit Wikidata`,
            year_created: 'Onbekend',
-           status: 'draft', // DRAFT voor Review Queue
+           status: 'draft', 
            is_premium: false
         }, { onConflict: 'image_url' });
 
@@ -67,7 +63,7 @@ export async function POST() {
 
     return NextResponse.json({ 
         success: true, 
-        message: `Gelukt! ${addedCount} werken toegevoegd. (${items.length - addedCount} waren dubbel)`,
+        message: `Gelukt! ${addedCount} nieuwe toegevoegd. (${items.length - addedCount} waren dubbel)`,
         scanned: items.length
     });
 
