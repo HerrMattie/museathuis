@@ -4,17 +4,13 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-// We zoeken per keer op één categorie om Wikidata niet te overbelasten.
-// Maar we rouleren willekeurig, dus je krijgt alles binnen.
+// We zoeken simpelweg op TYPE. Dit is razendsnel voor Wikidata.
 const ART_TYPES = [
-  { id: 'Q3305213', label: 'Schilderijen' },      // De grootste groep
-  { id: 'Q3305213', label: 'Schilderijen' },      // Dubbel erin = vaker schilderijen
+  { id: 'Q3305213', label: 'Schilderijen' }, 
   { id: 'Q860861',  label: 'Beeldhouwwerken' },
   { id: 'Q93184',   label: 'Tekeningen' },
   { id: 'Q125191',  label: 'Fotografie' },
-  { id: 'Q11060274', label: 'Prenten' },
-  { id: 'Q18593264', label: 'Aquarellen' },
-  { id: 'Q133067',   label: 'Muurschilderingen' }
+  { id: 'Q11060274', label: 'Prenten' }
 ];
 
 export async function POST() {
@@ -24,24 +20,21 @@ export async function POST() {
   );
 
   try {
-    // 1. KIES EEN WILLEKEURIG TYPE
     const randomType = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
     
-    // 2. KIES EEN WILLEKEURIGE OFFSET (HET SLEEPNET) 🕸️
-    // Er zijn >500.000 schilderijen. We pakken willekeurig een blokje van 50
-    // ergens uit de eerste 20.000 resultaten.
-    const randomOffset = Math.floor(Math.random() * 20000);
+    // SLEEPNET: We pakken een willekeurige greep uit de eerste 10.000 resultaten.
+    // Dit garandeert bijna altijd hits, omdat deze categorieën enorm zijn.
+    const randomOffset = Math.floor(Math.random() * 10000);
 
-    // 3. DE SIMPELE, HARDE QUERY
-    // Geen stromingen, geen jaartallen. Gewoon: Type + Plaatje + >3 Links.
+    // QUERY: Heel simpel. Type + Plaatje + >3 Links.
+    // Dit is lichtgewicht en crasht Vercel niet.
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year WHERE {
-        
-        ?item wdt:P31 wd:${randomType.id}; # Het moet dit type zijn
-              wdt:P18 ?image;              # Met afbeelding
+        ?item wdt:P31 wd:${randomType.id}; 
+              wdt:P18 ?image;              
               wikibase:sitelinks ?sitelinks. 
         
-        FILTER(?sitelinks > 3)             # Filter: Minimaal 3 wiki-pagina's (Kwaliteitseis)
+        FILTER(?sitelinks > 3) 
         
         OPTIONAL { ?item wdt:P571 ?year. }
         OPTIONAL { ?item wdt:P170 ?artist. }
@@ -52,13 +45,17 @@ export async function POST() {
 
     const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
     
-    // We gebruiken POST om caching te voorkomen en User-Agent tegen blokkades
+    // User-Agent is CRUCIAAL tegen de 'Too many requests' fout
     const res = await fetch(url, { 
-        headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/Sleepnet' },
+        method: 'GET',
+        headers: { 
+            'Accept': 'application/json', 
+            'User-Agent': 'MuseaThuisBot/Sleepnet-V1' 
+        },
         cache: 'no-store'
     });
 
-    if (res.status === 429) throw new Error('Even wachten (Wikidata limit).');
+    if (res.status === 429) return NextResponse.json({ success: false, error: 'Te snel! Wikidata blokkeert ons even. Wacht 1 minuut.' });
     if (!res.ok) throw new Error(`Wikidata Fout: ${res.status}`);
     
     const data = await res.json();
@@ -73,8 +70,7 @@ export async function POST() {
       const image = item.image?.value;
 
       if (title && !title.startsWith('Q') && image) {
-         
-         // Dubbel check
+         // Check of hij al bestaat
          const { data: existing } = await supabase
            .from('artworks')
            .select('id')
@@ -87,17 +83,16 @@ export async function POST() {
             const yearRaw = item.year?.value;
             const yearClean = yearRaw ? new Date(yearRaw).getFullYear().toString() : 'Onbekend';
 
-            const { error } = await supabase.from('artworks').insert({
+            await supabase.from('artworks').insert({
                title: title,
                artist: artist,
                image_url: image,
-               description: `Import: ${randomType.label}`, // Simpele beschrijving
+               description: `Import: ${randomType.label}`,
                year_created: yearClean,
                status: 'draft', 
                is_premium: false
             });
-
-            if (!error) addedCount++;
+            addedCount++;
          }
       }
     }
@@ -109,6 +104,6 @@ export async function POST() {
     });
 
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message });
   }
 }
