@@ -1,99 +1,121 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Download, Loader2, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, ArrowRight, PauseCircle, PlayCircle } from 'lucide-react';
 
 export default function ImportPage() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+  const [autoLoop, setAutoLoop] = useState(false);
+  const [stats, setStats] = useState({ totalAdded: 0, lastMsg: '' });
+  
+  // Ref om de loop te kunnen stoppen in de useEffect
+  const loopRef = useRef(false);
 
-  const runCurator = async () => {
-    setLoading(true);
-    setResult(null);
-    
+  // De functie die 1 batch ophaalt
+  const fetchBatch = async () => {
     try {
-      // We gebruiken POST om caching te voorkomen
-      const res = await fetch('/api/import/wikidata', { 
-          method: 'POST',
-          cache: 'no-store' 
-      });
+      setLoading(true);
+      const res = await fetch('/api/import/wikidata', { method: 'POST', cache: 'no-store' });
+      const data = await res.json();
 
-      // Eerst de tekst ophalen om HTML-fouten (de '<' error) af te vangen
-      const text = await res.text();
-      
-      try {
-          const data = JSON.parse(text); // Probeer te parsen naar JSON
-          
-          if (res.ok && data.success) {
-            setResult({ type: 'success', msg: data.message });
-          } else {
-            setResult({ type: 'error', msg: data.error || 'Server gaf een foutmelding.' });
-          }
-      } catch (jsonError) {
-          // Dit vangt de "Unexpected token <" fout af
-          console.error("Geen JSON ontvangen:", text);
-          setResult({ type: 'error', msg: 'Wikidata reageerde te traag (Timeout). Probeer het nog eens, het lukt vaak de 2e keer.' });
+      if (data.success) {
+        // Parse het getal uit het bericht ("Batch verwerkt: 12 nieuwe...")
+        const added = parseInt(data.message.match(/\d+/)?.[0] || '0');
+        
+        setStats(prev => ({
+          totalAdded: prev.totalAdded + added,
+          lastMsg: data.message
+        }));
+      } else {
+        setStats(prev => ({ ...prev, lastMsg: `Foutje: ${data.error}` }));
+        // Bij een fout (bv timeout) even wachten, maar niet stoppen als we in loop zitten
       }
-
     } catch (e) {
-      setResult({ type: 'error', msg: 'Verbindingsfout.' });
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
+
+  // De Loop Manager
+  useEffect(() => {
+    loopRef.current = autoLoop;
+
+    const runLoop = async () => {
+      if (!loopRef.current) return;
+      
+      await fetchBatch();
+      
+      // Als we nog steeds moeten loopen, wacht 3 seconden en ga door
+      if (loopRef.current) {
+        setTimeout(runLoop, 3000); 
+      }
+    };
+
+    if (autoLoop) {
+      runLoop();
+    }
+  }, [autoLoop]);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold font-serif text-slate-900">Art Curator</h1>
-        <p className="text-slate-500">Importeer kunstwerken van Wikidata.</p>
+        <h1 className="text-3xl font-bold font-serif text-slate-900">Art Curator Turbo</h1>
+        <p className="text-slate-500">
+           Automatische import van topstukken (10+ Wikipedia vermeldingen).
+        </p>
       </div>
 
       <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm max-w-2xl">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="bg-museum-gold/20 p-4 rounded-full text-yellow-800">
-             <Download size={32} />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg">Start Zoektocht</h3>
-            <p className="text-sm text-slate-500">
-              Haal een batch van <strong>20 werken</strong> op. <br/>
-              Kleine batches voorkomen timeouts en fouten.
-            </p>
-          </div>
+        
+        {/* STATS TELLER */}
+        <div className="flex items-center justify-between mb-8 bg-slate-50 p-6 rounded-xl border border-slate-100">
+           <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Totaal Geïmporteerd</p>
+              <p className="text-4xl font-bold text-museum-gold">{stats.totalAdded}</p>
+           </div>
+           <div className="text-right">
+              <Link href="/crm/review" className="text-sm font-bold underline hover:text-blue-600">
+                  Bekijk Review Queue &rarr;
+              </Link>
+           </div>
         </div>
 
-        {result && (
-          <div className={`p-4 rounded-lg flex flex-col gap-2 mb-6 ${
-            result.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
-            <div className="flex items-center gap-2 font-bold">
-                {result.type === 'success' ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
-                <span>{result.msg}</span>
-            </div>
-            
-            {result.type === 'success' && (
-                <div className="ml-7">
-                    <Link href="/crm/review" className="text-sm underline hover:text-green-900 flex items-center gap-1">
-                        Ga naar Review Queue <ArrowRight size={14}/>
-                    </Link>
-                </div>
-            )}
-          </div>
-        )}
+        {/* FEEDBACK LOG */}
+        <div className="mb-6 h-12 flex items-center justify-center text-sm text-slate-500 italic">
+           {loading ? <span className="flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> Bezig met ophalen...</span> : stats.lastMsg}
+        </div>
 
-        <button 
-          onClick={runCurator}
-          disabled={loading}
-          className="w-full py-4 bg-museum-gold hover:bg-yellow-500 text-black font-bold rounded-lg transition-all flex justify-center items-center gap-2 shadow-sm disabled:opacity-50"
-        >
-          {loading ? (
-            <> <Loader2 className="animate-spin" /> Curator is aan het werk... </>
-          ) : (
-            <> <Download size={20} /> Haal 20 Nieuwe Werken Op </>
-          )}
-        </button>
+        {/* KNOPPEN */}
+        <div className="flex gap-4">
+            {/* Handmatige knop */}
+            <button 
+              onClick={() => { setAutoLoop(false); fetchBatch(); }}
+              disabled={loading || autoLoop}
+              className="flex-1 py-4 border-2 border-slate-200 hover:border-museum-gold text-slate-700 font-bold rounded-lg transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+            >
+              <Download size={20} /> Eén Batch (50)
+            </button>
+
+            {/* TURBO KNOP */}
+            <button 
+              onClick={() => setAutoLoop(!autoLoop)}
+              className={`flex-1 py-4 font-bold rounded-lg transition-all flex justify-center items-center gap-2 text-black shadow-md ${
+                  autoLoop ? 'bg-red-100 text-red-600 border border-red-200 animate-pulse' : 'bg-museum-gold hover:bg-yellow-500'
+              }`}
+            >
+              {autoLoop ? (
+                <> <PauseCircle size={24} /> STOP TURBO </>
+              ) : (
+                <> <PlayCircle size={24} /> START AUTO-IMPORT </>
+              )}
+            </button>
+        </div>
+        
+        <p className="text-xs text-center text-slate-400 mt-4">
+            De Auto-Import blijft draaien zolang dit tabblad open staat.
+        </p>
       </div>
     </div>
   );
