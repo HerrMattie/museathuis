@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 // 1. DE GROTE LIJST MET KUNSTVORMEN (Types)
-// We zoeken niet meer alleen 'Schilderij' (Q3305213), maar ook:
 const ART_FORMS = [
   'wd:Q3305213', // Schilderij
   'wd:Q860861',  // Beeldhouwwerk (Sculptuur)
@@ -16,7 +15,6 @@ const ART_FORMS = [
 ];
 
 // 2. DE ENORME LIJST MET STROMINGEN & PERIODES (Context)
-// Van Oudheid tot Modern, van Oosters tot Westers.
 const CONTEXTS = [
   // Klassiek & Oude Meesters
   'Q40415', // Impressionisme
@@ -60,8 +58,6 @@ export async function POST() {
 
   try {
     // KIES WILLEKEURIG EEN COMBINATIE
-    // Bijv: "Beeldhouwwerk" uit de "Oud-Griekse kunst"
-    // Of: "Schilderij" uit "Pop Art"
     const randomForm = ART_FORMS[Math.floor(Math.random() * ART_FORMS.length)];
     const randomContext = CONTEXTS[Math.floor(Math.random() * CONTEXTS.length)];
     
@@ -69,7 +65,6 @@ export async function POST() {
     const randomOffset = Math.floor(Math.random() * 300);
 
     // DE SPARQL QUERY
-    // Let op: We gebruiken 'VALUES' om de keuzes in de query te zetten
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year WHERE {
         
@@ -78,7 +73,7 @@ export async function POST() {
               wdt:P136 wd:${randomContext}; # Binnen deze stroming
               wikibase:sitelinks ?sitelinks. 
         
-        FILTER(?sitelinks > 5)             # Iets verlaagd naar 5 om ook niche beelden te pakken
+        FILTER(?sitelinks > 5)             # Populariteitsfilter
         
         OPTIONAL { ?item wdt:P571 ?year. }
         OPTIONAL { ?item wdt:P170 ?artist. }
@@ -123,11 +118,37 @@ export async function POST() {
             const yearRaw = item.year?.value;
             const yearClean = yearRaw ? new Date(yearRaw).getFullYear().toString() : 'Onbekend';
 
-            // We slaan op wat voor type het is in de beschrijving voor nu
-            // (Later kun je hier een aparte kolom 'type' voor maken in je database)
+            // Bepaal type naam voor de beschrijving
             let typeName = 'Werk';
             if(randomForm.includes('Q860861')) typeName = 'Sculptuur';
             if(randomForm.includes('Q125191')) typeName = 'Foto';
             if(randomForm.includes('Q93184')) typeName = 'Tekening';
+            if(randomForm.includes('Q11060274')) typeName = 'Prent';
+            if(randomForm.includes('Q18593264')) typeName = 'Aquarel';
 
-            const { error } = await supabase.from
+            // HIER GING HET MIS IN JE VORIGE POGING:
+            const { error } = await supabase.from('artworks').insert({
+               title: title,
+               artist: artist,
+               image_url: image,
+               description: `Import: ${typeName} (${artist}, ${yearClean})`,
+               year_created: yearClean,
+               status: 'draft', 
+               is_premium: false
+            });
+
+            if (!error) addedCount++;
+         }
+      }
+    }
+
+    return NextResponse.json({ 
+        success: true, 
+        message: `Binnen: ${addedCount} nieuwe items. (${duplicateCount} dubbel).`,
+        scanned: items.length
+    });
+
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+  }
+}
