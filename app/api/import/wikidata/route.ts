@@ -1,23 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// Forceer dynamisch gedrag (geen caching op server niveau)
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 export async function POST() {
-  // Gebruik de ADMIN sleutel om zeker te weten dat we mogen schrijven
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY! 
   );
 
   try {
-    // 1. Random startpunt om variatie te krijgen
     const offset = Math.floor(Math.random() * 2000); 
 
-    // 2. Simpele Query (Lichter voor Wikidata = Sneller antwoord)
-    // We halen 20 items op. Dat is veilig binnen de 10 seconden limiet.
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image WHERE {
         ?item wdt:P31 wd:Q3305213; wdt:P18 ?image.
@@ -28,36 +23,43 @@ export async function POST() {
 
     const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
     
-    // Fetch met no-store headers
+    // BELANGRIJK: User-Agent toevoegen om 'Too many requests' te voorkomen
     const res = await fetch(url, { 
-        headers: { 'Accept': 'application/json' },
+        method: 'GET',
+        headers: { 
+            'Accept': 'application/json',
+            'User-Agent': 'MuseaThuisBot/1.0 (contact@museathuis.nl) NextJS-Client' 
+        },
         cache: 'no-store'
     });
 
-    if (!res.ok) throw new Error(`Wikidata Fout: ${res.statusText}`);
+    if (res.status === 429) {
+        throw new Error('Te veel verzoeken aan Wikidata. Wacht 5 minuten.');
+    }
+
+    if (!res.ok) throw new Error(`Wikidata Server Error: ${res.status}`);
+    
     const data = await res.json();
     const items = data.results.bindings;
 
     let addedCount = 0;
 
-    // 3. Opslaan
     for (const item of items) {
       const title = item.itemLabel?.value;
       const artist = item.artistLabel?.value;
       const image = item.image?.value;
 
       if (title && !title.startsWith('Q') && artist && image) {
-        
-        // UPSERT: Maak aan of update als hij bestaat
+        // Upsert om dubbelingen te negeren
         const { error } = await supabase.from('artworks').upsert({
            title: title,
            artist: artist,
            image_url: image,
            description: `Import uit Wikidata`,
            year_created: 'Onbekend',
-           status: 'draft', // DRAFT = Zichtbaar in Review Queue
+           status: 'draft', // DRAFT voor Review Queue
            is_premium: false
-        }, { onConflict: 'image_url' }); // Uniek op plaatje
+        }, { onConflict: 'image_url' });
 
         if (!error) addedCount++;
       }
@@ -65,7 +67,7 @@ export async function POST() {
 
     return NextResponse.json({ 
         success: true, 
-        message: `Klaar! ${addedCount} werken toegevoegd aan Review Queue.`,
+        message: `Gelukt! ${addedCount} werken toegevoegd. (${items.length - addedCount} waren dubbel)`,
         scanned: items.length
     });
 
