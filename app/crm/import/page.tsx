@@ -1,188 +1,79 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabaseClient';
-import { Download, Check, X, Loader2, RefreshCw, Image as ImageIcon, ExternalLink, Layers } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function ImportPage() {
-    const [candidates, setCandidates] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [bulkImporting, setBulkImporting] = useState(false); // Nieuwe state voor bulk
-    const [offset, setOffset] = useState(0); 
-    const [processing, setProcessing] = useState<string | null>(null);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const runCurator = async () => {
+    setLoading(true);
+    setResult(null);
     
-    const supabase = createClient();
+    try {
+      // We roepen onze nieuwe geoptimaliseerde route aan
+      const res = await fetch('/api/import/wikidata');
+      const data = await res.json();
+      
+      if (res.ok) {
+        setResult({ type: 'success', msg: data.message });
+      } else {
+        setResult({ type: 'error', msg: data.error || 'Server timeout' });
+      }
+    } catch (e) {
+      setResult({ type: 'error', msg: 'Er ging iets mis met de verbinding.' });
+    }
+    
+    setLoading(false);
+  };
 
-    const fetchCandidates = async () => {
-        setLoading(true);
-        setErrorMsg(null);
-        try {
-            const res = await fetch(`/api/crm/import-batch?offset=${offset}`);
-            if (!res.ok) throw new Error("Server timeout (te veel data). Probeer opnieuw.");
-            
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold font-serif text-slate-900">Art Curator</h1>
+        <p className="text-slate-500">De robot zoekt op Wikidata naar populaire meesterwerken.</p>
+      </div>
 
-            if (data.results && data.results.length > 0) {
-                setCandidates(prev => {
-                    const existingIds = new Set(prev.map(p => p.wikidata_id));
-                    const newUnique = data.results.filter((r: any) => !existingIds.has(r.wikidata_id));
-                    return [...prev, ...newUnique];
-                });
-                setOffset(data.nextOffset);
-            } else {
-                alert("Geen nieuwe kandidaten in deze batch. Klik nogmaals voor de volgende batch.");
-                setOffset(data.nextOffset);
-            }
-        } catch (e: any) {
-            setErrorMsg(e.message);
-        }
-        setLoading(false);
-    };
-
-    // --- NIEUW: BULK IMPORT FUNCTIE ---
-    const handleImportAll = async () => {
-        if (candidates.length === 0) return;
-        if (!confirm(`Weet je zeker dat je alle ${candidates.length} kunstwerken in één keer wilt toevoegen aan de Review Queue?`)) return;
-
-        setBulkImporting(true);
-
-        // Maak de data klaar voor Supabase (mapping)
-        const payload = candidates.map(item => ({
-            title: item.title,
-            artist: item.artist,
-            image_url: item.image_url,
-            year_created: item.year ? parseInt(item.year) : null,
-            wikidata_id: item.wikidata_id,
-            status: 'draft', // Gaat naar Review Queue
-            description: `Geïmporteerd via Art Curator Batch.`
-        }));
-
-        // Insert alles in één keer (Bulk Insert)
-        const { error } = await supabase.from('artworks').insert(payload);
-
-        if (error) {
-            alert("Bulk Import Fout: " + error.message);
-        } else {
-            // Alles gelukt! Lijst leegmaken.
-            setCandidates([]);
-            alert("Succes! Alle items staan nu in de Review Queue.");
-        }
-        setBulkImporting(false);
-    };
-
-    const handleImport = async (item: any) => {
-        setProcessing(item.wikidata_id);
-        const { error } = await supabase.from('artworks').insert({
-            title: item.title,
-            artist: item.artist,
-            image_url: item.image_url,
-            year_created: item.year ? parseInt(item.year) : null,
-            wikidata_id: item.wikidata_id,
-            status: 'draft',
-            description: `Geïmporteerd via Art Curator.`
-        });
-
-        if (!error) {
-            setCandidates(prev => prev.filter(c => c.wikidata_id !== item.wikidata_id));
-        } else {
-            alert("Error: " + error.message);
-        }
-        setProcessing(null);
-    };
-
-    const handleReject = (id: string) => {
-        setCandidates(prev => prev.filter(c => c.wikidata_id !== id));
-    };
-
-    return (
-        <div className="p-8 max-w-7xl mx-auto">
-            <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 mb-2 flex items-center gap-2">
-                        <Download className="text-museum-gold"/> Art Curator
-                    </h1>
-                    <p className="text-slate-500">
-                        De robot zoekt op Wikidata naar populaire meesterwerken.
-                    </p>
-                </div>
-                
-                <div className="flex gap-3">
-                    {/* ALLE TOEVOEGEN KNOP */}
-                    {candidates.length > 0 && (
-                        <button 
-                            onClick={handleImportAll} 
-                            disabled={bulkImporting || loading}
-                            className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-700 transition-colors shadow-lg disabled:opacity-50"
-                        >
-                            {bulkImporting ? <Loader2 className="animate-spin"/> : <Layers size={20}/>} 
-                            Alles Toevoegen ({candidates.length})
-                        </button>
-                    )}
-
-                    <button 
-                        onClick={fetchCandidates} 
-                        disabled={loading || bulkImporting}
-                        className="bg-museum-gold text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-yellow-500 transition-colors shadow-lg disabled:opacity-50"
-                    >
-                        {loading ? <Loader2 className="animate-spin"/> : <RefreshCw size={20}/>} 
-                        {candidates.length > 0 ? "Meer Laden" : "Start Zoektocht"}
-                    </button>
-                </div>
-            </header>
-
-            {errorMsg && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-8 border border-red-100 flex items-center gap-2">
-                    <X size={20}/> {errorMsg} <span className="text-sm underline cursor-pointer" onClick={fetchCandidates}>Probeer opnieuw</span>
-                </div>
-            )}
-
-            {/* GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {candidates.map((item) => (
-                    <div key={item.wikidata_id} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col">
-                        
-                        <div className="h-56 relative bg-slate-100">
-                            <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
-                            <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm">
-                                {item.sitelinks} refs
-                            </div>
-                            <a href={item.image_url} target="_blank" rel="noopener noreferrer" className="absolute bottom-2 right-2 bg-white/20 hover:bg-white/40 text-white p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                <ExternalLink size={16}/>
-                            </a>
-                        </div>
-
-                        <div className="p-4 flex-1 flex flex-col">
-                            <h3 className="font-bold text-slate-800 mb-1 line-clamp-1" title={item.title}>{item.title}</h3>
-                            <p className="text-sm text-slate-500 mb-4 line-clamp-1">{item.artist}, {item.year}</p>
-                            
-                            <div className="mt-auto flex gap-2">
-                                <button 
-                                    onClick={() => handleReject(item.wikidata_id)}
-                                    className="flex-1 border border-red-100 text-red-400 hover:bg-red-50 py-2 rounded-lg font-bold transition-colors flex justify-center"
-                                >
-                                    <X size={20}/>
-                                </button>
-                                <button 
-                                    onClick={() => handleImport(item)}
-                                    disabled={!!processing || bulkImporting}
-                                    className="flex-[3] bg-slate-900 text-white hover:bg-slate-700 py-2 rounded-lg font-bold transition-colors flex justify-center gap-2 items-center"
-                                >
-                                    {processing === item.wikidata_id ? <Loader2 className="animate-spin" size={18}/> : <Check size={18}/>}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {!loading && candidates.length === 0 && !errorMsg && (
-                <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                    <ImageIcon size={48} className="mx-auto text-slate-300 mb-4"/>
-                    <p className="text-slate-400">Nog geen kandidaten. Klik op "Start Zoektocht" om te beginnen.</p>
-                </div>
-            )}
+      <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm max-w-2xl">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-yellow-100 p-4 rounded-full text-yellow-700">
+             <Download size={32} />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg">Start Zoektocht</h3>
+            <p className="text-sm text-slate-500">
+              De curator haalt een batch van 10 beroemde werken op, controleert op dubbelingen en voegt ze toe.
+            </p>
+          </div>
         </div>
-    );
+
+        {/* FEEDBACK MELDINGEN */}
+        {result && (
+          <div className={`p-4 rounded-lg flex items-center gap-2 mb-6 ${
+            result.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {result.type === 'success' ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
+            <span>{result.msg}</span>
+          </div>
+        )}
+
+        <button 
+          onClick={runCurator}
+          disabled={loading}
+          className="w-full py-4 bg-museum-gold hover:bg-yellow-500 text-black font-bold rounded-lg transition-all flex justify-center items-center gap-2"
+        >
+          {loading ? (
+            <> <Loader2 className="animate-spin" /> Curator is aan het werk... </>
+          ) : (
+            <> <Download size={20} /> Haal 10 Nieuwe Werken Op </>
+          )}
+        </button>
+        
+        <p className="text-xs text-center text-slate-400 mt-4">
+            Tip: Je kunt meerdere keren klikken om meer batches binnen te halen.
+        </p>
+      </div>
+    </div>
+  );
 }
