@@ -1,6 +1,5 @@
-import type { Config } from "tailwindcss";
-
-const config: Config = {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,12 +9,12 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-inter)", "sans-serif"],
-        serif: ["var(--font-cinzel)", "serif"], // <--- DIT zorgt dat je titels weer mooi worden
+        serif: ["var(--font-cinzel)", "serif"],
       },
       colors: {
         'midnight': {
           900: '#0f172a',
-          950: '#020617', // De donkere achtergrondkleur
+          950: '#020617', // De donkere achtergrond
         },
         'museum-gold': '#d4af37', // De gouden accentkleur
       },
@@ -24,6 +23,8 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/typography")
+  ],
 };
-export default config;
