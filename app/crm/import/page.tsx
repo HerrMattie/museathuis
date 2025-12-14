@@ -13,21 +13,25 @@ export default function ImportPage() {
     setResult(null);
     
     try {
-      // Roep de API aan (hier zitten de filters en de limit 50 in!)
-      const res = await fetch('/api/import/wikidata');
+      // AANGEPAST: We gebruiken nu method: 'POST'
+      const res = await fetch('/api/import/wikidata', { 
+          method: 'POST',
+          cache: 'no-store'
+      });
       const data = await res.json();
       
-      if (res.ok) {
+      if (res.ok && data.success) {
         setResult({ 
           type: 'success', 
-          msg: data.message || 'Import geslaagd!',
-          count: data.scanned // Aantal items in de batch
+          // Nu gebruiken we altijd het bericht van de server
+          msg: data.message, 
+          count: data.scanned 
         });
       } else {
-        setResult({ type: 'error', msg: data.error || 'Server timeout of fout.' });
+        setResult({ type: 'error', msg: data.error || 'Er ging iets mis.' });
       }
     } catch (e) {
-      setResult({ type: 'error', msg: 'Er ging iets mis met de verbinding.' });
+      setResult({ type: 'error', msg: 'Verbindingsfout met de server.' });
     }
     
     setLoading(false);
@@ -41,8 +45,6 @@ export default function ImportPage() {
       </div>
 
       <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm max-w-2xl">
-        
-        {/* HEADER BLOK */}
         <div className="flex items-center gap-4 mb-8">
           <div className="bg-museum-gold/20 p-4 rounded-full text-yellow-800">
              <Download size={32} />
@@ -56,7 +58,6 @@ export default function ImportPage() {
           </div>
         </div>
 
-        {/* FEEDBACK RESULTAAT */}
         {result && (
           <div className={`p-4 rounded-lg flex flex-col gap-2 mb-6 animate-in slide-in-from-top-2 ${
             result.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
@@ -76,7 +77,6 @@ export default function ImportPage() {
           </div>
         )}
 
-        {/* DE KNOP */}
         <button 
           onClick={runCurator}
           disabled={loading}
@@ -90,7 +90,7 @@ export default function ImportPage() {
         </button>
         
         <p className="text-xs text-center text-slate-400 mt-4">
-            Tip: Klik gerust meerdere keren voor meer batches. Dubbele werken worden automatisch overgeslagen.
+            Tip: Klik gerust meerdere keren. Door POST te gebruiken werkt dit nu elke keer.
         </p>
       </div>
     </div>
