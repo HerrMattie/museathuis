@@ -8,15 +8,17 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
+        // Sans = Inter (voor broodtekst)
         sans: ["var(--font-inter)", "sans-serif"],
-        serif: ["var(--font-cinzel)", "serif"],
+        // Serif = Playfair Display (voor koppen - veel beter leesbaar!)
+        serif: ["var(--font-serif)", "serif"], 
       },
       colors: {
         'midnight': {
-          900: '#0f172a',
-          950: '#020617', // De donkere achtergrond
+          900: '#0f172a', // Slate 900
+          950: '#020617', // Slate 950 (zeer donker blauw/zwart)
         },
-        'museum-gold': '#d4af37', // De gouden accentkleur
+        'museum-gold': '#d4af37',
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
