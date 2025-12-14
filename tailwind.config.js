@@ -1,34 +1,29 @@
-/** @type {import('tailwindcss').Config} */
-module.exports = {
+import type { Config } from "tailwindcss";
+
+const config: Config = {
   content: [
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/**/*.{js,ts,jsx,tsx,mdx}" // Voor de zekerheid
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
-      colors: {
-        midnight: {
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617', // De diepe achtergrond
-        },
-        museum: {
-          gold: '#C5A059',
-          lime: '#D9F99D',
-          text: {
-            secondary: '#9CA3AF',
-          }
-        }
-      },
       fontFamily: {
-        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-playfair)', 'ui-serif', 'Georgia', 'serif'],
+        sans: ["var(--font-inter)", "sans-serif"],
+        serif: ["var(--font-cinzel)", "serif"], // <--- DIT zorgt dat je titels weer mooi worden
+      },
+      colors: {
+        'midnight': {
+          900: '#0f172a',
+          950: '#020617', // De donkere achtergrondkleur
+        },
+        'museum-gold': '#d4af37', // De gouden accentkleur
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 };
+export default config;
