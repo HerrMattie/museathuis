@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
-import { Play, Trophy, Users, Clock, ArrowRight } from 'lucide-react';
+import { Play, Trophy, Users, Clock } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 
 export default function GameLobbyPage({ params }: { params: { id: string } }) {
