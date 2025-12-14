@@ -16,14 +16,21 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
   const today = new Date().toISOString().split('T')[0];
   const selectedDate = searchParams.date || today;
 
-  // Level Logic
+  // 1. HAAL CRM TEKSTEN (De ontbrekende schakel!)
+  const { data: content } = await supabase
+    .from('site_content')
+    .select('*')
+    .in('key', ['focus_title', 'focus_subtitle']);
+  const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
+
+  // 2. LEVEL & ACCESS LOGIC
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
-  // Haal artikelen
+  // 3. ARTIKELEN OPHALEN
   const { data: articles } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(10);
   
   let dailyFocus = articles || [];
@@ -33,7 +40,7 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
       dailyFocus = dailyFocus.slice(start, start + 3);
   }
 
-  // Sorteer: Index 0 = Gratis
+  // Sorteer: Gratis op plek 1
   if (dailyFocus.length > 0) {
       const freeIndex = dailyFocus.findIndex(a => !a.is_premium);
       if (freeIndex > 0) {
@@ -44,7 +51,11 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white">
-      <PageHeader title="In Focus" subtitle="Elke dag 1 gratis artikel en 2 verdiepende Premium verhalen." />
+      {/* GEBRUIK HIER DE VARIABELEN UIT JE DATABASE */}
+      <PageHeader 
+        title={texts.focus_title || "In Focus"} 
+        subtitle={texts.focus_subtitle || "Verdiepende artikelen en analyses."} 
+      />
 
       <div className="max-w-7xl mx-auto px-6 pb-20 -mt-20 relative z-20">
         <DateNavigator basePath="/focus" currentDate={selectedDate} maxBack={access.days} mode="day" />
@@ -65,6 +76,10 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><FileText size={48} className="opacity-20"/></div>
                                 )}
                                 
+                                {/* Overlay Gradient */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-midnight-900/80 to-transparent opacity-60"></div>
+
+                                {/* Label */}
                                 <div className={`absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest border border-white/10 shadow-lg ${isContentPremium ? 'bg-black/80 text-white' : 'bg-museum-gold text-black'}`}>
                                     {isContentPremium ? (
                                         <span className="flex items-center gap-1">{isLocked ? <Lock size={10}/> : <Crown size={10}/>} Premium</span>
