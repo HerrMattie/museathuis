@@ -1,35 +1,46 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// 1. VERANDER GET NAAR POST (Dit voorkomt caching 100%)
+// Forceer dynamisch gedrag (geen caching op server niveau)
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 export async function POST() {
-  // Gebruik de Service Role Key voor volledige rechten (bypass RLS)
+  // Gebruik de ADMIN sleutel om zeker te weten dat we mogen schrijven
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY! 
   );
-  
-  try {
-    const offset = Math.floor(Math.random() * 500);
 
-    // 2. HAAL DE DATA (Wikidata Query)
+  try {
+    // 1. Random startpunt om variatie te krijgen
+    const offset = Math.floor(Math.random() * 2000); 
+
+    // 2. Simpele Query (Lichter voor Wikidata = Sneller antwoord)
+    // We halen 20 items op. Dat is veilig binnen de 10 seconden limiet.
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image WHERE {
         ?item wdt:P31 wd:Q3305213; wdt:P18 ?image.
         OPTIONAL { ?item wdt:P170 ?artist. }
         SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
-      } LIMIT 50 OFFSET ${offset}
+      } LIMIT 20 OFFSET ${offset}
     `;
+
+    const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
     
-    // We voegen een timestamp toe aan de URL om caching aan de Wikidata-kant te voorkomen
-    const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json&t=${Date.now()}`;
-    const res = await fetch(url, { cache: 'no-store' });
+    // Fetch met no-store headers
+    const res = await fetch(url, { 
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+    });
+
+    if (!res.ok) throw new Error(`Wikidata Fout: ${res.statusText}`);
     const data = await res.json();
     const items = data.results.bindings;
 
     let addedCount = 0;
 
-    // 3. OPSLAAN
+    // 3. Opslaan
     for (const item of items) {
       const title = item.itemLabel?.value;
       const artist = item.artistLabel?.value;
@@ -37,38 +48,29 @@ export async function POST() {
 
       if (title && !title.startsWith('Q') && artist && image) {
         
-        // Check of hij al bestaat (op image url, want titels kunnen dubbel zijn)
-        const { data: existing } = await supabase
-            .from('artworks')
-            .select('id')
-            .eq('image_url', image)
-            .maybeSingle();
+        // UPSERT: Maak aan of update als hij bestaat
+        const { error } = await supabase.from('artworks').upsert({
+           title: title,
+           artist: artist,
+           image_url: image,
+           description: `Import uit Wikidata`,
+           year_created: 'Onbekend',
+           status: 'draft', // DRAFT = Zichtbaar in Review Queue
+           is_premium: false
+        }, { onConflict: 'image_url' }); // Uniek op plaatje
 
-        if (!existing) {
-             const { error } = await supabase.from('artworks').insert({
-                title: title,
-                artist: artist,
-                image_url: image,
-                description: `Import uit Wikidata`,
-                status: 'draft', // DRAFT status voor de Review Queue
-                year_created: 'Onbekend',
-                is_premium: false
-             });
-             
-             if (!error) addedCount++;
-        }
+        if (!error) addedCount++;
       }
     }
 
-    // Stuur het exacte aantal terug
     return NextResponse.json({ 
         success: true, 
-        message: `Gelukt! ${addedCount} nieuwe werken toegevoegd aan de wachtrij. (${items.length - addedCount} waren dubbel)`,
+        message: `Klaar! ${addedCount} werken toegevoegd aan Review Queue.`,
         scanned: items.length
     });
 
   } catch (e: any) {
-    console.error("Import error:", e);
-    return NextResponse.json({ success: false, error: e.message });
+    console.error("Import Error:", e);
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
