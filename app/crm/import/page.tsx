@@ -13,7 +13,7 @@ export default function ImportPage() {
     setResult(null);
     
     try {
-      // Roep de API aan die we eerder hebben gemaakt
+      // Roep de API aan (hier zitten de filters en de limit 50 in!)
       const res = await fetch('/api/import/wikidata');
       const data = await res.json();
       
@@ -50,8 +50,8 @@ export default function ImportPage() {
           <div>
             <h3 className="font-bold text-lg">Start Zoektocht</h3>
             <p className="text-sm text-slate-500">
-              De curator haalt een batch van 10 beroemde werken op. <br/>
-              Ze worden opgeslagen als <strong>Concept</strong> in de Review Queue.
+              De curator haalt een grote batch van <strong>50 werken</strong> op. <br/>
+              Ze worden gefilterd op kwaliteit en opgeslagen als <strong>Concept</strong>.
             </p>
           </div>
         </div>
@@ -85,12 +85,12 @@ export default function ImportPage() {
           {loading ? (
             <> <Loader2 className="animate-spin" /> Curator is aan het werk... </>
           ) : (
-            <> <Download size={20} /> Haal 10 Nieuwe Werken Op </>
+            <> <Download size={20} /> Haal 50 Nieuwe Werken Op </>
           )}
         </button>
         
         <p className="text-xs text-center text-slate-400 mt-4">
-            Tip: Klik gerust meerdere keren voor meer batches.
+            Tip: Klik gerust meerdere keren voor meer batches. Dubbele werken worden automatisch overgeslagen.
         </p>
       </div>
     </div>
