@@ -1,80 +1,136 @@
 'use client';
 
 import Link from 'next/link';
-import { Headphones, Crosshair, Gamepad2, ArrowRight } from 'lucide-react';
+import { Headphones, Eye, Gamepad2, Crown, ArrowRight, Lock } from 'lucide-react';
 
-export default function DailyGrid({ items, randomArtworks }: { items: any, randomArtworks: string[] }) {
-    // randomArtworks is een array van 3 image URLs die we van de server meekrijgen
+// Hier definiëren we wat de component mag verwachten
+interface DailyGridProps {
+    schedule: any; // Dit is het object uit 'dayprogram_schedule'
+    randomArtworks: string[]; // De array met plaatjes voor de achtergrond
+}
+
+export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) {
     
-    const Card = ({ label, subLabel, icon: Icon, href, image, color }: any) => (
-        <Link href={href} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-midnight-900 h-full flex flex-col hover:border-museum-gold/50 transition-all hover:-translate-y-2 hover:shadow-2xl">
-            
-            {/* Afbeelding: Gebruik de specifieke image, OF een random fallback */}
-            <div className={`h-48 relative overflow-hidden bg-black`}>
-                {image ? (
-                    <img src={image} alt={label} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100" />
-                ) : (
-                    // Fallback naar icoon met mooie achtergrondkleur als er écht niks is
-                    <div className={`w-full h-full flex items-center justify-center opacity-30 ${color}`}>
-                        <Icon size={64} className="text-white"/>
-                    </div>
-                )}
-                
-                <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white flex items-center gap-2 border border-white/10 shadow-lg">
-                    <Icon size={12} className="text-museum-gold"/> {label}
-                </div>
+    // Veiligheid: als er geen schedule is (bijv. database leeg of cron niet gedraaid)
+    if (!schedule) {
+        return (
+            <div className="text-center py-12 text-gray-500">
+                <p>Nog geen programma geladen voor vandaag.</p>
             </div>
-            
-            <div className="p-6 flex-1 flex flex-col">
-                <h3 className="text-2xl font-serif font-bold text-white mb-2 group-hover:text-museum-gold transition-colors">
-                    {label}
-                </h3>
-                <p className="text-gray-400 text-sm line-clamp-2 mb-6 flex-1 leading-relaxed">
-                    {subLabel}
-                </p>
-                
-                <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-auto">
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-500 group-hover:text-white transition-colors flex items-center gap-2">
-                        Open Overzicht <ArrowRight size={14} className="text-museum-gold"/>
-                    </span>
-                </div>
-            </div>
-        </Link>
-    );
+        );
+    }
+
+    // We halen de data uit het nieuwe schedule object
+    // De tabel bevat arrays met ID's: tour_ids, focus_ids, game_ids, salon_ids
+    const hasTours = schedule.tour_ids && schedule.tour_ids.length > 0;
+    const hasFocus = schedule.focus_ids && schedule.focus_ids.length > 0;
+    const hasGames = schedule.game_ids && schedule.game_ids.length > 0;
+    
+    // Salon is altijd premium
+    const hasSalon = schedule.salon_ids && schedule.salon_ids.length > 0;
+
+    // Helper om een random plaatje te pakken (met fallback)
+    const getBg = (index: number) => {
+        return randomArtworks?.[index] || "https://images.unsplash.com/photo-1578320339910-410a3048c105";
+    };
 
     return (
-        <div className="container mx-auto px-6 -mt-20 relative z-20 pb-20">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* 1. TOUR KAART */}
+            <Link href="/tour" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
+                {/* Achtergrond Plaatje */}
+                <div 
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                    style={{ backgroundImage: `url(${getBg(0)})` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
                 
-                <Card 
-                    label="Audiotours"
-                    subLabel="Laat je meevoeren door de verhalen achter de meesterwerken."
-                    icon={Headphones} 
-                    href="/tour" 
-                    color="bg-purple-900"
-                    image={items?.tour?.hero_image_url || randomArtworks[0]} 
-                />
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <div className="bg-museum-gold w-10 h-10 rounded-full flex items-center justify-center mb-4 text-black">
+                        <Headphones size={20} />
+                    </div>
+                    <h3 className="text-2xl font-serif font-bold text-white mb-2">Audiotours</h3>
+                    <p className="text-sm text-gray-300 mb-4 line-clamp-2">
+                        {schedule.theme_title ? `Thema: ${schedule.theme_title}` : 'Luister naar de verhalen achter de meesterwerken.'}
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-museum-gold">
+                        Start Tour <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+                    </span>
+                </div>
+            </Link>
 
-                <Card 
-                    label="In Focus"
-                    subLabel="Verdiepende artikelen en analyses."
-                    icon={Crosshair} 
-                    href="/focus" 
-                    color="bg-blue-900"
-                    image={items?.focus?.cover_image || randomArtworks[1]}
+            {/* 2. FOCUS KAART */}
+            <Link href="/focus" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
+                <div 
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                    style={{ backgroundImage: `url(${getBg(1)})` }}
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
+                
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <div className="bg-white/20 backdrop-blur-md w-10 h-10 rounded-full flex items-center justify-center mb-4 text-white">
+                        <Eye size={20} />
+                    </div>
+                    <h3 className="text-2xl font-serif font-bold text-white mb-2">In Focus</h3>
+                    <p className="text-sm text-gray-300 mb-4">
+                        Verdiepende artikelen en analyses van de werken van vandaag.
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+                        Lees Artikel <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+                    </span>
+                </div>
+            </Link>
 
-                <Card 
-                    label="Games"
-                    subLabel="Train je oog en kennis met dagelijkse uitdagingen."
-                    icon={Gamepad2} 
-                    href="/game" 
-                    color="bg-emerald-900"
-                    // Games hebben vaak geen plaatje, dus we gebruiken hier een random kunstwerk
-                    image={randomArtworks[2]}
+            {/* 3. GAME KAART */}
+            <Link href="/game" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
+                <div 
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                    style={{ backgroundImage: `url(${getBg(2)})` }}
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
+                
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <div className="bg-white/20 backdrop-blur-md w-10 h-10 rounded-full flex items-center justify-center mb-4 text-white">
+                        <Gamepad2 size={20} />
+                    </div>
+                    <h3 className="text-2xl font-serif font-bold text-white mb-2">De Uitdaging</h3>
+                    <p className="text-sm text-gray-300 mb-4">
+                        Test je kennis en train je oog met de dagelijkse quiz.
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
+                        Speel Nu <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+                    </span>
+                </div>
+            </Link>
 
-            </div>
+            {/* 4. SALON (PREMIUM) KAART */}
+            <Link href="/pricing" className="group relative h-96 rounded-3xl overflow-hidden border border-museum-gold/30 shadow-2xl transition-transform hover:-translate-y-2">
+                {/* De Salon is Premium, dus we maken hem visueel anders */}
+                <div 
+                    className="absolute inset-0 bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-700"
+                    style={{ backgroundImage: `url(${getBg(3)})` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent"></div>
+                
+                <div className="absolute top-4 right-4 bg-museum-gold text-black text-[10px] font-bold px-2 py-1 rounded uppercase flex items-center gap-1">
+                    <Lock size={10} /> Premium
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <div className="bg-gradient-to-br from-museum-gold to-yellow-600 w-10 h-10 rounded-full flex items-center justify-center mb-4 text-black shadow-lg shadow-museum-gold/20">
+                        <Crown size={20} />
+                    </div>
+                    <h3 className="text-2xl font-serif font-bold text-white mb-2">De Salon</h3>
+                    <p className="text-sm text-gray-300 mb-4">
+                        Exclusieve wekelijkse collecties voor de fijnproever.
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-museum-gold">
+                        Word Lid <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
+                    </span>
+                </div>
+            </Link>
+
         </div>
     );
 }
