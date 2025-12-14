@@ -15,8 +15,9 @@ export default function Header() {
     { name: 'Game', href: '/game' },
     { name: 'Focus', href: '/focus' },
     { name: 'Salon', href: '/salon' },     // <--- Terug
-    { name: 'Best Of', href: '/best-of' }, // <--- Terug
     { name: 'Academie', href: '/academie' },
+    { name: 'Best Of', href: '/best-of' }, // <--- Terug
+
   ];
 
   return (
