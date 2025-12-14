@@ -23,9 +23,16 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
+  // CRM TEKSTEN OPHALEN (Optioneel: als je dit wilt beheren via CRM, anders hardcoded laten)
+  const { data: content } = await supabase
+    .from('site_content')
+    .select('*')
+    .in('key', ['game_title', 'game_subtitle']);
+  const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
+
   // Games ophalen
   const { data: games } = await supabase.from('games').select('*').eq('status', 'published').limit(10);
-  
+   
   let dailyGames = games || [];
   if (dailyGames.length > 3) {
       const dayNum = new Date(selectedDate).getDate();
@@ -44,7 +51,10 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white">
-      <PageHeader title="Games & Quizzes" subtitle="Train je kennis. 1 Gratis game, 2 Premium uitdagingen per dag." />
+      <PageHeader 
+        title={texts.game_title || "Games & Quizzes"} 
+        subtitle={texts.game_subtitle || "Train je kennis. 1 Gratis game, 2 Premium uitdagingen per dag."} 
+      />
 
       <div className="max-w-7xl mx-auto px-6 pb-20 -mt-20 relative z-20">
         <DateNavigator basePath="/game" currentDate={selectedDate} maxBack={access.days} mode="day" />
