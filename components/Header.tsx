@@ -17,10 +17,11 @@ export default function Header() {
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-midnight-950/80 backdrop-blur-md border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+    // Fixed bovenaan, met duidelijke border en achtergrond
+    <header className="fixed top-0 left-0 right-0 z-50 bg-midnight-950/90 backdrop-blur-md border-b border-white/10 h-20">
+      <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
         
-        {/* LOGO */}
+        {/* LOGO - Nu met Playfair Font */}
         <Link href="/" className="text-2xl font-serif font-bold tracking-widest text-white hover:text-museum-gold transition-colors">
           MUSEA<span className="text-museum-gold">THUIS</span>
         </Link>
@@ -40,14 +41,12 @@ export default function Header() {
           ))}
         </nav>
 
-        {/* PROFILE / MENU */}
+        {/* ICONS */}
         <div className="flex items-center gap-4">
-          <Link href="/profile" className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
-            <User size={20} className="text-white" />
+          <Link href="/profile" className="p-2 bg-white/5 rounded-full hover:bg-white/20 text-white transition-colors">
+            <User size={20} />
           </Link>
-          
-          {/* Mobile Menu Button */}
-          <button onClick={() => setIsOpen(!isOpen)} className="md:hidden text-white">
+          <button onClick={() => setIsOpen(!isOpen)} className="md:hidden text-white p-2">
              {isOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -61,7 +60,7 @@ export default function Header() {
                key={item.href} 
                href={item.href} 
                onClick={() => setIsOpen(false)}
-               className="text-lg font-serif font-bold text-white py-2 border-b border-white/5"
+               className="text-lg font-serif font-bold text-white py-3 border-b border-white/5"
              >
                {item.name}
              </Link>
