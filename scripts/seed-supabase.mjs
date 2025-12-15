@@ -5,7 +5,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const BATCH_SIZE = 50;       
-const TOTAL_TO_IMPORT = 2000; // Haal de top 2000 op
+const TOTAL_TO_IMPORT = 2000; 
 const MIN_SITELINKS = 5;      
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -60,10 +60,8 @@ async function fetchWikidata(offset) {
 }
 
 async function run() {
-  console.log('🚀 Start Top-Heavy Import...');
+  console.log('🚀 Start Top-Heavy Import (Safe Mode)...');
   
-  // AANPASSING: We beginnen ALTIJD bij 0 (De Mona Lisa)
-  // We negeren wat er al in de database zit.
   let currentOffset = 0; 
   let importedCount = 0;
 
@@ -75,14 +73,32 @@ async function run() {
     if (!items || items.length === 0) break;
 
     const records = items.map(item => {
-        const sitelinks = item.sitelinks?.value ? parseInt(item.sitelinks.value) : 0;
+        // --- VEILIGHEIDS CHECKS ---
+        
+        // 1. Sitelinks: Moet een echt getal zijn. Is het NaN? Dan maken we er 0 van.
+        let sitelinks = 0;
+        if (item.sitelinks?.value) {
+            const parsed = parseInt(item.sitelinks.value);
+            if (!isNaN(parsed)) sitelinks = parsed;
+        }
+
+        // 2. Jaartal: Datums zijn lastig. Als het mislukt, sturen we null (geen NaN string).
+        let yearClean = null;
+        if (item.year?.value) {
+            const dateObj = new Date(item.year.value);
+            // Check of de datum geldig is (getTime is geen NaN)
+            if (!isNaN(dateObj.getTime())) {
+                yearClean = dateObj.getFullYear().toString();
+            }
+        }
+
         return {
             title: item.itemLabel?.value,
             artist: item.artistLabel?.value || 'Onbekend',
             image_url: item.image?.value,
             description: `Import (Populariteit: ${sitelinks})`,
-            year_created: item.year?.value ? new Date(item.year.value).getFullYear().toString() : null,
-            sitelinks: sitelinks,
+            year_created: yearClean, // Nu veilig: of een string, of null. Nooit "NaN"
+            sitelinks: sitelinks,    // Nu veilig: altijd een int.
             status: 'active',
             is_premium: sitelinks > 40,
             updated_at: new Date().toISOString()
@@ -90,13 +106,14 @@ async function run() {
     }).filter(i => i.title && !i.title.startsWith('Q'));
 
     if (records.length > 0) {
-       // UPSERT: Als Mona Lisa al bestaat, update hij hem. Als hij niet bestaat, voegt hij toe.
        const { error } = await supabase
             .from('artworks')
             .upsert(records, { onConflict: 'image_url', ignoreDuplicates: true });
 
-       if (error) console.error('❌ DB Error:', error.message);
-       else {
+       if (error) {
+           console.error('❌ DB Error:', error.message);
+           // We stoppen niet, maar proberen de volgende batch
+       } else {
            importedCount += records.length;
            console.log(`✅ Batch verwerkt (Offset ${currentOffset} - ${currentOffset + BATCH_SIZE})`);
        }
