@@ -4,11 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const BATCH_SIZE = 50;       // Aantal items per keer ophalen bij Wikidata
-const TOTAL_TO_IMPORT = 12000; // Hoeveel proberen we er deze keer bij te zetten?
-const MIN_SITELINKS = 5;     // Kwaliteit: Minimaal 5 wikipedia links
+const BATCH_SIZE = 50;       
+const TOTAL_TO_IMPORT = 2000; // Haal de top 2000 op
+const MIN_SITELINKS = 5;      
 
-// Controleer of de keys er zijn
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('❌ CRITIQUE FOUT: Geen Supabase keys gevonden.');
   process.exit(1);
@@ -16,7 +15,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- DE QUERY FUNCTIE ---
+// --- QUERY ---
 const generateQuery = (offset) => `
   SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks WHERE {
     VALUES ?type { wd:Q3305213 wd:Q860861 }
@@ -36,63 +35,45 @@ const generateQuery = (offset) => `
   OFFSET ${offset}
 `;
 
-// --- DATA OPHALEN ---
 async function fetchWikidata(offset) {
   const query = generateQuery(offset);
   const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
 
   try {
     console.log(`📡 Verbinding maken met Wikidata (Offset: ${offset})...`);
-    
     const res = await fetch(url, { 
       headers: { 
         'Accept': 'application/json',
-        // HIER ZIT DE FIX VOOR ERROR 403:
-        'User-Agent': 'MuseaThuisImporter/1.0 (contact@museathuis.nl)' // <--- DE OPLOSSING
+        'User-Agent': 'MuseaThuisImporter/1.0 (contact@museathuis.nl)' 
       } 
     });
 
     if (!res.ok) {
-        console.warn(`⚠️ Wikidata weigert toegang: Status ${res.status} ${res.statusText}`);
+        console.warn(`⚠️ Wikidata status: ${res.status}`);
         return null;
     }
-    
-    const data = await res.json();
-    return data.results.bindings;
+    return (await res.json()).results.bindings;
   } catch (e) {
-    console.error('⚠️ Netwerkfout bij Wikidata:', e.message);
+    console.error('⚠️ Fout:', e.message);
     return null;
   }
 }
 
-// --- HOOFD PROGRAMMA ---
 async function run() {
-  console.log('🚀 Start Import Script...');
+  console.log('🚀 Start Top-Heavy Import...');
   
-  // 1. Check waar we zijn gebleven in de database
-  const { count, error } = await supabase.from('artworks').select('*', { count: 'exact', head: true });
-  
-  if (error) {
-      console.error("❌ Kan database niet lezen (Check je Keys!):", error.message);
-      process.exit(1);
-  }
-
-  let currentOffset = count || 0;
-  console.log(`📊 Er zitten al ${currentOffset} werken in de database. We gaan verder vanaf hier.`);
-
+  // AANPASSING: We beginnen ALTIJD bij 0 (De Mona Lisa)
+  // We negeren wat er al in de database zit.
+  let currentOffset = 0; 
   let importedCount = 0;
 
-  // Loop totdat we het doel bereikt hebben
+  console.log(`📊 We beginnen bij de allerberoemdste werken (Offset 0).`);
+
   while (importedCount < TOTAL_TO_IMPORT) {
-    
     const items = await fetchWikidata(currentOffset);
 
-    if (!items || items.length === 0) {
-      console.log('✅ Geen nieuwe items meer ontvangen van Wikidata (of 403 error).');
-      break;
-    }
+    if (!items || items.length === 0) break;
 
-    // Data omzetten
     const records = items.map(item => {
         const sitelinks = item.sitelinks?.value ? parseInt(item.sitelinks.value) : 0;
         return {
@@ -103,31 +84,29 @@ async function run() {
             year_created: item.year?.value ? new Date(item.year.value).getFullYear().toString() : null,
             sitelinks: sitelinks,
             status: 'active',
-            is_premium: sitelinks > 40, 
+            is_premium: sitelinks > 40,
             updated_at: new Date().toISOString()
         };
     }).filter(i => i.title && !i.title.startsWith('Q'));
 
     if (records.length > 0) {
-       const { error: insertError } = await supabase
+       // UPSERT: Als Mona Lisa al bestaat, update hij hem. Als hij niet bestaat, voegt hij toe.
+       const { error } = await supabase
             .from('artworks')
             .upsert(records, { onConflict: 'image_url', ignoreDuplicates: true });
 
-       if (insertError) {
-           console.error('❌ Database fout:', insertError.message);
-       } else {
+       if (error) console.error('❌ DB Error:', error.message);
+       else {
            importedCount += records.length;
-           console.log(`✅ ${records.length} succesvol verwerkt.`);
+           console.log(`✅ Batch verwerkt (Offset ${currentOffset} - ${currentOffset + BATCH_SIZE})`);
        }
     }
 
     currentOffset += BATCH_SIZE;
-    
-    // Even wachten om netjes te blijven
     await new Promise(r => setTimeout(r, 2000));
   }
   
-  console.log(`\n🎉 Klaar! ${importedCount} nieuwe werken toegevoegd.`);
+  console.log('🎉 Klaar!');
 }
 
 run();
