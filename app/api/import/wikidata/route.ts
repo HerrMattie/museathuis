@@ -25,7 +25,7 @@ async function fetchWikidataItems(typeId: string, offset: number) {
               wdt:P18 ?image;              
               wikibase:sitelinks ?sitelinks. 
         
-        FILTER(?sitelinks >= 5) 
+        FILTER(?sitelinks >= 10) 
         
         OPTIONAL { ?item wdt:P571 ?year. }
         OPTIONAL { ?item wdt:P170 ?artist. }
