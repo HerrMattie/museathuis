@@ -84,10 +84,6 @@ export default async function BestOfPage() {
                     De populairste content van de afgelopen 30 dagen, speciaal geselecteerd voor onze leden.
                 </p>
             </div>
-            <div className="hidden md:block text-right">
-                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Jouw Status</p>
-                <span className="text-green-400 font-bold flex items-center gap-2 justify-end"><Star size={16} fill="currentColor"/> Actief Lid</span>
-            </div>
         </div>
 
         {/* DRIE KOLOMMEN */}
