@@ -1,11 +1,11 @@
 name: Import Artworks to Supabase
 
 on:
-  # Hiermee kun je handmatig op een knop klikken in GitHub
+  # Hiermee kun je handmatig op de knop klikken
   workflow_dispatch: 
-  # Of draai het elke nacht om 03:00 uur
+  # Draai elke nacht om 04:00 uur automatisch
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 4 * * *'
 
 jobs:
   import-data:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
         run: npm install @supabase/supabase-js
