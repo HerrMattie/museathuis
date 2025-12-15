@@ -4,11 +4,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
+        hostname: 'images.unsplash.com', // Sta Unsplash toe
       },
       {
         protocol: 'https',
-        hostname: '*.supabase.co',
+        hostname: '*.supabase.co', // Sta Supabase toe
       },
     ],
   },
