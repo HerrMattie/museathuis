@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import SalonScreensaver from '@/components/SalonScreensaver';
-import LikeButton from '@/components/LikeButton'; // <--- Nieuw
+import LikeButton from '@/components/LikeButton';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 
@@ -40,8 +40,9 @@ export default async function SalonDetailPage({ params }: { params: { id: string
              <div className="flex justify-between items-start w-full mb-4">
                  <div/> {/* Spacer */}
                  <Lock size={48} className="text-museum-gold" />
-                 {/* Mensen kunnen hem vast liken voor later */}
-                 <LikeButton itemId={salon.id} itemType="salon" userId={user?.id} />
+                 
+                 {/* AANPASSING HIERONDER: userId weggehaald omdat user hier null is */}
+                 <LikeButton itemId={salon.id} itemType="salon" />
              </div>
              
              <h1 className="text-3xl font-serif font-bold mb-4">{salon.title}</h1>
@@ -54,7 +55,6 @@ export default async function SalonDetailPage({ params }: { params: { id: string
     );
   }
 
-  // De Screensaver zelf heeft waarschijnlijk geen feedback knoppen nodig (Slow TV ervaring)
   return (
     <SalonScreensaver salon={salon} items={items || []} />
   );
