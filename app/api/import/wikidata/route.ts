@@ -7,10 +7,8 @@ export const fetchCache = 'force-no-store';
 // STAP 1: Kwaliteit > 5 (De 'Gezonde Middenmoot')
 // Offsets zijn hierop afgestemd om lege resultaten te minimaliseren.
 const ART_TYPES = [
-  { id: 'Q3305213', label: 'Schilderijen',      maxOffset: 15000 }, 
-  { id: 'Q860861',  label: 'Beeldhouwwerken',   maxOffset: 1500 }, 
+  { id: 'Q3305213', label: 'Schilderijen',      maxOffset: 1000 }, 
   { id: 'Q93184',   label: 'Tekeningen',        maxOffset: 600 },  
-  { id: 'Q125191',  label: 'Fotografie',        maxOffset: 200 },  
   { id: 'Q11060274', label: 'Prenten',          maxOffset: 300 }   
 ];
 
