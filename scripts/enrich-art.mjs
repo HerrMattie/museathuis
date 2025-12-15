@@ -8,7 +8,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_KEY = process.env.GOOGLE_AI_API_KEY;
 
 const BATCH_SIZE = 10; 
-const TOTAL_LOOPS = 5; // 50 items per keer
+const TOTAL_LOOPS = 5; 
 
 if (!SUPABASE_URL || !SUPABASE_KEY || !GOOGLE_KEY) {
   console.error('❌ FOUT: Keys ontbreken.');
@@ -18,19 +18,18 @@ if (!SUPABASE_URL || !SUPABASE_KEY || !GOOGLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const genAI = new GoogleGenerativeAI(GOOGLE_KEY);
 
-// We gebruiken JSON mode voor strakke output
+// Gebruik een stabiel model dat goed is in JSON
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash-native-audio-dialog",
+    model: "gemini-1.5-flash", // Flash is snel en goedkoop voor bulk, Pro is slimmer
     generationConfig: { responseMimeType: "application/json" } 
 });
 
 async function run() {
-  console.log('✨ Start Uitgebreide Verrijking (Gemini)...');
+  console.log('✨ Start ULTIMATE Verrijking (Gemini)...');
 
   for (let i = 0; i < TOTAL_LOOPS; i++) {
       
-      // 1. Zoek items die nog "Import..." heten OF nog geen JSON data hebben
-      // We checken hier simpelweg op de oude 'Import' tekst
+      // 1. Haal items op die nog verwerkt moeten worden
       const { data: artworks, error } = await supabase
         .from('artworks')
         .select('id, title, artist')
@@ -46,18 +45,36 @@ async function run() {
 
       await Promise.all(artworks.map(async (art) => {
         try {
-            // JOUW PROMPT LOGICA (Aangepast voor bulk)
+            // --- DE SUPER PROMPT ---
+            // We vragen nu om VEEL meer specifieke details
             const prompt = `
-              Analyseer kunstwerk "${art.title}" van "${art.artist}".
-              Geef ALLEEN valide JSON. Format:
+              Je bent een expert kunsthistoricus en curator. Analyseer kunstwerk "${art.title}" van "${art.artist}".
+              
+              Geef een extreem gedetailleerd JSON object terug.
+              Gebruik dit schema:
               { 
-                "description_primary": "Korte, pakkende beschrijving van wat je ziet.", 
-                "description_historical": "De historische context.", 
-                "description_technical": "Gebruikte techniek en stijl.", 
-                "description_symbolism": "Betekenis en symboliek.", 
-                "fun_fact": "Een leuk, verrassend feitje." 
+                "short_description": "Pakkende samenvatting (max 2 zinnen).", 
+                "detailed_description": "Uitgebreide visuele beschrijving van wat er te zien is.",
+                "historical_context": "De geschiedenis, tijdgeest en waarom dit werk belangrijk is.",
+                "techniques_materials": {
+                    "technique": "Bijv. Olieverf op doek, impasto, pointillisme",
+                    "materials": ["Olieverf", "Linnen", "Vernis"]
+                },
+                "artistic_style": {
+                    "movement": "Bijv. Impressionisme, Barok",
+                    "period": "Bijv. Late 19e eeuw"
+                },
+                "visual_analysis": {
+                    "dominant_colors": ["#HexCode1", "#HexCode2", "#HexCode3"],
+                    "color_names": ["Donkerblauw", "Okergeel"],
+                    "lighting": "Beschrijving van lichtgebruik (bijv. Chiaroscuro)",
+                    "composition": "Beschrijving van de compositie"
+                },
+                "symbolism": "Diepere betekenis en symbolen in het werk.",
+                "tags": ["lijst", "met", "10", "relevante", "zoekwoorden", "voor", "de", "database"],
+                "fun_fact": "Een verrassend feitje voor leken."
               }
-              Taal: Nederlands.
+              Taal: Nederlands. Zorg dat de JSON valide is.
             `;
             
             const result = await model.generateContent(prompt);
@@ -67,29 +84,38 @@ async function run() {
             // Parse de JSON
             const data = JSON.parse(text);
 
-            if (data.description_primary) {
-                // We maken één rijke tekst voor de 'description' kolom, 
-                // zodat je 'Genereer Vandaag' script er direct mee kan werken.
-                // (Als je een 'details' JSON kolom hebt, kunnen we het daar ook los in opslaan!)
-                
+            if (data.short_description) {
+                // 1. De leesbare tekst voor de gebruiker (samenvatting)
                 const richDescription = `
-${data.description_primary}
+${data.short_description}
 
-Historie: ${data.description_historical}
-Techniek: ${data.description_technical}
-Weetje: ${data.fun_fact}
+🎨 **Stijl & Techniek**
+${data.artistic_style.movement} - ${data.techniques_materials.technique}
+
+📜 **Het Verhaal**
+${data.historical_context}
+
+🔍 **Details**
+${data.detailed_description}
+
+💡 **Weetje**
+${data.fun_fact}
 `.trim();
 
-                await supabase
+                // 2. Update de database
+                // BELANGRIJK: We slaan de 'richDescription' op voor weergave
+                // EN het volledige 'data' object in 'ai_metadata' voor toekomstig gebruik/filtering.
+                const { error: updateError } = await supabase
                     .from('artworks')
                     .update({ 
                         description: richDescription,
-                        // Als je een extra kolom 'ai_metadata' hebt, kun je dit uncommenten:
-                        // ai_metadata: data, 
+                        ai_metadata: data, // <--- HIER zit al je extra info in (JSONB kolom)
                         status: 'active' 
                     })
                     .eq('id', art.id);
                 
+                if (updateError) throw updateError;
+
                 process.stdout.write("✅ ");
             }
         } catch (e) {
@@ -98,7 +124,7 @@ Weetje: ${data.fun_fact}
         }
       }));
       
-      console.log("\n⏸️ Pauze (2 sec)...");
+      console.log("\n⏸️ Even ademhalen (2 sec)...");
       await new Promise(r => setTimeout(r, 2000));
   }
   
