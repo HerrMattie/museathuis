@@ -8,10 +8,10 @@ export const fetchCache = 'force-no-store';
 // Offsets zijn hierop afgestemd om lege resultaten te minimaliseren.
 const ART_TYPES = [
   { id: 'Q3305213', label: 'Schilderijen',      maxOffset: 15000 }, 
-  { id: 'Q860861',  label: 'Beeldhouwwerken',   maxOffset: 2500 }, 
-  { id: 'Q93184',   label: 'Tekeningen',        maxOffset: 800 },  
-  { id: 'Q125191',  label: 'Fotografie',        maxOffset: 300 },  
-  { id: 'Q11060274', label: 'Prenten',          maxOffset: 400 }   
+  { id: 'Q860861',  label: 'Beeldhouwwerken',   maxOffset: 1500 }, 
+  { id: 'Q93184',   label: 'Tekeningen',        maxOffset: 600 },  
+  { id: 'Q125191',  label: 'Fotografie',        maxOffset: 200 },  
+  { id: 'Q11060274', label: 'Prenten',          maxOffset: 300 }   
 ];
 
 // Fallback voor als een kleine categorie op is
