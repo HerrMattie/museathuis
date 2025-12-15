@@ -19,10 +19,20 @@ export default function ImportPage() {
       const res = await fetch('/api/import/wikidata', { method: 'POST', cache: 'no-store' });
       const data = await res.json();
 
-      if (data.success) {
-        // Parse het getal uit het bericht ("Batch verwerkt: 12 nieuwe...")
-        const added = parseInt(data.message.match(/\d+/)?.[0] || '0');
+if (data.success) {
+        // OUDE FOUTE MANIER:
+        // const added = parseInt(data.message.match(/\d+/)?.[0] || '0');
+
+        // NIEUWE GOEDE MANIER:
+        // We gebruiken direct de teller die de API ons geeft (die is altijd juist)
+        const added = data.count || 0; 
         
+        setStats(prev => ({
+          totalAdded: prev.totalAdded + added,
+          lastMsg: data.message
+        }));
+      } else {
+  
         setStats(prev => ({
           totalAdded: prev.totalAdded + added,
           lastMsg: data.message
