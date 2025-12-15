@@ -4,22 +4,29 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
+// STAP 1: Realistische grenzen voor Kwaliteit > 5
+// We zetten de maxOffset lager, omdat er met >5 links minder aanbod is.
 const ART_TYPES = [
-  { id: 'Q3305213', label: 'Schilderijen' }, 
-  { id: 'Q860861',  label: 'Beeldhouwwerken' },
-  { id: 'Q93184',   label: 'Tekeningen' },
-  { id: 'Q125191',  label: 'Fotografie' },
-  { id: 'Q11060274', label: 'Prenten' }
+  { id: 'Q3305213', label: 'Schilderijen',      maxOffset: 8000 }, // Grote vijver
+  { id: 'Q860861',  label: 'Beeldhouwwerken',   maxOffset: 1500 }, // Middelgrote vijver
+  { id: 'Q93184',   label: 'Tekeningen',        maxOffset: 800 },  // Kleine vijver
+  { id: 'Q125191',  label: 'Fotografie',        maxOffset: 500 },  // Klein
+  { id: 'Q11060274', label: 'Prenten',          maxOffset: 500 }   // Klein
 ];
 
-// Helper: Fetch Wikidata (2x proberen mogelijk)
+// Fallback Type: Als een kleine categorie leeg is, pakken we altijd Schilderijen.
+const FALLBACK_TYPE = { id: 'Q3305213', label: 'Schilderijen (Fallback)', maxOffset: 8000 };
+
 async function fetchWikidataItems(typeId: string, offset: number) {
+    // STAP 2: Filter op >= 5 (Kwaliteit)
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year WHERE {
         ?item wdt:P31 wd:${typeId}; 
               wdt:P18 ?image;              
               wikibase:sitelinks ?sitelinks. 
-        FILTER(?sitelinks > 10) 
+        
+        FILTER(?sitelinks >= 5) 
+        
         OPTIONAL { ?item wdt:P571 ?year. }
         OPTIONAL { ?item wdt:P170 ?artist. }
         SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
@@ -30,7 +37,7 @@ async function fetchWikidataItems(typeId: string, offset: number) {
     
     try {
         const res = await fetch(url, { 
-            headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/V4-NoSlug' },
+            headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/Quality-V6' },
             cache: 'no-store'
         });
         if (!res.ok) return null;
@@ -42,9 +49,8 @@ async function fetchWikidataItems(typeId: string, offset: number) {
 }
 
 export async function POST() {
-  // Controleer of de geheime sleutel er is
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ success: false, error: "Configuratiefout: SUPABASE_SERVICE_ROLE_KEY ontbreekt in Vercel." });
+      return NextResponse.json({ success: false, error: "Configuratie fout: Key mist." });
   }
 
   const supabase = createClient(
@@ -53,25 +59,29 @@ export async function POST() {
   );
 
   try {
-    const randomType = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
-    
-    // 1. Zoek op willekeurige plek (Diepe duik)
-    let randomOffset = Math.floor(Math.random() * 10000);
-    let items = await fetchWikidataItems(randomType.id, randomOffset);
-    let strategy = `Deep Dive (pos ${randomOffset})`;
+    // Kies een willekeurige categorie
+    let selectedType = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
+    let randomOffset = Math.floor(Math.random() * selectedType.maxOffset);
+    let strategy = `Primary: ${selectedType.label} (pos ${randomOffset})`;
 
-    // 2. Vangrail: Als er niks is, pak de top 50
+    // Haal items op
+    let items = await fetchWikidataItems(selectedType.id, randomOffset);
+
+    // STAP 3: De Eenvoudige Reddingsboei
+    // Is het resultaat leeg? Dan was de categorie op. 
+    // We schakelen DIRECT over naar Schilderijen (daar is altijd wat te vinden).
     if (!items || items.length === 0) {
-        randomOffset = 0;
-        items = await fetchWikidataItems(randomType.id, 0);
-        strategy = "Safety Net (Top 50)";
+        // Pak een willekeurige plek in de schilderijen-lijst
+        randomOffset = Math.floor(Math.random() * FALLBACK_TYPE.maxOffset);
+        items = await fetchWikidataItems(FALLBACK_TYPE.id, randomOffset);
+        strategy = `Fallback: Schilderijen (pos ${randomOffset}) - want ${selectedType.label} was leeg.`;
+        selectedType = FALLBACK_TYPE; // Update label voor in de database
     }
 
-    if (!items) throw new Error("Wikidata gaf geen resultaat.");
+    if (!items || items.length === 0) throw new Error("Zelfs de fallback gaf geen resultaat.");
 
     let addedCount = 0;
-    let failCount = 0;
-    let lastError = "";
+    let duplicateCount = 0;
 
     for (const item of items) {
       const title = item.itemLabel?.value;
@@ -80,45 +90,35 @@ export async function POST() {
 
       if (title && !title.startsWith('Q') && image) {
          
-         // Check of hij al bestaat
-         const { data: existing } = await supabase
-           .from('artworks')
-           .select('id')
-           .eq('image_url', image)
-           .maybeSingle();
+         // STAP 4: Dubbel-Check tegen dubbelen
+         // We checken nu op IMAGE én op TITEL om dubbelen in je queue te voorkomen.
+         const { data: existingImg } = await supabase.from('artworks').select('id').eq('image_url', image).maybeSingle();
+         const { data: existingTitle } = await supabase.from('artworks').select('id').eq('title', title).maybeSingle();
 
-         if (!existing) {
+         if (existingImg || existingTitle) {
+             duplicateCount++;
+         } else {
             const yearRaw = item.year?.value;
             const yearClean = yearRaw ? new Date(yearRaw).getFullYear().toString() : 'Onbekend';
 
-            // HIER IS DE FIX: 'slug' is weggehaald uit de insert
             const { error } = await supabase.from('artworks').insert({
                title: title,
                artist: artist,
                image_url: image,
-               description: `${randomType.label}`,
+               description: `Import: ${selectedType.label}`,
                year_created: yearClean,
                status: 'draft', 
+               is_premium: false
             });
 
-            if (error) {
-                console.error("DB Error:", error.message);
-                lastError = error.message;
-                failCount++;
-            } else {
-                addedCount++;
-            }
+            if (!error) addedCount++;
          }
       }
     }
 
-    if (addedCount === 0 && failCount > 0) {
-        return NextResponse.json({ success: false, error: `Database fout: ${lastError}` });
-    }
-
     return NextResponse.json({ 
         success: true, 
-        message: `${randomType.label} [${strategy}]: ${addedCount} opgeslagen.`,
+        message: `${strategy}: ${addedCount} toegevoegd (${duplicateCount} dubbel).`,
         scanned: items.length
     });
 
