@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { Gamepad2, ArrowRight, Trophy, Lock, Crown } from 'lucide-react';
-import PageHeader from '@/components/ui/PageHeader';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
 import { getHistoryAccess } from '@/lib/accessControl';
@@ -23,7 +22,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
-  // CRM TEKSTEN OPHALEN (Optioneel: als je dit wilt beheren via CRM, anders hardcoded laten)
+  // CRM TEKSTEN
   const { data: content } = await supabase
     .from('site_content')
     .select('*')
@@ -32,7 +31,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
 
   // Games ophalen
   const { data: games } = await supabase.from('games').select('*').eq('status', 'published').limit(10);
-   
+    
   let dailyGames = games || [];
   if (dailyGames.length > 3) {
       const dayNum = new Date(selectedDate).getDate();
@@ -50,15 +49,28 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   }
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white">
-      <PageHeader 
-        title={texts.game_title || "Games & Quizzes"} 
-        subtitle={texts.game_subtitle || "Train je kennis. 1 Gratis game, 2 Premium uitdagingen per dag."} 
-      />
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
+      
+      {/* NIEUWE GECENTREERDE HEADER */}
+      <div className="max-w-4xl mx-auto text-center flex flex-col items-center mb-16">
+          <div className="flex items-center gap-2 text-museum-gold text-xs font-bold tracking-widest uppercase mb-4 animate-in fade-in slide-in-from-bottom-4">
+              <Gamepad2 size={16} /> Dagelijkse Challenges
+          </div>
 
-      <div className="max-w-7xl mx-auto px-6 pb-20 -mt-20 relative z-20">
-        <DateNavigator basePath="/game" currentDate={selectedDate} maxBack={access.days} mode="day" />
+          <h1 className="text-5xl md:text-7xl font-serif font-bold text-white mb-6">
+            {texts.game_title || "Games & Quizzes"}
+          </h1>
+          
+          <p className="text-gray-400 text-lg md:text-xl max-w-2xl leading-relaxed mb-8">
+            {texts.game_subtitle || "Train je kennis. 1 Gratis game, 2 Premium uitdagingen per dag."}
+          </p>
 
+          <div className="flex justify-center">
+             <DateNavigator basePath="/game" currentDate={selectedDate} maxBack={access.days} mode="day" />
+          </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto pb-20 relative z-20">
         {dailyGames.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {dailyGames.map((game, index) => {
