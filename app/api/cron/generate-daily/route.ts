@@ -28,8 +28,8 @@ export async function GET(req: Request) {
     const COOLDOWN_DAYS = 60; 
     const cooldownDate = subDays(today, COOLDOWN_DAYS);
 
-    // Loop door de komende 7 dagen
-    for (let i = 0; i < 7; i++) {
+    // Loop door de komende 2 dagen
+    for (let i = 0; i < 3; i++) {
         const targetDate = addDays(today, i);
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         const dayOfWeek = targetDate.getDay();
