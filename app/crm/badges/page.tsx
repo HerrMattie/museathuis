@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { Award, Plus, Save, Trash2, Loader2, Calendar, X } from 'lucide-react';
+import BadgeIcon from '@/components/badges/BadgeIcon';
 
 // Lijst van iconen die we ondersteunen
 const ICON_OPTIONS = ['Award', 'Brain', 'Crown', 'Grid', 'Star', 'BookOpen', 'Eye', 'Target', 'Globe', 'Map', 'Flame', 'Library', 'Trophy', 'Scroll', 'Coffee', 'Moon', 'Sun', 'Clock', 'Palette', 'CloudRain', 'Heart'];
