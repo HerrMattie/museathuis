@@ -23,11 +23,10 @@ export async function POST() {
     const randomType = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
     
     // SLEEPNET: We pakken een willekeurige greep uit de eerste 10.000 resultaten.
-    // Dit garandeert bijna altijd hits, omdat deze categorieën enorm zijn.
+    // Dit garandeert bijna altijd hits.
     const randomOffset = Math.floor(Math.random() * 10000);
 
     // QUERY: Heel simpel. Type + Plaatje + >3 Links.
-    // Dit is lichtgewicht en crasht Vercel niet.
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year WHERE {
         ?item wdt:P31 wd:${randomType.id}; 
@@ -70,7 +69,7 @@ export async function POST() {
       const image = item.image?.value;
 
       if (title && !title.startsWith('Q') && image) {
-         // Check of hij al bestaat
+         // Check dubbelingen
          const { data: existing } = await supabase
            .from('artworks')
            .select('id')
