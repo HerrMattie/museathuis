@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import Image from 'next/image'; 
+// LET OP: Geen 'next/image' import meer nodig!
 import { ArrowRight, Calendar } from 'lucide-react';
 import DailyGrid from '@/components/home/DailyGrid';
 import OnboardingCheck from '@/components/onboarding/OnboardingCheck';
@@ -33,15 +33,14 @@ export default async function Home() {
 
       {/* --- ACHTERGROND LAAG --- */}
       <div className="absolute inset-0 z-0 h-[85vh] overflow-hidden">
-         {/* NIEUWE AFBEELDING LINK (Stabiele Unsplash ID) */}
-         <Image
+         
+         {/* METHODE: STANDAARD HTML IMG (Werkt altijd, geen config nodig) */}
+         <img
             src="https://images.unsplash.com/photo-1544967082-d9d3fdd52eb4?q=80&w=2000&auto=format&fit=crop"
             alt="Museum Hall"
-            fill
-            className="object-cover"
-            priority
-            quality={90}
+            className="absolute inset-0 w-full h-full object-cover"
          />
+         
          {/* De Fade (Zwart naar Transparant naar Donkerblauw) */}
          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-midnight-950/60 to-midnight-950" />
       </div>
