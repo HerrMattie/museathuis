@@ -7,6 +7,7 @@ import { Download, Loader2, CheckCircle, AlertCircle, ArrowRight, PauseCircle, P
 export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [autoLoop, setAutoLoop] = useState(false);
+  // We starten de teller op 0 (of een getal uit je database als je dat zou inladen)
   const [stats, setStats] = useState({ totalAdded: 0, lastMsg: '' });
   
   // Ref om de loop te kunnen stoppen in de useEffect
@@ -19,12 +20,10 @@ export default function ImportPage() {
       const res = await fetch('/api/import/wikidata', { method: 'POST', cache: 'no-store' });
       const data = await res.json();
 
-if (data.success) {
-        // OUDE FOUTE MANIER:
-        // const added = parseInt(data.message.match(/\d+/)?.[0] || '0');
-
-        // NIEUWE GOEDE MANIER:
-        // We gebruiken direct de teller die de API ons geeft (die is altijd juist)
+      if (data.success) {
+        // --- DE FIX ZIT HIER ---
+        // We gebruiken nu data.count (het daadwerkelijke aantal toegevoegde items)
+        // Als data.count ontbreekt (oude API versie), vallen we terug op 0.
         const added = data.count || 0; 
         
         setStats(prev => ({
@@ -32,17 +31,11 @@ if (data.success) {
           lastMsg: data.message
         }));
       } else {
-  
-        setStats(prev => ({
-          totalAdded: prev.totalAdded + added,
-          lastMsg: data.message
-        }));
-      } else {
         setStats(prev => ({ ...prev, lastMsg: `Foutje: ${data.error}` }));
-        // Bij een fout (bv timeout) even wachten, maar niet stoppen als we in loop zitten
       }
     } catch (e) {
       console.error(e);
+      setStats(prev => ({ ...prev, lastMsg: 'Netwerkfout of server reageert niet.' }));
     } finally {
       setLoading(false);
     }
@@ -83,6 +76,7 @@ if (data.success) {
         <div className="flex items-center justify-between mb-8 bg-slate-50 p-6 rounded-xl border border-slate-100">
            <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Totaal Geïmporteerd</p>
+              {/* Hier tonen we de teller die we in de state bijhouden */}
               <p className="text-4xl font-bold text-museum-gold">{stats.totalAdded}</p>
            </div>
            <div className="text-right">
@@ -94,7 +88,13 @@ if (data.success) {
 
         {/* FEEDBACK LOG */}
         <div className="mb-6 h-12 flex items-center justify-center text-sm text-slate-500 italic">
-           {loading ? <span className="flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> Bezig met ophalen...</span> : stats.lastMsg}
+           {loading ? (
+             <span className="flex items-center gap-2">
+                <Loader2 className="animate-spin" size={16}/> Bezig met ophalen...
+             </span>
+           ) : (
+             stats.lastMsg || "Klaar om te starten..."
+           )}
         </div>
 
         {/* KNOPPEN */}
