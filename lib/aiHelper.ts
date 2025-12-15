@@ -8,7 +8,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
   }
 
   // We kiezen voor KWALITEIT. 'gemini-1.5-pro' is op dit moment de standaard voor complexe taken.
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-12b:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(url, {
