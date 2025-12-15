@@ -12,17 +12,7 @@ const ART_TYPES = [
   { id: 'Q11060274', label: 'Prenten' }
 ];
 
-// Helper: Slug maken (titel-van-het-werk)
-function generateSlug(title: string) {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '') + '-' + Math.floor(Math.random() * 1000);
-}
-
-// Helper: Fetch Wikidata
+// Helper: Fetch Wikidata (2x proberen mogelijk)
 async function fetchWikidataItems(typeId: string, offset: number) {
     const query = `
       SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year WHERE {
@@ -40,7 +30,7 @@ async function fetchWikidataItems(typeId: string, offset: number) {
     
     try {
         const res = await fetch(url, { 
-            headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/Debug-V3' },
+            headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/V4-NoSlug' },
             cache: 'no-store'
         });
         if (!res.ok) return null;
@@ -52,10 +42,9 @@ async function fetchWikidataItems(typeId: string, offset: number) {
 }
 
 export async function POST() {
-  // CHECK 1: Zijn de keys er wel?
+  // Controleer of de geheime sleutel er is
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("CRITICAL: SUPABASE_SERVICE_ROLE_KEY ontbreekt!");
-      return NextResponse.json({ success: false, error: "Server configuratie fout: Service Role Key mist." });
+      return NextResponse.json({ success: false, error: "Configuratiefout: SUPABASE_SERVICE_ROLE_KEY ontbreekt in Vercel." });
   }
 
   const supabase = createClient(
@@ -66,19 +55,19 @@ export async function POST() {
   try {
     const randomType = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
     
-    // POGING 1 & VANGRAIL LOGICA
+    // 1. Zoek op willekeurige plek (Diepe duik)
     let randomOffset = Math.floor(Math.random() * 10000);
     let items = await fetchWikidataItems(randomType.id, randomOffset);
     let strategy = `Deep Dive (pos ${randomOffset})`;
 
+    // 2. Vangrail: Als er niks is, pak de top 50
     if (!items || items.length === 0) {
-        console.log("Geen resultaten, switch naar Safety Net...");
         randomOffset = 0;
         items = await fetchWikidataItems(randomType.id, 0);
         strategy = "Safety Net (Top 50)";
     }
 
-    if (!items) throw new Error("Wikidata gaf geen data.");
+    if (!items) throw new Error("Wikidata gaf geen resultaat.");
 
     let addedCount = 0;
     let failCount = 0;
@@ -91,7 +80,7 @@ export async function POST() {
 
       if (title && !title.startsWith('Q') && image) {
          
-         // CHECK 2: Bestaat hij al?
+         // Check of hij al bestaat
          const { data: existing } = await supabase
            .from('artworks')
            .select('id')
@@ -101,23 +90,19 @@ export async function POST() {
          if (!existing) {
             const yearRaw = item.year?.value;
             const yearClean = yearRaw ? new Date(yearRaw).getFullYear().toString() : 'Onbekend';
-            
-            // CHECK 3: SLUG TOEVOEGEN (Vaak verplicht!)
-            const slug = generateSlug(title);
 
+            // HIER IS DE FIX: 'slug' is weggehaald uit de insert
             const { error } = await supabase.from('artworks').insert({
                title: title,
-               slug: slug, // <--- NIEUW: Slug toegevoegd
                artist: artist,
                image_url: image,
                description: `Import: ${randomType.label}`,
                year_created: yearClean,
                status: 'draft', 
-               is_premium: false
             });
 
             if (error) {
-                console.error("Supabase Insert Error:", error.message, error.details);
+                console.error("DB Error:", error.message);
                 lastError = error.message;
                 failCount++;
             } else {
@@ -127,22 +112,17 @@ export async function POST() {
       }
     }
 
-    // Feedback bericht
     if (addedCount === 0 && failCount > 0) {
-        return NextResponse.json({ 
-            success: false, 
-            error: `Database weigert opslaan. Laatste fout: ${lastError}` 
-        });
+        return NextResponse.json({ success: false, error: `Database fout: ${lastError}` });
     }
 
     return NextResponse.json({ 
         success: true, 
-        message: `${randomType.label} [${strategy}]: ${addedCount} toegevoegd. (${failCount} mislukt door DB error).`,
+        message: `${randomType.label} [${strategy}]: ${addedCount} opgeslagen.`,
         scanned: items.length
     });
 
   } catch (e: any) {
-    console.error("Algemene Fout:", e);
     return NextResponse.json({ success: false, error: e.message });
   }
 }
