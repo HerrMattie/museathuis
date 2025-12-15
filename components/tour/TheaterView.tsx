@@ -5,11 +5,11 @@ import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react';
 import Link from 'next/link';
 import AudioPlayer from './AudioPlayer'; 
-import LikeButton from '@/components/common/LikeButton';
-import TourRatingSection from '@/components/rating/TourRatingSection';
+import LikeButton from '@/components/LikeButton'; // <--- AANGEPAST: Juiste pad
+import FeedbackButtons from '@/components/FeedbackButtons'; // <--- NIEUW: Feedback
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabaseClient';
-import { trackActivity } from '@/lib/tracking'; // Importeer tracker
+import { trackActivity } from '@/lib/tracking';
 
 // Types matchen met de Supabase response
 type TourItem = {
@@ -36,16 +36,26 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
   const [hasTracked, setHasTracked] = useState(false);
+  const [userId, setUserId] = useState<string | undefined>(undefined); // <--- NIEUW: Voor LikeButton
   const supabase = createClient();
   
   const currentItem = items[currentIndex];
 
-  // --- TRACKING LOGICA ---
-  // Als de gebruiker > 30 seconden in de tour zit, telt hij als "voltooid"
+  // 1. User ophalen (voor LikeButton)
+  useEffect(() => {
+    const getUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) setUserId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // 2. Tracking Logica
   useEffect(() => {
     if (hasTracked || !tourId) return;
 
     const timer = setTimeout(async () => {
+      // We gebruiken hier de supabase instance die we al hebben
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await trackActivity(supabase, user.id, 'complete_tour', tourId);
@@ -56,7 +66,6 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
 
     return () => clearTimeout(timer);
   }, [tourId, hasTracked]);
-  // -----------------------
   
   if (!currentItem) return <div className="text-white p-10">Laden...</div>;
 
@@ -165,7 +174,12 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
                  transition={{ delay: 0.3 }}
                  className="mt-2 shrink-0"
                >
-                 <LikeButton artworkId={currentItem.artwork.id} size={32} />
+                 {/* AANGEPAST: Nieuwe LikeButton props */}
+                 <LikeButton 
+                    itemId={currentItem.artwork.id} 
+                    itemType="artwork" 
+                    userId={userId} 
+                 />
                </motion.div>
              </div>
 
@@ -179,7 +193,7 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
                {currentItem.artwork.artist}
              </motion.p>
              
-             {/* INFO & RATING PANEEL */}
+             {/* INFO & FEEDBACK PANEEL */}
              <AnimatePresence>
                {showInfo && (
                  <motion.div 
@@ -192,8 +206,10 @@ export default function TheaterView({ tourId, tourTitle, items }: TheaterViewPro
                      {currentItem.text_short || currentItem.artwork.description_primary}
                    </p>
 
-                   <div className="border-t border-white/10 pt-6 mb-4">
-                      <TourRatingSection tourId={tourId} />
+                   <div className="border-t border-white/10 pt-6 mb-4 flex flex-col items-center">
+                      <p className="text-gray-400 font-bold mb-3 text-sm">Wat vond je van deze tour?</p>
+                      {/* AANGEPAST: FeedbackButtons i.p.v. TourRatingSection */}
+                      <FeedbackButtons entityId={tourId} entityType="tour" />
                    </div>
 
                    <p className="text-[10px] text-gray-500 pt-2 opacity-70">
