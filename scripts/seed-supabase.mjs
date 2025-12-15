@@ -5,7 +5,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const BATCH_SIZE = 50;       
-const TOTAL_TO_IMPORT = 2000; 
+const TOTAL_TO_IMPORT = 6000; 
 const MIN_SITELINKS = 5;      
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -62,7 +62,7 @@ async function fetchWikidata(offset) {
 async function run() {
   console.log('🚀 Start Top-Heavy Import (Safe Mode)...');
   
-  let currentOffset = 0; 
+  let currentOffset = 2050; 
   let importedCount = 0;
 
   console.log(`📊 We beginnen bij de allerberoemdste werken (Offset 0).`);
