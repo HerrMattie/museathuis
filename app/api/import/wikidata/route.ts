@@ -4,23 +4,23 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-// STAP 1: Realistische grenzen voor Kwaliteit > 5
-// We zetten de maxOffset lager, omdat er met >5 links minder aanbod is.
+// STAP 1: Kwaliteit > 5 (De 'Gezonde Middenmoot')
+// Offsets zijn hierop afgestemd om lege resultaten te minimaliseren.
 const ART_TYPES = [
-  { id: 'Q3305213', label: 'Schilderijen',      maxOffset: 8000 }, // Grote vijver
-  { id: 'Q860861',  label: 'Beeldhouwwerken',   maxOffset: 1500 }, // Middelgrote vijver
-  { id: 'Q93184',   label: 'Tekeningen',        maxOffset: 800 },  // Kleine vijver
-  { id: 'Q125191',  label: 'Fotografie',        maxOffset: 500 },  // Klein
-  { id: 'Q11060274', label: 'Prenten',          maxOffset: 500 }   // Klein
+  { id: 'Q3305213', label: 'Schilderijen',      maxOffset: 15000 }, 
+  { id: 'Q860861',  label: 'Beeldhouwwerken',   maxOffset: 2500 }, 
+  { id: 'Q93184',   label: 'Tekeningen',        maxOffset: 800 },  
+  { id: 'Q125191',  label: 'Fotografie',        maxOffset: 300 },  
+  { id: 'Q11060274', label: 'Prenten',          maxOffset: 400 }   
 ];
 
-// Fallback Type: Als een kleine categorie leeg is, pakken we altijd Schilderijen.
-const FALLBACK_TYPE = { id: 'Q3305213', label: 'Schilderijen (Fallback)', maxOffset: 8000 };
+// Fallback voor als een kleine categorie op is
+const FALLBACK_TYPE = { id: 'Q3305213', label: 'Schilderijen (Fallback)', maxOffset: 10000 };
 
 async function fetchWikidataItems(typeId: string, offset: number) {
-    // STAP 2: Filter op >= 5 (Kwaliteit)
+    // STAP 2: We vragen nu ook '?sitelinks' op in de SELECT
     const query = `
-      SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year WHERE {
+      SELECT DISTINCT ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks WHERE {
         ?item wdt:P31 wd:${typeId}; 
               wdt:P18 ?image;              
               wikibase:sitelinks ?sitelinks. 
@@ -37,7 +37,7 @@ async function fetchWikidataItems(typeId: string, offset: number) {
     
     try {
         const res = await fetch(url, { 
-            headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/Quality-V6' },
+            headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisBot/Sitelinks-V7' },
             cache: 'no-store'
         });
         if (!res.ok) return null;
@@ -59,26 +59,21 @@ export async function POST() {
   );
 
   try {
-    // Kies een willekeurige categorie
     let selectedType = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
     let randomOffset = Math.floor(Math.random() * selectedType.maxOffset);
     let strategy = `Primary: ${selectedType.label} (pos ${randomOffset})`;
 
-    // Haal items op
     let items = await fetchWikidataItems(selectedType.id, randomOffset);
 
-    // STAP 3: De Eenvoudige Reddingsboei
-    // Is het resultaat leeg? Dan was de categorie op. 
-    // We schakelen DIRECT over naar Schilderijen (daar is altijd wat te vinden).
+    // Fallback logica
     if (!items || items.length === 0) {
-        // Pak een willekeurige plek in de schilderijen-lijst
         randomOffset = Math.floor(Math.random() * FALLBACK_TYPE.maxOffset);
         items = await fetchWikidataItems(FALLBACK_TYPE.id, randomOffset);
-        strategy = `Fallback: Schilderijen (pos ${randomOffset}) - want ${selectedType.label} was leeg.`;
-        selectedType = FALLBACK_TYPE; // Update label voor in de database
+        strategy = `Fallback: Schilderijen (pos ${randomOffset})`;
+        selectedType = FALLBACK_TYPE;
     }
 
-    if (!items || items.length === 0) throw new Error("Zelfs de fallback gaf geen resultaat.");
+    if (!items || items.length === 0) throw new Error("Geen resultaten gevonden.");
 
     let addedCount = 0;
     let duplicateCount = 0;
@@ -87,11 +82,12 @@ export async function POST() {
       const title = item.itemLabel?.value;
       const artist = item.artistLabel?.value || 'Onbekend';
       const image = item.image?.value;
+      
+      // Hier halen we het aantal sitelinks op (als getal)
+      const sitelinks = item.sitelinks?.value ? parseInt(item.sitelinks.value) : 0;
 
       if (title && !title.startsWith('Q') && image) {
-         
-         // STAP 4: Dubbel-Check tegen dubbelen
-         // We checken nu op IMAGE én op TITEL om dubbelen in je queue te voorkomen.
+         // Check op dubbele afbeelding OF titel
          const { data: existingImg } = await supabase.from('artworks').select('id').eq('image_url', image).maybeSingle();
          const { data: existingTitle } = await supabase.from('artworks').select('id').eq('title', title).maybeSingle();
 
@@ -105,10 +101,11 @@ export async function POST() {
                title: title,
                artist: artist,
                image_url: image,
-               description: `Import: ${selectedType.label}`,
+               description: `Import: ${selectedType.label} (Populariteit: ${sitelinks})`,
                year_created: yearClean,
                status: 'draft', 
-               is_premium: false
+               is_premium: false,
+               sitelinks: sitelinks // <--- STAP 3: Opslaan in DB
             });
 
             if (!error) addedCount++;
@@ -116,10 +113,15 @@ export async function POST() {
       }
     }
 
+    // STAP 4: De Return Waarde Correctie
+    // We sturen nu 'addedCount' terug als de primaire teller.
+    // De frontend zal nu waarschijnlijk het juiste getal tonen.
     return NextResponse.json({ 
         success: true, 
-        message: `${strategy}: ${addedCount} toegevoegd (${duplicateCount} dubbel).`,
-        scanned: items.length
+        count: addedCount, // Dit getal wordt vaak door frontends gebruikt voor "Succes: X items"
+        message: `${strategy}: ${addedCount} toegevoegd.`,
+        scanned: items.length,
+        added: addedCount // Voor de zekerheid onder twee namen
     });
 
   } catch (e: any) {
