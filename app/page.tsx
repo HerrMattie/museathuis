@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import Image from 'next/image'; // Nodig voor de achtergrond
+import Image from 'next/image'; 
 import { ArrowRight, Calendar } from 'lucide-react';
 import DailyGrid from '@/components/home/DailyGrid';
 import OnboardingCheck from '@/components/onboarding/OnboardingCheck';
@@ -12,14 +12,14 @@ export default async function Home() {
   const supabase = createClient(cookies());
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. DATA: Haal het dagprogramma op
+  // 1. DATA: Dagprogramma
   const { data: dailyProgram } = await supabase
     .from('dayprogram_schedule')
     .select('*')
     .eq('day_date', today)
     .single();
 
-  // 2. DATA: Haal random artwork op voor de fallback/sfeer in de grid
+  // 2. DATA: Random Artworks
   const { data: randomArts } = await supabase.rpc('get_random_artworks', { limit_count: 3 });
   const randomUrls = randomArts?.map((a: any) => a.image_url) || [];
 
@@ -31,19 +31,19 @@ export default async function Home() {
     <main className="relative min-h-screen bg-midnight-950 text-white">
       <OnboardingCheck />
 
-      {/* --- ACHTERGROND LAAG (De sfeer) --- */}
-      <div className="absolute inset-0 z-0 h-[80vh] overflow-hidden">
-         {/* De Afbeelding */}
+      {/* --- ACHTERGROND LAAG --- */}
+      <div className="absolute inset-0 z-0 h-[85vh] overflow-hidden">
+         {/* NIEUWE AFBEELDING LINK (Stabiele Unsplash ID) */}
          <Image
-            src="https://images.unsplash.com/photo-1566095843020-70796470556c?q=80&w=2000&auto=format&fit=crop"
-            alt="Museum Background"
+            src="https://images.unsplash.com/photo-1544967082-d9d3fdd52eb4?q=80&w=2000&auto=format&fit=crop"
+            alt="Museum Hall"
             fill
             className="object-cover"
-            quality={85}
             priority
+            quality={90}
          />
-         {/* De Fade naar de kleur van de grid (zodat het naadloos overloopt) */}
-         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-midnight-950/80 to-midnight-950" />
+         {/* De Fade (Zwart naar Transparant naar Donkerblauw) */}
+         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-midnight-950/60 to-midnight-950" />
       </div>
 
       {/* --- CONTENT LAAG --- */}
@@ -53,7 +53,7 @@ export default async function Home() {
           <div className="pt-32 pb-24 px-6 text-center">
              <div className="max-w-4xl mx-auto">
                  {/* Datum Label */}
-                 <div className="inline-flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full px-4 py-1.5 mb-6 shadow-lg">
+                 <div className="inline-flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full px-4 py-1.5 mb-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-700">
                       <Calendar size={12} className="text-museum-gold"/>
                       <span className="text-[10px] font-bold uppercase tracking-widest text-gray-200">
                           {new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -61,26 +61,26 @@ export default async function Home() {
                  </div>
                  
                  {/* Titel */}
-                 <h1 className="text-5xl md:text-8xl font-serif font-black mb-6 drop-shadow-2xl text-white">
+                 <h1 className="text-5xl md:text-8xl font-serif font-black mb-6 drop-shadow-2xl text-white animate-in zoom-in-95 duration-700">
                      {texts.home_title || "Kunst Ontdekken"}
                  </h1>
                  
                  {/* Subtitel */}
-                 <p className="text-xl text-gray-200 max-w-2xl mx-auto mb-10 font-light drop-shadow-md">
+                 <p className="text-xl text-gray-200 max-w-2xl mx-auto mb-10 font-light drop-shadow-md animate-in fade-in duration-1000 delay-200">
                      {texts.home_subtitle || "Een prachtige collectie voor vandaag, speciaal voor jou geselecteerd."}
                  </p>
              </div>
           </div>
 
-          {/* DAILY GRID - De content kaarten */}
-          <div className="px-4 pb-20 max-w-7xl mx-auto">
+          {/* DAILY GRID */}
+          <div className="px-4 pb-20 max-w-7xl mx-auto animate-in slide-in-from-bottom-8 duration-700 delay-300">
               <DailyGrid 
                 schedule={dailyProgram} 
                 randomArtworks={randomUrls} 
               />
           </div>
           
-          {/* CTA - Lidmaatschap */}
+          {/* CTA */}
           <div className="relative z-20 bg-museum-gold text-black py-20 px-6 text-center">
               <div className="max-w-2xl mx-auto">
                   <h2 className="text-3xl font-serif font-bold mb-6">Nog geen lid?</h2>
