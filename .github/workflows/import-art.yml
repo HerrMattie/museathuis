@@ -1,9 +1,7 @@
 name: Import Artworks to Supabase
 
 on:
-  # Hiermee kun je handmatig op de knop klikken
   workflow_dispatch: 
-  # Draai elke nacht om 04:00 uur automatisch
   schedule:
     - cron: '0 4 * * *'
 
@@ -17,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '20'  # <--- HIER GEUPDATE NAAR 20
 
       - name: Install dependencies
         run: npm install @supabase/supabase-js
