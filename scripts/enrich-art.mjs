@@ -20,7 +20,7 @@ const genAI = new GoogleGenerativeAI(GOOGLE_KEY);
 
 // Gebruik een stabiel model dat goed is in JSON
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash", // Flash is snel en goedkoop voor bulk, Pro is slimmer
+    model: "gemini-2.5-flash", // Flash is snel en goedkoop voor bulk, Pro is slimmer
     generationConfig: { responseMimeType: "application/json" } 
 });
 
