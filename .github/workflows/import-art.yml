@@ -1,0 +1,29 @@
+name: Import Artworks to Supabase
+
+on:
+  # Hiermee kun je handmatig op een knop klikken in GitHub
+  workflow_dispatch: 
+  # Of draai het elke nacht om 03:00 uur
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  import-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install @supabase/supabase-js
+
+      - name: Run Import Script
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/seed-supabase.mjs
