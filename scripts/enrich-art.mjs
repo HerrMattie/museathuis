@@ -20,7 +20,7 @@ const genAI = new GoogleGenerativeAI(GOOGLE_KEY);
 
 // We gebruiken JSON mode voor strakke output
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
+    model: "gemini-2.5-flash-native-audio-dialog",
     generationConfig: { responseMimeType: "application/json" } 
 });
 
