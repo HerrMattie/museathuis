@@ -19,7 +19,7 @@ async function fetchWikidataItems(typeId: string, offset: number) {
         ?item wdt:P31 wd:${typeId}; 
               wdt:P18 ?image;              
               wikibase:sitelinks ?sitelinks. 
-        FILTER(?sitelinks > 3) 
+        FILTER(?sitelinks > 5) 
         OPTIONAL { ?item wdt:P571 ?year. }
         OPTIONAL { ?item wdt:P170 ?artist. }
         SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
@@ -96,7 +96,7 @@ export async function POST() {
                title: title,
                artist: artist,
                image_url: image,
-               description: `Import: ${randomType.label}`,
+               description: `${randomType.label}`,
                year_created: yearClean,
                status: 'draft', 
             });
