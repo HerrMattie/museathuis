@@ -1,4 +1,3 @@
-// scripts/enrich-art.mjs
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -7,128 +6,143 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_KEY = process.env.GOOGLE_AI_API_KEY;
 
+// Flash is perfect hiervoor: snel, goedkoop en slim genoeg
+const MODEL_NAME = "gemini-1.5-flash"; 
+
 const BATCH_SIZE = 10; 
-const TOTAL_LOOPS = 5; 
+const TOTAL_LOOPS = 10; // 10 x 10 = 100 items per run (pas aan naar wens)
 
 if (!SUPABASE_URL || !SUPABASE_KEY || !GOOGLE_KEY) {
-  console.error('❌ FOUT: Keys ontbreken.');
+  console.error('❌ FOUT: Keys ontbreken. Check je .env bestand.');
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const genAI = new GoogleGenerativeAI(GOOGLE_KEY);
 
-// Gebruik een stabiel model dat goed is in JSON
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash", // Flash is snel en goedkoop voor bulk, Pro is slimmer
+    model: MODEL_NAME,
     generationConfig: { responseMimeType: "application/json" } 
 });
 
 async function run() {
-  console.log('✨ Start ULTIMATE Verrijking (Gemini)...');
+  console.log(`✨ Start Verrijking met ${MODEL_NAME}...`);
 
   for (let i = 0; i < TOTAL_LOOPS; i++) {
       
-      // 1. Haal items op die nog verwerkt moeten worden
+      // 1. Haal items op die nog NIET verrijkt zijn
+      // We checken expliciet op 'is_enriched: false'
       const { data: artworks, error } = await supabase
         .from('artworks')
-        .select('id, title, artist')
-        .ilike('description', 'Import%') 
+        .select('id, title, artist, museum, description_nl, ai_tags') // Haal context op
+        .eq('is_enriched', false)
+        .not('title', 'is', null) // Sla lege titels over
         .limit(BATCH_SIZE);
 
-      if (error || !artworks || artworks.length === 0) {
-          console.log("✅ Geen onverwerkte items meer gevonden.");
+      if (error) {
+          console.error("❌ DB Error:", error.message);
+          break;
+      }
+
+      if (!artworks || artworks.length === 0) {
+          console.log("✅ Geen onverwerkte items meer gevonden. Alles is verrijkt!");
           break;
       }
 
       console.log(`🤖 Batch ${i+1}/${TOTAL_LOOPS}: ${artworks.length} werken analyseren...`);
 
+      // We gebruiken Promise.all om de batch parallel te verwerken
       await Promise.all(artworks.map(async (art) => {
         try {
-            // --- DE SUPER PROMPT ---
-            // We vragen nu om VEEL meer specifieke details
+            // Context opbouwen voor de AI
+            const contextInfo = `
+                Titel: ${art.title}
+                Kunstenaar: ${art.artist}
+                Museum: ${art.museum || 'Onbekend'}
+                Huidige Tags: ${Array.isArray(art.ai_tags) ? art.ai_tags.join(', ') : art.ai_tags}
+                Basis Info: ${art.description_nl || 'Geen extra info'}
+            `;
+
+            // --- DE PROMPT ---
+            // We mappen dit direct op jouw database kolommen!
             const prompt = `
-              Je bent een expert kunsthistoricus en curator. Analyseer kunstwerk "${art.title}" van "${art.artist}".
+              Je bent een kunstcurator voor de app 'MuseaThuis'. Analyseer dit kunstwerk:
+              ${contextInfo}
               
-              Geef een extreem gedetailleerd JSON object terug.
-              Gebruik dit schema:
-              { 
-                "short_description": "Pakkende samenvatting (max 2 zinnen).", 
-                "detailed_description": "Uitgebreide visuele beschrijving van wat er te zien is.",
-                "historical_context": "De geschiedenis, tijdgeest en waarom dit werk belangrijk is.",
-                "techniques_materials": {
-                    "technique": "Bijv. Olieverf op doek, impasto, pointillisme",
-                    "materials": ["Olieverf", "Linnen", "Vernis"]
-                },
-                "artistic_style": {
-                    "movement": "Bijv. Impressionisme, Barok",
-                    "period": "Bijv. Late 19e eeuw"
-                },
-                "visual_analysis": {
-                    "dominant_colors": ["#HexCode1", "#HexCode2", "#HexCode3"],
-                    "color_names": ["Donkerblauw", "Okergeel"],
-                    "lighting": "Beschrijving van lichtgebruik (bijv. Chiaroscuro)",
-                    "composition": "Beschrijving van de compositie"
-                },
-                "symbolism": "Diepere betekenis en symbolen in het werk.",
-                "tags": ["lijst", "met", "10", "relevante", "zoekwoorden", "voor", "de", "database"],
-                "fun_fact": "Een verrassend feitje voor leken."
+              Genereer een JSON object met exact deze velden (in het Nederlands):
+              {
+                "ai_description": "Een wervende, korte introductie voor op de overzichtspagina (max 30 woorden).",
+                "description_primary": "Het hoofdverhaal voor de detailpagina. Vertellend en boeiend. (ca. 100 woorden).",
+                "description_technical": "Analyse van techniek, materiaalgebruik, compositie en kleurgebruik.",
+                "description_historical": "De historische context, tijdgeest en relevantie van het werk.",
+                "description_symbolism": "Uitleg over symboliek, verborgen betekenissen of allegorieën.",
+                "audio_script": "Een levendig script voor een audiotour (spreektaal, 'Kijk eens naar...'). Max 1 minuut spreektijd.",
+                "fun_fact": "Eén verrassend 'wist-je-datje' (1 zin).",
+                "ai_mood": "Eén woord dat de sfeer beschrijft (bijv. Melancholisch, Euforisch, Verstild).",
+                "dominant_colors": ["Kleur1", "Kleur2", "Kleur3"],
+                "new_tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
               }
-              Taal: Nederlands. Zorg dat de JSON valide is.
             `;
             
             const result = await model.generateContent(prompt);
             const response = await result.response;
-            const text = response.text();
+            const data = JSON.parse(response.text());
+
+            // Tags samenvoegen (bestaande + nieuwe van AI)
+            const currentTags = Array.isArray(art.ai_tags) ? art.ai_tags : [];
+            const newTags = Array.isArray(data.new_tags) ? data.new_tags : [];
+            // Maak unieke lijst
+            const mergedTags = [...new Set([...currentTags, ...newTags])];
+
+            // 2. Update de database met de specifieke kolommen
+            const { error: updateError } = await supabase
+                .from('artworks')
+                .update({ 
+                    // Vul de specifieke kolommen
+                    ai_description: data.ai_description,          // Korte intro
+                    description: data.description_primary,        // Hoofdtekst (overschrijft de oude import tekst)
+                    
+                    description_technical: data.description_technical,
+                    description_historical: data.description_historical,
+                    description_symbolism: data.description_symbolism,
+                    
+                    audio_script: data.audio_script,
+                    fun_fact: data.fun_fact,
+                    ai_mood: data.ai_mood,
+                    
+                    // Sla kleuren op als tekst of array (afhankelijk van je DB, hier string)
+                    dominant_colors: Array.isArray(data.dominant_colors) ? data.dominant_colors.join(', ') : data.dominant_colors,
+                    
+                    // Update tags
+                    ai_tags: mergedTags,
+
+                    // Bewaar de ruwe data in metadata voor de zekerheid
+                    ai_metadata: { 
+                        model: MODEL_NAME, 
+                        generated_at: new Date().toISOString(),
+                        original_response: data 
+                    },
+                    
+                    is_enriched: true, // Vlaggetje omzetten!
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', art.id);
             
-            // Parse de JSON
-            const data = JSON.parse(text);
+            if (updateError) throw updateError;
 
-            if (data.short_description) {
-                // 1. De leesbare tekst voor de gebruiker (samenvatting)
-                const richDescription = `
-${data.short_description}
+            process.stdout.write("✅ "); // Visuele feedback per item
 
-🎨 **Stijl & Techniek**
-${data.artistic_style.movement} - ${data.techniques_materials.technique}
-
-📜 **Het Verhaal**
-${data.historical_context}
-
-🔍 **Details**
-${data.detailed_description}
-
-💡 **Weetje**
-${data.fun_fact}
-`.trim();
-
-                // 2. Update de database
-                // BELANGRIJK: We slaan de 'richDescription' op voor weergave
-                // EN het volledige 'data' object in 'ai_metadata' voor toekomstig gebruik/filtering.
-                const { error: updateError } = await supabase
-                    .from('artworks')
-                    .update({ 
-                        description: richDescription,
-                        ai_metadata: data, // <--- HIER zit al je extra info in (JSONB kolom)
-                        status: 'active' 
-                    })
-                    .eq('id', art.id);
-                
-                if (updateError) throw updateError;
-
-                process.stdout.write("✅ ");
-            }
         } catch (e) {
             process.stdout.write("❌ ");
-            console.error(`\nFout bij ${art.title}:`, e.message);
+            console.error(`\nFout bij "${art.title}":`, e.message);
         }
       }));
       
-      console.log("\n⏸️ Even ademhalen (2 sec)...");
+      console.log(`\n--- Batch klaar. Wacht 2s om rate limits te voorkomen ---`);
       await new Promise(r => setTimeout(r, 2000));
   }
   
-  console.log(`\n🎉 Klaar!`);
+  console.log(`\n🎉 Klaar met verrijken!`);
 }
 
 run();
