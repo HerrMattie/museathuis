@@ -15,6 +15,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- QUERY MET 1955 DEADLINE FILTER ---
+// --- GEOPTIMALISEERDE SUBQUERY ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -32,35 +33,41 @@ const generateQuery = (offset) => `
     (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") AS ?genres)
     (GROUP_CONCAT(DISTINCT ?depictsLabel; separator=", ") AS ?subjects)
   WHERE {
-    VALUES ?type { wd:Q3305213 wd:Q860861 } 
-    ?item wdt:P31 ?type;
-          wdt:P18 ?image;
-          wikibase:sitelinks ?sitelinks.
+    # ⚡ STAP 1: SUBQUERY - Vind EERST de 50 items (Supersnel)
+    {
+      SELECT ?item ?sitelinks ?deathDate WHERE {
+        VALUES ?type { wd:Q3305213 wd:Q860861 } # Schilderij, Beeldhouwwerk
+        ?item wdt:P31 ?type;
+              wikibase:sitelinks ?sitelinks.
+        
+        FILTER(?sitelinks >= ${MIN_SITELINKS})
+
+        # Check de artiest datum hier alvast
+        ?item wdt:P170 ?artist.
+        ?artist wdt:P570 ?deathDate.
+        FILTER(YEAR(?deathDate) < 1955)
+      }
+      ORDER BY DESC(?sitelinks)
+      LIMIT ${BATCH_SIZE}
+      OFFSET ${offset}
+    }
+
+    # 🎨 STAP 2: DECORATIE - Haal nu pas de data op voor deze 50 items
+    ?item wdt:P18 ?image. # Eis dat er een plaatje is
     
-    # 👇 HIER ZIT DE VEILIGHEID:
-    # We eisen dat de artiest bekend is EN voor 1955 is overleden.
-    ?item wdt:P170 ?artist.
-    ?artist wdt:P570 ?deathDate.
-    FILTER(YEAR(?deathDate) < 1955) 
-    
-    FILTER(?sitelinks >= ${MIN_SITELINKS})
-    
-    # Basis data
+    OPTIONAL { ?item wdt:P170 ?artist. }
     OPTIONAL { ?item wdt:P571 ?year. }
     OPTIONAL { ?item wdt:P195 ?museum. }
     OPTIONAL { ?item wdt:P17 ?country. }
-    
-    # Afmetingen
     OPTIONAL { ?item wdt:P2048 ?height. }
     OPTIONAL { ?item wdt:P2049 ?width. }
 
-    # Beschrijving
     OPTIONAL { 
         ?item schema:description ?desc. 
         FILTER(LANG(?desc) = "nl") 
     }
 
-    # Labels
+    # Labels ophalen
     OPTIONAL { ?item wdt:P186 ?material. ?material rdfs:label ?materialLabel. FILTER(LANG(?materialLabel) = "nl") }
     OPTIONAL { ?item wdt:P135 ?movement. ?movement rdfs:label ?movementLabel. FILTER(LANG(?movementLabel) = "nl") }
     OPTIONAL { ?item wdt:P180 ?depicts. ?depicts rdfs:label ?depictsLabel. FILTER(LANG(?depictsLabel) = "nl") }
@@ -69,9 +76,6 @@ const generateQuery = (offset) => `
     SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
   }
   GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?desc ?height ?width ?deathDate
-  ORDER BY DESC(?sitelinks)
-  LIMIT ${BATCH_SIZE}
-  OFFSET ${offset}
 `;
 
 async function fetchWikidata(offset) {
