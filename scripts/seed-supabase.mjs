@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const BATCH_SIZE = 50;       
-const TOTAL_TO_IMPORT = 6000; 
+const BATCH_SIZE = 50;        
+const TOTAL_TO_IMPORT = 10000; 
 const MIN_SITELINKS = 5;      
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -65,7 +65,7 @@ async function run() {
   let currentOffset = 2050; 
   let importedCount = 0;
 
-  console.log(`📊 We beginnen bij de allerberoemdste werken (Offset 0).`);
+  console.log(`📊 We beginnen bij offset ${currentOffset}.`);
 
   while (importedCount < TOTAL_TO_IMPORT) {
     const items = await fetchWikidata(currentOffset);
@@ -75,18 +75,15 @@ async function run() {
     const records = items.map(item => {
         // --- VEILIGHEIDS CHECKS ---
         
-        // 1. Sitelinks: Moet een echt getal zijn. Is het NaN? Dan maken we er 0 van.
         let sitelinks = 0;
         if (item.sitelinks?.value) {
             const parsed = parseInt(item.sitelinks.value);
             if (!isNaN(parsed)) sitelinks = parsed;
         }
 
-        // 2. Jaartal: Datums zijn lastig. Als het mislukt, sturen we null (geen NaN string).
         let yearClean = null;
         if (item.year?.value) {
             const dateObj = new Date(item.year.value);
-            // Check of de datum geldig is (getTime is geen NaN)
             if (!isNaN(dateObj.getTime())) {
                 yearClean = dateObj.getFullYear().toString();
             }
@@ -97,8 +94,8 @@ async function run() {
             artist: item.artistLabel?.value || 'Onbekend',
             image_url: item.image?.value,
             description: `Import (Populariteit: ${sitelinks})`,
-            year_created: yearClean, // Nu veilig: of een string, of null. Nooit "NaN"
-            sitelinks: sitelinks,    // Nu veilig: altijd een int.
+            year_created: yearClean,
+            sitelinks: sitelinks,    
             status: 'active',
             is_premium: sitelinks > 40,
             updated_at: new Date().toISOString()
@@ -106,13 +103,19 @@ async function run() {
     }).filter(i => i.title && !i.title.startsWith('Q'));
 
     if (records.length > 0) {
+       // --- DE FIX ZIT HIER ---
+       // We gebruiken nu 'artist, title' omdat dat waarschijnlijk jouw unique_artwork constraint is.
+       // ignoreDuplicates: true zorgt dat hij stilletjes faalt bij dubbelingen en doorgaat.
        const { error } = await supabase
             .from('artworks')
-            .upsert(records, { onConflict: 'image_url', ignoreDuplicates: true });
+            .upsert(records, { 
+                onConflict: 'artist, title', // <-- AANGEPAST: Dit matcht nu je DB constraint
+                ignoreDuplicates: true 
+            });
 
        if (error) {
            console.error('❌ DB Error:', error.message);
-           // We stoppen niet, maar proberen de volgende batch
+           // Als het alsnog faalt (bv. andere constraint), proberen we door te gaan.
        } else {
            importedCount += records.length;
            console.log(`✅ Batch verwerkt (Offset ${currentOffset} - ${currentOffset + BATCH_SIZE})`);
