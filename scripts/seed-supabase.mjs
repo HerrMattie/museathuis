@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY: FORCEER LABELS ---
+// --- QUERY ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -23,11 +23,11 @@ const generateQuery = (offset) => `
     ?year 
     ?sitelinks 
     ?museumLabel 
-    ?countryLabel
+    ?countryLabel 
     ?finalDesc 
     ?height ?width
     ?deathDate
-    # 👇 Hier halen we de geforceerde labels op
+    # We vragen komma-gescheiden lijsten op
     (GROUP_CONCAT(DISTINCT ?matLabel; separator=", ") AS ?materials)
     (GROUP_CONCAT(DISTINCT ?movLabel; separator=", ") AS ?movements)
     (GROUP_CONCAT(DISTINCT ?genLabel; separator=", ") AS ?genres)
@@ -52,7 +52,6 @@ const generateQuery = (offset) => `
     OPTIONAL { ?item wdt:P571 ?year. }
     OPTIONAL { ?item wdt:P195 ?museum. }
     OPTIONAL { ?item wdt:P17 ?country. }
-    
     OPTIONAL { ?item wdt:P2048 ?height. }
     OPTIONAL { ?item wdt:P2049 ?width. }
 
@@ -60,28 +59,11 @@ const generateQuery = (offset) => `
     OPTIONAL { ?item schema:description ?descEn. FILTER(LANG(?descEn) = "en") }
     BIND(COALESCE(?descNl, ?descEn) AS ?finalDesc)
 
-    # 👇 DE FIX: We halen expliciet het label op uit 'rdfs:label'
-    # We pakken alles wat NL of EN is.
-    OPTIONAL { 
-        ?item wdt:P186 ?mat. 
-        ?mat rdfs:label ?matLabel. 
-        FILTER(LANG(?matLabel) = "nl" || LANG(?matLabel) = "en")
-    }
-    OPTIONAL { 
-        ?item wdt:P135 ?mov. 
-        ?mov rdfs:label ?movLabel. 
-        FILTER(LANG(?movLabel) = "nl" || LANG(?movLabel) = "en")
-    }
-    OPTIONAL { 
-        ?item wdt:P136 ?gen. 
-        ?gen rdfs:label ?genLabel. 
-        FILTER(LANG(?genLabel) = "nl" || LANG(?genLabel) = "en")
-    }
-    OPTIONAL { 
-        ?item wdt:P180 ?sub. 
-        ?sub rdfs:label ?subLabel. 
-        FILTER(LANG(?subLabel) = "nl" || LANG(?subLabel) = "en")
-    }
+    # Forceer labels (NL of EN)
+    OPTIONAL { ?item wdt:P186 ?mat. ?mat rdfs:label ?matLabel. FILTER(LANG(?matLabel) = "nl" || LANG(?matLabel) = "en") }
+    OPTIONAL { ?item wdt:P135 ?mov. ?mov rdfs:label ?movLabel. FILTER(LANG(?movLabel) = "nl" || LANG(?movLabel) = "en") }
+    OPTIONAL { ?item wdt:P136 ?gen. ?gen rdfs:label ?genLabel. FILTER(LANG(?genLabel) = "nl" || LANG(?genLabel) = "en") }
+    OPTIONAL { ?item wdt:P180 ?sub. ?sub rdfs:label ?subLabel. FILTER(LANG(?subLabel) = "nl" || LANG(?subLabel) = "en") }
 
     SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
   }
@@ -94,7 +76,7 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/10.0 (ExplicitLabels)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/11.0 (ArrayFix)' } 
     });
     if (res.status === 429) {
         console.warn("⏳ Rate limit. 5s pauze...");
@@ -106,22 +88,29 @@ async function fetchWikidata(offset) {
   } catch (e) { return null; }
 }
 
+// --- 🛠️ HELPER FUNCTIES ---
+
+// Voor enkele waarden (String/Int/Float)
 function clean(value, type = 'string') {
     if (!value) return null;
-    if (type === 'number') {
-        const num = parseFloat(value);
-        return isNaN(num) ? null : num;
-    }
-    if (type === 'int') {
-        const num = parseInt(value);
-        return isNaN(num) ? null : num;
-    }
+    if (type === 'number') return isNaN(parseFloat(value)) ? null : parseFloat(value);
+    if (type === 'int') return isNaN(parseInt(value)) ? null : parseInt(value);
     if (type === 'string' && value.trim() === '') return null;
     return value;
 }
 
+// 🔥 NIEUW: Voor Arrays (materials, tags, etc.)
+// Maakt van "Hout, Wood, Oil" -> ['Hout', 'Wood', 'Oil'] en verwijdert dubbelen
+function parseTags(value) {
+    if (!value) return null; // Of [] als je lege arrays wilt
+    const rawList = value.split(',').map(s => s.trim()).filter(s => s !== '');
+    // Dedupliceren met Set
+    const uniqueList = [...new Set(rawList)];
+    return uniqueList.length > 0 ? uniqueList : null;
+}
+
 async function run() {
-  console.log('🚀 Start Import (Poging 10: Geforceerde Labels)...');
+  console.log('🚀 Start Import (Poging 11: Array Fix)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -137,15 +126,14 @@ async function run() {
     const rawRecords = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
         
-        // Datum fix
         let yearClean = null;
         if (item.year?.value) {
             const match = item.year.value.match(/^[+-]?(\d{4})/);
             if (match) yearClean = parseInt(match[1]);
         }
-
-        const tagsList = [item.subjects?.value, item.genres?.value].filter(Boolean);
-        const combinedTags = tagsList.length > 0 ? tagsList.join(", ") : null;
+        
+        // Tags samenvoegen
+        const rawTags = [item.subjects?.value, item.genres?.value].filter(Boolean).join(", ");
         
         let diedYear = '';
         if (item.deathDate?.value) {
@@ -161,10 +149,12 @@ async function run() {
             museum: clean(item.museumLabel?.value),
             country: clean(item.countryLabel?.value),
             
-            // 👇 Deze zouden nu ECHT gevuld moeten zijn (Olieverf, etc.)
-            materials: clean(item.materials?.value),
-            movement: clean(item.movements?.value),
-            genre: clean(item.genres?.value),
+            // 👇 DE FIX: Gebruik parseTags() voor array-kolommen
+            materials: parseTags(item.materials?.value),
+            movement: parseTags(item.movements?.value),
+            genre: parseTags(item.genres?.value),
+            ai_tags: clean(rawTags), // ai_tags is waarschijnlijk 'text', dus hier gebruiken we clean() (geen array)
+            // LET OP: Als ai_tags OOK een array kolom is in je DB, gebruik dan: parseTags(rawTags)
             
             description_nl: clean(item.finalDesc?.value),
             height_cm: clean(item.height?.value, 'number'),
@@ -172,7 +162,7 @@ async function run() {
             sitelinks: clean(item.sitelinks?.value, 'int') || 0,
             year_created: yearClean,
             copyright_status: 'Public Domain',
-            ai_tags: combinedTags,
+            
             description: clean(item.finalDesc?.value) || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
             updated_at: new Date().toISOString()
         };
@@ -187,7 +177,11 @@ async function run() {
             .from('artworks')
             .upsert(uniqueRecords, { onConflict: 'wikidata_id', ignoreDuplicates: false });
 
-       if (error) console.error('❌ DB Error:', error.message);
+       if (error) {
+           console.error('❌ DB Error:', error.message);
+           // Als het nog steeds misgaat, is ai_tags misschien toch een array?
+           // Probeer dan in de code hierboven: ai_tags: parseTags(rawTags)
+       }
        else console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items.`);
     }
 
