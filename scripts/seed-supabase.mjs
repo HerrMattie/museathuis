@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY: FIX VOOR LEGE TAGS ---
+// --- QUERY: FORCEER LABELS ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -27,11 +27,11 @@ const generateQuery = (offset) => `
     ?finalDesc 
     ?height ?width
     ?deathDate
-    # De label service vult deze ?...Label variabelen automatisch in (NL of EN)
-    (GROUP_CONCAT(DISTINCT ?materialLabel; separator=", ") AS ?materials)
-    (GROUP_CONCAT(DISTINCT ?movementLabel; separator=", ") AS ?movements)
-    (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") AS ?genres)
-    (GROUP_CONCAT(DISTINCT ?depictsLabel; separator=", ") AS ?subjects)
+    # 👇 Hier halen we de geforceerde labels op
+    (GROUP_CONCAT(DISTINCT ?matLabel; separator=", ") AS ?materials)
+    (GROUP_CONCAT(DISTINCT ?movLabel; separator=", ") AS ?movements)
+    (GROUP_CONCAT(DISTINCT ?genLabel; separator=", ") AS ?genres)
+    (GROUP_CONCAT(DISTINCT ?subLabel; separator=", ") AS ?subjects)
   WHERE {
     {
       SELECT ?item ?sitelinks ?deathDate WHERE {
@@ -53,22 +53,35 @@ const generateQuery = (offset) => `
     OPTIONAL { ?item wdt:P195 ?museum. }
     OPTIONAL { ?item wdt:P17 ?country. }
     
-    # Afmetingen
     OPTIONAL { ?item wdt:P2048 ?height. }
     OPTIONAL { ?item wdt:P2049 ?width. }
 
-    # Beschrijving (NL -> EN fallback)
     OPTIONAL { ?item schema:description ?descNl. FILTER(LANG(?descNl) = "nl") }
     OPTIONAL { ?item schema:description ?descEn. FILTER(LANG(?descEn) = "en") }
     BIND(COALESCE(?descNl, ?descEn) AS ?finalDesc)
 
-    # 👇 HIER ZIT DE FIX: 
-    # We vragen alleen de ID op (?material). De Label Service regelt de vertaling naar ?materialLabel.
-    # Geen handmatige FILTER(LANG) meer nodig!
-    OPTIONAL { ?item wdt:P186 ?material. }  # Materiaal
-    OPTIONAL { ?item wdt:P135 ?movement. }  # Stroming
-    OPTIONAL { ?item wdt:P180 ?depicts. }   # Beeldt af (Onderwerp)
-    OPTIONAL { ?item wdt:P136 ?genre. }     # Genre
+    # 👇 DE FIX: We halen expliciet het label op uit 'rdfs:label'
+    # We pakken alles wat NL of EN is.
+    OPTIONAL { 
+        ?item wdt:P186 ?mat. 
+        ?mat rdfs:label ?matLabel. 
+        FILTER(LANG(?matLabel) = "nl" || LANG(?matLabel) = "en")
+    }
+    OPTIONAL { 
+        ?item wdt:P135 ?mov. 
+        ?mov rdfs:label ?movLabel. 
+        FILTER(LANG(?movLabel) = "nl" || LANG(?movLabel) = "en")
+    }
+    OPTIONAL { 
+        ?item wdt:P136 ?gen. 
+        ?gen rdfs:label ?genLabel. 
+        FILTER(LANG(?genLabel) = "nl" || LANG(?genLabel) = "en")
+    }
+    OPTIONAL { 
+        ?item wdt:P180 ?sub. 
+        ?sub rdfs:label ?subLabel. 
+        FILTER(LANG(?subLabel) = "nl" || LANG(?subLabel) = "en")
+    }
 
     SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
   }
@@ -81,7 +94,7 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/9.0 (TagFix)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/10.0 (ExplicitLabels)' } 
     });
     if (res.status === 429) {
         console.warn("⏳ Rate limit. 5s pauze...");
@@ -108,7 +121,7 @@ function clean(value, type = 'string') {
 }
 
 async function run() {
-  console.log('🚀 Start Import (Final Tag Fix)...');
+  console.log('🚀 Start Import (Poging 10: Geforceerde Labels)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -124,7 +137,7 @@ async function run() {
     const rawRecords = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
         
-        // Datum fix (pakt eerste 4 cijfers)
+        // Datum fix
         let yearClean = null;
         if (item.year?.value) {
             const match = item.year.value.match(/^[+-]?(\d{4})/);
@@ -148,7 +161,7 @@ async function run() {
             museum: clean(item.museumLabel?.value),
             country: clean(item.countryLabel?.value),
             
-            // 👇 Deze zouden nu gevuld moeten zijn!
+            // 👇 Deze zouden nu ECHT gevuld moeten zijn (Olieverf, etc.)
             materials: clean(item.materials?.value),
             movement: clean(item.movements?.value),
             genre: clean(item.genres?.value),
@@ -175,7 +188,7 @@ async function run() {
             .upsert(uniqueRecords, { onConflict: 'wikidata_id', ignoreDuplicates: false });
 
        if (error) console.error('❌ DB Error:', error.message);
-       else console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items (Met Tags!).`);
+       else console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items.`);
     }
 
     currentOffset += BATCH_SIZE;
