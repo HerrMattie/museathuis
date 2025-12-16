@@ -101,6 +101,7 @@ async function fetchWikidata(offset) {
     return null;
   }
 }
+// ... (imports en generateQuery en fetchWikidata blijven hetzelfde) ...
 
 async function run() {
   console.log('🚀 Start Import (Fallback: NL, anders EN)...');
@@ -111,7 +112,10 @@ async function run() {
   while (loopCount * BATCH_SIZE < TOTAL_TO_IMPORT) {
     const items = await fetchWikidata(currentOffset);
 
-    if (!items || items.length === 0) break;
+    if (!items || items.length === 0) {
+        if (currentOffset === 0) console.log("Geen items gevonden. Check query.");
+        break;
+    }
 
     const records = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
@@ -122,36 +126,41 @@ async function run() {
             if (!isNaN(dateObj.getTime())) yearClean = dateObj.getFullYear();
         }
 
-        const combinedTags = [item.subjects?.value, item.genres?.value].filter(Boolean).join(", ");
+        // Tags samenvoegen
+        const tagsList = [item.subjects?.value, item.genres?.value].filter(Boolean);
+        // FIX 1: Als de lijst leeg is, maak er null van ipv een lege string ""
+        const combinedTags = tagsList.length > 0 ? tagsList.join(", ") : null;
         
         let diedYear = '';
         if (item.deathDate?.value) {
              diedYear = new Date(item.deathDate.value).getFullYear();
         }
+        
+        // FIX 2: Helper om lege strings om te zetten naar null
+        const val = (v) => (v && v.length > 0 ? v : null);
 
         return {
             wikidata_id: qId,
-            title: item.itemLabel?.value,
-            artist: item.artistLabel?.value || 'Onbekend',
-            image_url: item.image?.value,
+            title: val(item.itemLabel?.value),
+            artist: val(item.artistLabel?.value) || 'Onbekend',
+            image_url: val(item.image?.value),
             
-            museum: item.museumLabel?.value,
-            country: item.countryLabel?.value,
-            materials: item.materials?.value,
-            movement: item.movements?.value,
-            genre: item.genres?.value,
+            // Gebruik de val() helper om "" te voorkomen
+            museum: val(item.museumLabel?.value),
+            country: val(item.countryLabel?.value),
+            materials: val(item.materials?.value),
+            movement: val(item.movements?.value),
+            genre: val(item.genres?.value),
             
-            // Hier komt nu de NL tekst, OF de Engelse als NL ontbreekt
-            description_nl: item.finalDesc?.value,
+            description_nl: val(item.finalDesc?.value),
             
             height_cm: item.height?.value ? parseFloat(item.height.value) : null,
             width_cm: item.width?.value ? parseFloat(item.width.value) : null,
 
             copyright_status: 'Public Domain',
-            ai_tags: combinedTags,
+            ai_tags: combinedTags, // Hier zat waarschijnlijk de fout (was "")
             
-            // Fallback voor de hoofd-description
-            description: item.finalDesc?.value || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
+            description: val(item.finalDesc?.value) || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
             
             year_created: yearClean,
             sitelinks: item.sitelinks?.value ? parseInt(item.sitelinks.value) : 0,
@@ -167,8 +176,12 @@ async function run() {
                 ignoreDuplicates: false 
             });
 
-       if (error) console.error('❌ DB Error:', error.message);
-       else console.log(`✅ Offset ${currentOffset}: ${records.length} items (Meertalig).`);
+       if (error) {
+           console.error('❌ DB Error:', error.message);
+           // Tip: Print de error details als het nog steeds misgaat
+           // console.log(records[0]); 
+       }
+       else console.log(`✅ Offset ${currentOffset}: ${records.length} items (Met Null-check).`);
     }
 
     currentOffset += BATCH_SIZE;
