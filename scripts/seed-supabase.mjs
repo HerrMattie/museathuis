@@ -36,10 +36,6 @@ const generateQuery = (offset) => `
           wdt:P18 ?image;
           wikibase:sitelinks ?sitelinks.
     
-    # 👇 DE BELANGRIJKSTE REGEL: ALLEEN PUBLIEK DOMEIN
-    # P6216 = copyright status, Q19652 = publiek domein
-    ?item wdt:P6216 wd:Q19652.
-    
     FILTER(?sitelinks >= ${MIN_SITELINKS})
     
     # Basis
