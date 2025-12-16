@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-// We gebruiken weer gewone HTML img om next.config gedoe te vermijden
 import { ArrowRight, Calendar } from 'lucide-react';
 import DailyGrid from '@/components/home/DailyGrid';
 import OnboardingCheck from '@/components/onboarding/OnboardingCheck';
@@ -34,10 +33,11 @@ export default async function Home() {
       {/* --- ACHTERGROND LAAG --- */}
       <div className="absolute inset-0 z-0 h-[85vh] overflow-hidden">
          
-         {/* NIEUWE BRON: Wikimedia Commons (Rijksmuseum Eregalerij) - Werkt altijd */}
+         {/* 👇 HIER IS DE AANPASSING 👇 */}
+         {/* Zorg dat je afbeelding in de map 'public' staat en 'hero-background.jpg' heet */}
          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Rijksmuseum_honor_gallery.jpg/1920px-Rijksmuseum_honor_gallery.jpg"
-            alt="Rijksmuseum Hall"
+            src="/hero-background.jpg" 
+            alt="Museum Hall"
             className="absolute inset-0 w-full h-full object-cover"
          />
          
