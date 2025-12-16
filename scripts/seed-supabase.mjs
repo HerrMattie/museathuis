@@ -102,25 +102,23 @@ async function run() {
         };
     }).filter(i => i.title && !i.title.startsWith('Q'));
 
-    if (records.length > 0) {
-       // --- DE FIX ZIT HIER ---
-       // We gebruiken nu 'artist, title' omdat dat waarschijnlijk jouw unique_artwork constraint is.
-       // ignoreDuplicates: true zorgt dat hij stilletjes faalt bij dubbelingen en doorgaat.
+    
+if (records.length > 0) {
+       // AANGEPAST: De database klaagt over duplicate image_url, dus daar checken we op.
        const { error } = await supabase
             .from('artworks')
             .upsert(records, { 
-                onConflict: 'artist, title', // <-- AANGEPAST: Dit matcht nu je DB constraint
+                onConflict: 'image_url', // <-- HIER ZAT DE FOUT
                 ignoreDuplicates: true 
             });
 
        if (error) {
            console.error('❌ DB Error:', error.message);
-           // Als het alsnog faalt (bv. andere constraint), proberen we door te gaan.
        } else {
            importedCount += records.length;
            console.log(`✅ Batch verwerkt (Offset ${currentOffset} - ${currentOffset + BATCH_SIZE})`);
        }
-    }
+}
 
     currentOffset += BATCH_SIZE;
     await new Promise(r => setTimeout(r, 2000));
