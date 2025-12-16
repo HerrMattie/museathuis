@@ -7,7 +7,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_KEY = process.env.GOOGLE_AI_API_KEY;
 
 // Flash is perfect hiervoor: snel, goedkoop en slim genoeg
-const MODEL_NAME = "gemini-1.5-flash"; 
+const MODEL_NAME = "gemini-2.5-flash"; 
 
 const BATCH_SIZE = 10; 
 const TOTAL_LOOPS = 10; // 10 x 10 = 100 items per run (pas aan naar wens)
