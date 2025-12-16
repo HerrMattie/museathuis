@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY (Zelfde als voorheen, die was goed) ---
+// --- QUERY ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -71,7 +71,7 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/7.0 (StrictTypes)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/8.0 (Deduplicated)' } 
     });
     if (res.status === 429) {
         console.warn("⏳ Rate limit. 5s pauze...");
@@ -83,11 +83,8 @@ async function fetchWikidata(offset) {
   } catch (e) { return null; }
 }
 
-// --- 🛠️ HELPER FUNCTIE: DATA SANITIZER ---
-// Dit lost je "malformed array" en "NaN" problemen op
 function clean(value, type = 'string') {
-    if (!value) return null; // Vangt undefined, null en "" af
-
+    if (!value) return null;
     if (type === 'number') {
         const num = parseFloat(value);
         return isNaN(num) ? null : num;
@@ -96,14 +93,12 @@ function clean(value, type = 'string') {
         const num = parseInt(value);
         return isNaN(num) ? null : num;
     }
-    // Als het een string is, maar hij is leeg, geef null terug
     if (type === 'string' && value.trim() === '') return null;
-
     return value;
 }
 
 async function run() {
-  console.log('🚀 Start Import (Robuust & Foutvrij)...');
+  console.log('🚀 Start Import (Met Deduplicatie Fix)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -116,21 +111,18 @@ async function run() {
         break;
     }
 
-    const records = items.map(item => {
+    const rawRecords = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
         
-        // 🛠️ VEILIGER JAARTAL PARSEN
-        // Pakt "1642" uit "1642-01-01T00:00:00Z" zonder Date object gedoe
         let yearClean = null;
         if (item.year?.value) {
             const match = item.year.value.match(/^[+-]?(\d+)/);
-            if (match) yearClean = parseInt(match[0]); // Pakt ook "-400" correct
+            if (match) yearClean = parseInt(match[0]);
         }
 
         const tagsList = [item.subjects?.value, item.genres?.value].filter(Boolean);
         const combinedTags = tagsList.length > 0 ? tagsList.join(", ") : null;
         
-        // Sterfjaar extractie
         let diedYear = '';
         if (item.deathDate?.value) {
              const match = item.deathDate.value.match(/^[+-]?(\d+)/);
@@ -142,43 +134,45 @@ async function run() {
             title: clean(item.itemLabel?.value),
             artist: clean(item.artistLabel?.value) || 'Onbekend',
             image_url: clean(item.image?.value),
-            
-            // Gebruik de clean() functie voor alles!
             museum: clean(item.museumLabel?.value),
             country: clean(item.countryLabel?.value),
             materials: clean(item.materials?.value),
             movement: clean(item.movements?.value),
             genre: clean(item.genres?.value),
             description_nl: clean(item.finalDesc?.value),
-            
-            // Nummers veilig parsen (voorkomt NaN crashes)
             height_cm: clean(item.height?.value, 'number'),
             width_cm: clean(item.width?.value, 'number'),
             sitelinks: clean(item.sitelinks?.value, 'int') || 0,
-            year_created: yearClean, // Al geschoond hierboven
-
+            year_created: yearClean,
             copyright_status: 'Public Domain',
-            ai_tags: combinedTags, // Is al null of gevulde string
-            
+            ai_tags: combinedTags,
             description: clean(item.finalDesc?.value) || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
             updated_at: new Date().toISOString()
         };
     }).filter(i => i.title && i.image_url && i.wikidata_id);
 
-    if (records.length > 0) {
+    // 🔥 FIX: DEDUPLICATIE
+    // We maken een Map op basis van wikidata_id. 
+    // Als een ID dubbel voorkomt, overschrijven we hem (laatste wint), maar we sturen hem maar 1x naar de DB.
+    const uniqueRecordsMap = new Map();
+    rawRecords.forEach(record => {
+        uniqueRecordsMap.set(record.wikidata_id, record);
+    });
+    const uniqueRecords = Array.from(uniqueRecordsMap.values());
+
+    if (uniqueRecords.length > 0) {
        const { error } = await supabase
             .from('artworks')
-            .upsert(records, { 
+            .upsert(uniqueRecords, { // We sturen nu de unieke lijst
                 onConflict: 'wikidata_id', 
                 ignoreDuplicates: false 
             });
 
        if (error) {
            console.error('❌ DB Error:', error.message);
-           // Bij een fout loggen we het eerste item om te zien wat er mis is
-           // console.log("Fout item dump:", records[0]); 
        } else {
-           console.log(`✅ Offset ${currentOffset}: ${records.length} items.`);
+           // Loggen hoeveel we er echt opslaan (kan iets lager zijn dan batch size door ontdubbeling)
+           console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items (Ontubbeld).`);
        }
     }
 
