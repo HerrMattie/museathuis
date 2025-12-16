@@ -5,7 +5,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const BATCH_SIZE = 50; 
 const TOTAL_TO_IMPORT = 10000;
-const MIN_SITELINKS = 2; // Iets lager, want PD filtert al streng
+const MIN_SITELINKS = 2; 
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.error('❌ Geen Supabase keys gevonden.');
@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY MET PUBLIC DOMAIN FILTER ---
+// --- QUERY MET 1955 DEADLINE FILTER ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -26,21 +26,27 @@ const generateQuery = (offset) => `
     ?countryLabel
     ?desc
     ?height ?width
+    ?deathDate
     (GROUP_CONCAT(DISTINCT ?materialLabel; separator=", ") AS ?materials)
     (GROUP_CONCAT(DISTINCT ?movementLabel; separator=", ") AS ?movements)
     (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") AS ?genres)
     (GROUP_CONCAT(DISTINCT ?depictsLabel; separator=", ") AS ?subjects)
   WHERE {
-    VALUES ?type { wd:Q3305213 wd:Q860861 } # Schilderij, Tekening
+    VALUES ?type { wd:Q3305213 wd:Q860861 } 
     ?item wdt:P31 ?type;
           wdt:P18 ?image;
           wikibase:sitelinks ?sitelinks.
     
+    # 👇 HIER ZIT DE VEILIGHEID:
+    # We eisen dat de artiest bekend is EN voor 1955 is overleden.
+    ?item wdt:P170 ?artist.
+    ?artist wdt:P570 ?deathDate.
+    FILTER(YEAR(?deathDate) < 1955) 
+    
     FILTER(?sitelinks >= ${MIN_SITELINKS})
     
-    # Basis
+    # Basis data
     OPTIONAL { ?item wdt:P571 ?year. }
-    OPTIONAL { ?item wdt:P170 ?artist. }
     OPTIONAL { ?item wdt:P195 ?museum. }
     OPTIONAL { ?item wdt:P17 ?country. }
     
@@ -54,7 +60,7 @@ const generateQuery = (offset) => `
         FILTER(LANG(?desc) = "nl") 
     }
 
-    # Labels ophalen voor multi-value velden
+    # Labels
     OPTIONAL { ?item wdt:P186 ?material. ?material rdfs:label ?materialLabel. FILTER(LANG(?materialLabel) = "nl") }
     OPTIONAL { ?item wdt:P135 ?movement. ?movement rdfs:label ?movementLabel. FILTER(LANG(?movementLabel) = "nl") }
     OPTIONAL { ?item wdt:P180 ?depicts. ?depicts rdfs:label ?depictsLabel. FILTER(LANG(?depictsLabel) = "nl") }
@@ -62,7 +68,7 @@ const generateQuery = (offset) => `
 
     SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
   }
-  GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?desc ?height ?width
+  GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?desc ?height ?width ?deathDate
   ORDER BY DESC(?sitelinks)
   LIMIT ${BATCH_SIZE}
   OFFSET ${offset}
@@ -74,8 +80,9 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/4.0 (PublicDomainBot)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/5.0 (SafeMode)' } 
     });
+    
     if (res.status === 429) {
         console.warn("⏳ Rate limit. 5s pauze...");
         await new Promise(r => setTimeout(r, 5000));
@@ -90,7 +97,7 @@ async function fetchWikidata(offset) {
 }
 
 async function run() {
-  console.log('🚀 Start "Public Domain Only" Import...');
+  console.log('🚀 Start Import (VEILIG: Alleen artiesten † < 1955)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -98,7 +105,10 @@ async function run() {
   while (loopCount * BATCH_SIZE < TOTAL_TO_IMPORT) {
     const items = await fetchWikidata(currentOffset);
 
-    if (!items || items.length === 0) break;
+    if (!items || items.length === 0) {
+        if (currentOffset === 0) console.log("Geen items gevonden. Check je query.");
+        break;
+    }
 
     const records = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
@@ -110,6 +120,12 @@ async function run() {
         }
 
         const combinedTags = [item.subjects?.value, item.genres?.value].filter(Boolean).join(", ");
+        
+        // Bereken sterfjaar voor de beschrijving
+        let diedYear = '';
+        if (item.deathDate?.value) {
+             diedYear = new Date(item.deathDate.value).getFullYear();
+        }
 
         return {
             wikidata_id: qId,
@@ -127,12 +143,12 @@ async function run() {
             height_cm: item.height?.value ? parseFloat(item.height.value) : null,
             width_cm: item.width?.value ? parseFloat(item.width.value) : null,
 
-            // 👇 We zetten dit nu hard op 'Public Domain' omdat we daarop filteren
+            // 👇 Nu is dit WAAR, want we hebben gefilterd op sterfdatum
             copyright_status: 'Public Domain',
             
             ai_tags: combinedTags,
             
-            description: item.desc?.value || `Publiek domein kunstwerk. ${item.museumLabel?.value ? 'Collectie: ' + item.museumLabel.value : ''}`,
+            description: item.desc?.value || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
             
             year_created: yearClean,
             sitelinks: item.sitelinks?.value ? parseInt(item.sitelinks.value) : 0,
@@ -149,14 +165,14 @@ async function run() {
             });
 
        if (error) console.error('❌ DB Error:', error.message);
-       else console.log(`✅ Offset ${currentOffset}: ${records.length} items (100% Public Domain).`);
+       else console.log(`✅ Offset ${currentOffset}: ${records.length} items (Veilig Rechtenvrij).`);
     }
 
     currentOffset += BATCH_SIZE;
     loopCount++;
     await new Promise(r => setTimeout(r, 2000));
   }
-  console.log('🎉 Klaar! Alleen rechtenvrije kunst binnengehaald.');
+  console.log('🎉 Klaar!');
 }
 
 run();
