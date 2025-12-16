@@ -14,7 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY ---
+// --- QUERY: FIX VOOR LEGE TAGS ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -27,6 +27,7 @@ const generateQuery = (offset) => `
     ?finalDesc 
     ?height ?width
     ?deathDate
+    # De label service vult deze ?...Label variabelen automatisch in (NL of EN)
     (GROUP_CONCAT(DISTINCT ?materialLabel; separator=", ") AS ?materials)
     (GROUP_CONCAT(DISTINCT ?movementLabel; separator=", ") AS ?movements)
     (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") AS ?genres)
@@ -51,15 +52,24 @@ const generateQuery = (offset) => `
     OPTIONAL { ?item wdt:P571 ?year. }
     OPTIONAL { ?item wdt:P195 ?museum. }
     OPTIONAL { ?item wdt:P17 ?country. }
+    
+    # Afmetingen
     OPTIONAL { ?item wdt:P2048 ?height. }
     OPTIONAL { ?item wdt:P2049 ?width. }
+
+    # Beschrijving (NL -> EN fallback)
     OPTIONAL { ?item schema:description ?descNl. FILTER(LANG(?descNl) = "nl") }
     OPTIONAL { ?item schema:description ?descEn. FILTER(LANG(?descEn) = "en") }
     BIND(COALESCE(?descNl, ?descEn) AS ?finalDesc)
-    OPTIONAL { ?item wdt:P186 ?material. }
-    OPTIONAL { ?item wdt:P135 ?movement. }
-    OPTIONAL { ?item wdt:P180 ?depicts. }
-    OPTIONAL { ?item wdt:P136 ?genre. }
+
+    # 👇 HIER ZIT DE FIX: 
+    # We vragen alleen de ID op (?material). De Label Service regelt de vertaling naar ?materialLabel.
+    # Geen handmatige FILTER(LANG) meer nodig!
+    OPTIONAL { ?item wdt:P186 ?material. }  # Materiaal
+    OPTIONAL { ?item wdt:P135 ?movement. }  # Stroming
+    OPTIONAL { ?item wdt:P180 ?depicts. }   # Beeldt af (Onderwerp)
+    OPTIONAL { ?item wdt:P136 ?genre. }     # Genre
+
     SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
   }
   GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?finalDesc ?height ?width ?deathDate
@@ -71,7 +81,7 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/8.0 (Deduplicated)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/9.0 (TagFix)' } 
     });
     if (res.status === 429) {
         console.warn("⏳ Rate limit. 5s pauze...");
@@ -98,7 +108,7 @@ function clean(value, type = 'string') {
 }
 
 async function run() {
-  console.log('🚀 Start Import (Met Deduplicatie Fix)...');
+  console.log('🚀 Start Import (Final Tag Fix)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -114,10 +124,11 @@ async function run() {
     const rawRecords = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
         
+        // Datum fix (pakt eerste 4 cijfers)
         let yearClean = null;
         if (item.year?.value) {
-            const match = item.year.value.match(/^[+-]?(\d+)/);
-            if (match) yearClean = parseInt(match[0]);
+            const match = item.year.value.match(/^[+-]?(\d{4})/);
+            if (match) yearClean = parseInt(match[1]);
         }
 
         const tagsList = [item.subjects?.value, item.genres?.value].filter(Boolean);
@@ -125,8 +136,8 @@ async function run() {
         
         let diedYear = '';
         if (item.deathDate?.value) {
-             const match = item.deathDate.value.match(/^[+-]?(\d+)/);
-             if (match) diedYear = match[0];
+             const match = item.deathDate.value.match(/^[+-]?(\d{4})/);
+             if (match) diedYear = match[1];
         }
 
         return {
@@ -136,9 +147,12 @@ async function run() {
             image_url: clean(item.image?.value),
             museum: clean(item.museumLabel?.value),
             country: clean(item.countryLabel?.value),
+            
+            // 👇 Deze zouden nu gevuld moeten zijn!
             materials: clean(item.materials?.value),
             movement: clean(item.movements?.value),
             genre: clean(item.genres?.value),
+            
             description_nl: clean(item.finalDesc?.value),
             height_cm: clean(item.height?.value, 'number'),
             width_cm: clean(item.width?.value, 'number'),
@@ -151,29 +165,17 @@ async function run() {
         };
     }).filter(i => i.title && i.image_url && i.wikidata_id);
 
-    // 🔥 FIX: DEDUPLICATIE
-    // We maken een Map op basis van wikidata_id. 
-    // Als een ID dubbel voorkomt, overschrijven we hem (laatste wint), maar we sturen hem maar 1x naar de DB.
     const uniqueRecordsMap = new Map();
-    rawRecords.forEach(record => {
-        uniqueRecordsMap.set(record.wikidata_id, record);
-    });
+    rawRecords.forEach(record => uniqueRecordsMap.set(record.wikidata_id, record));
     const uniqueRecords = Array.from(uniqueRecordsMap.values());
 
     if (uniqueRecords.length > 0) {
        const { error } = await supabase
             .from('artworks')
-            .upsert(uniqueRecords, { // We sturen nu de unieke lijst
-                onConflict: 'wikidata_id', 
-                ignoreDuplicates: false 
-            });
+            .upsert(uniqueRecords, { onConflict: 'wikidata_id', ignoreDuplicates: false });
 
-       if (error) {
-           console.error('❌ DB Error:', error.message);
-       } else {
-           // Loggen hoeveel we er echt opslaan (kan iets lager zijn dan batch size door ontdubbeling)
-           console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items (Ontubbeld).`);
-       }
+       if (error) console.error('❌ DB Error:', error.message);
+       else console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items (Met Tags!).`);
     }
 
     currentOffset += BATCH_SIZE;
