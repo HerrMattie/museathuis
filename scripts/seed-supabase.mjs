@@ -153,8 +153,7 @@ async function run() {
             materials: parseTags(item.materials?.value),
             movement: parseTags(item.movements?.value),
             genre: parseTags(item.genres?.value),
-            ai_tags: clean(rawTags), // ai_tags is waarschijnlijk 'text', dus hier gebruiken we clean() (geen array)
-            // LET OP: Als ai_tags OOK een array kolom is in je DB, gebruik dan: parseTags(rawTags)
+            ai_tags: parseTags(rawTags)
             
             description_nl: clean(item.finalDesc?.value),
             height_cm: clean(item.height?.value, 'number'),
