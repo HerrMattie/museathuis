@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const BATCH_SIZE = 50; 
+const BATCH_SIZE = 10; 
 const TOTAL_TO_IMPORT = 10000;
 const MIN_SITELINKS = 2; 
 
@@ -67,50 +67,66 @@ const generateQuery = (offset) => `
   GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?finalDesc ?height ?width ?deathDate
 `;
 
-async function fetchWikidata(offset) {
+// --- VERBETERDE FETCH MET RETRY ---
+async function fetchWikidata(offset, attempt = 1) {
   const query = generateQuery(offset);
   const url = `https://query.wikidata.org/sparql?query=${encodeURIComponent(query)}&format=json`;
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/13.0 (SyntaxFix)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/14.0 (RetryBot)' } 
     });
+
     if (res.status === 429) {
-        console.warn("⏳ Rate limit. 5s pauze...");
-        await new Promise(r => setTimeout(r, 5000));
-        return fetchWikidata(offset);
+        console.warn(`⏳ Rate limit (Offset ${offset}). Wacht 10s... (Poging ${attempt}/3)`);
+        await new Promise(r => setTimeout(r, 10000));
+        return fetchWikidata(offset, attempt + 1);
     }
-    if (!res.ok) return null;
+
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
     return (await res.json()).results.bindings;
-  } catch (e) { return null; }
+
+  } catch (e) {
+    console.error(`⚠️ Fout bij Offset ${offset} (Poging ${attempt}/3): ${e.message}`);
+    
+    // Probeer maximaal 3 keer opnieuw
+    if (attempt < 3) {
+        console.log(`🔄 We proberen het opnieuw over 5 seconden...`);
+        await new Promise(r => setTimeout(r, 5000));
+        return fetchWikidata(offset, attempt + 1);
+    }
+    return null; // Geef pas op na 3 mislukte pogingen
+  }
 }
 
-function clean(value, type = 'string') {
-    if (!value) return null;
-    if (type === 'number') return isNaN(parseFloat(value)) ? null : parseFloat(value);
-    if (type === 'int') return isNaN(parseInt(value)) ? null : parseInt(value);
-    if (type === 'string' && value.trim() === '') return null;
-    return value;
-}
-
-function parseTags(value) {
-    if (!value) return null; 
-    const rawList = value.split(',').map(s => s.trim()).filter(s => s !== '');
-    const uniqueList = [...new Set(rawList)];
-    return uniqueList.length > 0 ? uniqueList : null;
-}
+// ... (clean en parseTags functies blijven hetzelfde) ...
+// Zorg dat clean() en parseTags() hier ergens tussen staan! 
 
 async function run() {
-  console.log('🚀 Start Import (Poging 13: Syntax Fix)...');
+  console.log('🚀 Start Import (Met Retry & Loop Fix)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
+  let totalImported = 0;
 
-  while (loopCount * BATCH_SIZE < TOTAL_TO_IMPORT) {
+  // We checken nu op 'totalImported' OF de 'TOTAL_TO_IMPORT' limiet
+  // Let op: Wikidata kan soms minder resultaten geven dan de batch size door filtering
+  while (totalImported < TOTAL_TO_IMPORT) {
+    
     const items = await fetchWikidata(currentOffset);
 
-    if (!items || items.length === 0) {
-        if (currentOffset === 0) console.log("Geen items. Check query.");
+    // Als items NULL is na 3 retries, is er echt iets mis. Dan stoppen we pas.
+    if (!items) {
+        console.error("❌ Kritieke fout: Kan geen data meer ophalen van Wikidata. Script stopt.");
+        break;
+    }
+
+    // Als de lijst LEEG is (0 items), zijn we aan het einde van de Wikidata resultaten.
+    if (items.length === 0) {
+        console.log("🏁 Geen nieuwe items meer gevonden op Wikidata. We zijn klaar!");
         break;
     }
 
@@ -142,8 +158,6 @@ async function run() {
             materials: parseTags(item.materials?.value),
             movement: parseTags(item.movements?.value),
             genre: parseTags(item.genres?.value),
-
-            // 👇 Hier staat nu zeker weten een komma!
             ai_tags: parseTags(rawTagsString),
             
             description_nl: clean(item.finalDesc?.value),
@@ -158,6 +172,7 @@ async function run() {
         };
     }).filter(i => i.title && i.image_url && i.wikidata_id);
 
+    // Deduplicatie logica
     const uniqueRecordsMap = new Map();
     rawRecords.forEach(record => uniqueRecordsMap.set(record.wikidata_id, record));
     const uniqueRecords = Array.from(uniqueRecordsMap.values());
@@ -167,14 +182,22 @@ async function run() {
             .from('artworks')
             .upsert(uniqueRecords, { onConflict: 'wikidata_id', ignoreDuplicates: false });
 
-       if (error) console.error('❌ DB Error:', error.message);
-       else console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items.`);
+       if (error) {
+           console.error('❌ DB Error:', error.message);
+       } else {
+           totalImported += uniqueRecords.length;
+           console.log(`✅ Batch verwerkt (Offset ${currentOffset}). Totaal: ${totalImported}/${TOTAL_TO_IMPORT}`);
+       }
     }
 
+    // Volgende batch
     currentOffset += BATCH_SIZE;
     loopCount++;
+    
+    // Even wachten om Wikidata niet boos te maken
     await new Promise(r => setTimeout(r, 2000));
   }
+  
   console.log('🎉 Klaar!');
 }
 
