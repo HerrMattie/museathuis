@@ -62,7 +62,7 @@ async function fetchWikidata(offset) {
 async function run() {
   console.log('🚀 Start Top-Heavy Import (Safe Mode)...');
   
-  let currentOffset = 2050; 
+  let currentOffset = 0; 
   let importedCount = 0;
 
   console.log(`📊 We beginnen bij offset ${currentOffset}.`);
