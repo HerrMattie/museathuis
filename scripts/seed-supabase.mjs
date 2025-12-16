@@ -14,8 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY MET 1955 DEADLINE FILTER ---
-// --- GEOPTIMALISEERDE SUBQUERY ---
+// --- QUERY MET TAAL FALLBACK (NL -> EN) ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -25,7 +24,7 @@ const generateQuery = (offset) => `
     ?sitelinks 
     ?museumLabel 
     ?countryLabel
-    ?desc
+    ?finalDesc  # <--- De slimme beschrijving kolom
     ?height ?width
     ?deathDate
     (GROUP_CONCAT(DISTINCT ?materialLabel; separator=", ") AS ?materials)
@@ -33,16 +32,15 @@ const generateQuery = (offset) => `
     (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") AS ?genres)
     (GROUP_CONCAT(DISTINCT ?depictsLabel; separator=", ") AS ?subjects)
   WHERE {
-    # ⚡ STAP 1: SUBQUERY - Vind EERST de 50 items (Supersnel)
+    # ⚡ STAP 1: SNELLE SELECTIE
     {
       SELECT ?item ?sitelinks ?deathDate WHERE {
-        VALUES ?type { wd:Q3305213 wd:Q860861 } # Schilderij, Beeldhouwwerk
+        VALUES ?type { wd:Q3305213 wd:Q860861 } 
         ?item wdt:P31 ?type;
               wikibase:sitelinks ?sitelinks.
         
         FILTER(?sitelinks >= ${MIN_SITELINKS})
 
-        # Check de artiest datum hier alvast
         ?item wdt:P170 ?artist.
         ?artist wdt:P570 ?deathDate.
         FILTER(YEAR(?deathDate) < 1955)
@@ -52,8 +50,8 @@ const generateQuery = (offset) => `
       OFFSET ${offset}
     }
 
-    # 🎨 STAP 2: DECORATIE - Haal nu pas de data op voor deze 50 items
-    ?item wdt:P18 ?image. # Eis dat er een plaatje is
+    # 🎨 STAP 2: DECORATIE
+    ?item wdt:P18 ?image. 
     
     OPTIONAL { ?item wdt:P170 ?artist. }
     OPTIONAL { ?item wdt:P571 ?year. }
@@ -62,20 +60,24 @@ const generateQuery = (offset) => `
     OPTIONAL { ?item wdt:P2048 ?height. }
     OPTIONAL { ?item wdt:P2049 ?width. }
 
-    OPTIONAL { 
-        ?item schema:description ?desc. 
-        FILTER(LANG(?desc) = "nl") 
-    }
+    # 👇 SLIMME BESCHRIJVING TRUC
+    # We proberen NL op te halen, en apart EN op te halen
+    OPTIONAL { ?item schema:description ?descNl. FILTER(LANG(?descNl) = "nl") }
+    OPTIONAL { ?item schema:description ?descEn. FILTER(LANG(?descEn) = "en") }
+    # Pak NL, als die er niet is pak EN
+    BIND(COALESCE(?descNl, ?descEn) AS ?finalDesc)
 
-    # Labels ophalen
-    OPTIONAL { ?item wdt:P186 ?material. ?material rdfs:label ?materialLabel. FILTER(LANG(?materialLabel) = "nl") }
-    OPTIONAL { ?item wdt:P135 ?movement. ?movement rdfs:label ?movementLabel. FILTER(LANG(?movementLabel) = "nl") }
-    OPTIONAL { ?item wdt:P180 ?depicts. ?depicts rdfs:label ?depictsLabel. FILTER(LANG(?depictsLabel) = "nl") }
-    OPTIONAL { ?item wdt:P136 ?genre. ?genre rdfs:label ?genreLabel. FILTER(LANG(?genreLabel) = "nl") }
+    # 👇 AUTOMATISCHE LABELS (Tags, Materialen, etc.)
+    # We halen hier alleen de ID op. De 'SERVICE' onderaan vertaalt het automatisch naar NL of EN.
+    OPTIONAL { ?item wdt:P186 ?material. }
+    OPTIONAL { ?item wdt:P135 ?movement. }
+    OPTIONAL { ?item wdt:P180 ?depicts. }
+    OPTIONAL { ?item wdt:P136 ?genre. }
 
+    # Dit regelt automatisch: Probeer NL, anders EN.
     SERVICE wikibase:label { bd:serviceParam wikibase:language "nl,en". }
   }
-  GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?desc ?height ?width ?deathDate
+  GROUP BY ?item ?itemLabel ?artistLabel ?image ?year ?sitelinks ?museumLabel ?countryLabel ?finalDesc ?height ?width ?deathDate
 `;
 
 async function fetchWikidata(offset) {
@@ -84,7 +86,7 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/5.0 (SafeMode)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/6.0 (MultiLang)' } 
     });
     
     if (res.status === 429) {
@@ -101,7 +103,7 @@ async function fetchWikidata(offset) {
 }
 
 async function run() {
-  console.log('🚀 Start Import (VEILIG: Alleen artiesten † < 1955)...');
+  console.log('🚀 Start Import (Fallback: NL, anders EN)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -109,10 +111,7 @@ async function run() {
   while (loopCount * BATCH_SIZE < TOTAL_TO_IMPORT) {
     const items = await fetchWikidata(currentOffset);
 
-    if (!items || items.length === 0) {
-        if (currentOffset === 0) console.log("Geen items gevonden. Check je query.");
-        break;
-    }
+    if (!items || items.length === 0) break;
 
     const records = items.map(item => {
         const qId = item.item?.value ? item.item.value.split('/').pop() : null;
@@ -125,7 +124,6 @@ async function run() {
 
         const combinedTags = [item.subjects?.value, item.genres?.value].filter(Boolean).join(", ");
         
-        // Bereken sterfjaar voor de beschrijving
         let diedYear = '';
         if (item.deathDate?.value) {
              diedYear = new Date(item.deathDate.value).getFullYear();
@@ -142,17 +140,18 @@ async function run() {
             materials: item.materials?.value,
             movement: item.movements?.value,
             genre: item.genres?.value,
-            description_nl: item.desc?.value,
+            
+            // Hier komt nu de NL tekst, OF de Engelse als NL ontbreekt
+            description_nl: item.finalDesc?.value,
             
             height_cm: item.height?.value ? parseFloat(item.height.value) : null,
             width_cm: item.width?.value ? parseFloat(item.width.value) : null,
 
-            // 👇 Nu is dit WAAR, want we hebben gefilterd op sterfdatum
             copyright_status: 'Public Domain',
-            
             ai_tags: combinedTags,
             
-            description: item.desc?.value || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
+            // Fallback voor de hoofd-description
+            description: item.finalDesc?.value || `Werk van ${item.artistLabel?.value} (†${diedYear}). Publiek Domein.`,
             
             year_created: yearClean,
             sitelinks: item.sitelinks?.value ? parseInt(item.sitelinks.value) : 0,
@@ -169,7 +168,7 @@ async function run() {
             });
 
        if (error) console.error('❌ DB Error:', error.message);
-       else console.log(`✅ Offset ${currentOffset}: ${records.length} items (Veilig Rechtenvrij).`);
+       else console.log(`✅ Offset ${currentOffset}: ${records.length} items (Meertalig).`);
     }
 
     currentOffset += BATCH_SIZE;
