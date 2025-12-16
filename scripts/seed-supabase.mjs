@@ -14,7 +14,6 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- QUERY ---
 const generateQuery = (offset) => `
   SELECT DISTINCT 
     ?item ?itemLabel 
@@ -27,7 +26,6 @@ const generateQuery = (offset) => `
     ?finalDesc 
     ?height ?width
     ?deathDate
-    # We vragen komma-gescheiden lijsten op
     (GROUP_CONCAT(DISTINCT ?matLabel; separator=", ") AS ?materials)
     (GROUP_CONCAT(DISTINCT ?movLabel; separator=", ") AS ?movements)
     (GROUP_CONCAT(DISTINCT ?genLabel; separator=", ") AS ?genres)
@@ -59,7 +57,6 @@ const generateQuery = (offset) => `
     OPTIONAL { ?item schema:description ?descEn. FILTER(LANG(?descEn) = "en") }
     BIND(COALESCE(?descNl, ?descEn) AS ?finalDesc)
 
-    # Forceer labels (NL of EN)
     OPTIONAL { ?item wdt:P186 ?mat. ?mat rdfs:label ?matLabel. FILTER(LANG(?matLabel) = "nl" || LANG(?matLabel) = "en") }
     OPTIONAL { ?item wdt:P135 ?mov. ?mov rdfs:label ?movLabel. FILTER(LANG(?movLabel) = "nl" || LANG(?movLabel) = "en") }
     OPTIONAL { ?item wdt:P136 ?gen. ?gen rdfs:label ?genLabel. FILTER(LANG(?genLabel) = "nl" || LANG(?genLabel) = "en") }
@@ -76,7 +73,7 @@ async function fetchWikidata(offset) {
 
   try {
     const res = await fetch(url, { 
-      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/11.0 (ArrayFix)' } 
+      headers: { 'Accept': 'application/json', 'User-Agent': 'MuseaThuisImporter/13.0 (SyntaxFix)' } 
     });
     if (res.status === 429) {
         console.warn("⏳ Rate limit. 5s pauze...");
@@ -88,9 +85,6 @@ async function fetchWikidata(offset) {
   } catch (e) { return null; }
 }
 
-// --- 🛠️ HELPER FUNCTIES ---
-
-// Voor enkele waarden (String/Int/Float)
 function clean(value, type = 'string') {
     if (!value) return null;
     if (type === 'number') return isNaN(parseFloat(value)) ? null : parseFloat(value);
@@ -99,18 +93,15 @@ function clean(value, type = 'string') {
     return value;
 }
 
-// 🔥 NIEUW: Voor Arrays (materials, tags, etc.)
-// Maakt van "Hout, Wood, Oil" -> ['Hout', 'Wood', 'Oil'] en verwijdert dubbelen
 function parseTags(value) {
-    if (!value) return null; // Of [] als je lege arrays wilt
+    if (!value) return null; 
     const rawList = value.split(',').map(s => s.trim()).filter(s => s !== '');
-    // Dedupliceren met Set
     const uniqueList = [...new Set(rawList)];
     return uniqueList.length > 0 ? uniqueList : null;
 }
 
 async function run() {
-  console.log('🚀 Start Import (Poging 11: Array Fix)...');
+  console.log('🚀 Start Import (Poging 13: Syntax Fix)...');
   
   let currentOffset = 0; 
   let loopCount = 0;
@@ -132,8 +123,7 @@ async function run() {
             if (match) yearClean = parseInt(match[1]);
         }
         
-        // Tags samenvoegen
-        const rawTags = [item.subjects?.value, item.genres?.value].filter(Boolean).join(", ");
+        const rawTagsString = [item.subjects?.value, item.genres?.value].filter(Boolean).join(", ");
         
         let diedYear = '';
         if (item.deathDate?.value) {
@@ -149,11 +139,12 @@ async function run() {
             museum: clean(item.museumLabel?.value),
             country: clean(item.countryLabel?.value),
             
-            // 👇 DE FIX: Gebruik parseTags() voor array-kolommen
             materials: parseTags(item.materials?.value),
             movement: parseTags(item.movements?.value),
             genre: parseTags(item.genres?.value),
-            ai_tags: parseTags(rawTags)
+
+            // 👇 Hier staat nu zeker weten een komma!
+            ai_tags: parseTags(rawTagsString),
             
             description_nl: clean(item.finalDesc?.value),
             height_cm: clean(item.height?.value, 'number'),
@@ -176,11 +167,7 @@ async function run() {
             .from('artworks')
             .upsert(uniqueRecords, { onConflict: 'wikidata_id', ignoreDuplicates: false });
 
-       if (error) {
-           console.error('❌ DB Error:', error.message);
-           // Als het nog steeds misgaat, is ai_tags misschien toch een array?
-           // Probeer dan in de code hierboven: ai_tags: parseTags(rawTags)
-       }
+       if (error) console.error('❌ DB Error:', error.message);
        else console.log(`✅ Offset ${currentOffset}: ${uniqueRecords.length} items.`);
     }
 
