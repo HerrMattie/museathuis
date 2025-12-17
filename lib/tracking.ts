@@ -19,22 +19,18 @@ export async function trackActivity(
   if (!userId) return;
 
   try {
-    // -------------------------------------------------------
-    // 1. LOG IN DATABASE (AANGEPAST AAN JOUW KOLOMMEN)
-    // -------------------------------------------------------
+    // 1. LOG IN DATABASE
+    // We gebruiken nu de kolomnamen die we op jouw screenshot zagen
     const { error } = await supabase.from('user_activity_logs').insert({
       user_id: userId,
       action_type: action,
-      // 👇 DEZE TWEE REGELS ZIJN AANGEPAST:
-      content_id: contentId || null, // Was: entity_id
-      meta_data: metaData            // Was: metadata
+      content_id: contentId || null, // ✅ AANGEPAST: Was entity_id
+      meta_data: metaData            // ✅ AANGEPAST: Was metadata
     });
 
     if (error) console.error("Log Error:", error.message);
 
-    // -------------------------------------------------------
-    // 2. XP BELONING VOOR DE GAME ZELF
-    // -------------------------------------------------------
+    // 2. XP BELONING (Directe punten voor games)
     if (action === 'complete_game') {
         await supabase.rpc('increment_xp', { 
             amount: 50, 
@@ -42,9 +38,7 @@ export async function trackActivity(
         });
     }
 
-    // -------------------------------------------------------
     // 3. CHECK STREAK
-    // -------------------------------------------------------
     if (action !== 'time_spent' && action !== 'page_view') {
         const today = new Date().toISOString().split('T')[0];
         
@@ -57,20 +51,12 @@ export async function trackActivity(
         if (profile) {
             const lastDate = profile.last_active_date;
             const streak = profile.current_streak || 0;
-            
             const d1 = new Date(today).getTime();
             const d2 = new Date(lastDate).getTime();
-            const diffTime = Math.abs(d1 - d2);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = Math.ceil(Math.abs(d1 - d2) / (1000 * 60 * 60 * 24));
 
             if (lastDate !== today) {
-                let newStreak = streak;
-                if (diffDays === 1) {
-                    newStreak = streak + 1;
-                } else if (diffDays > 1) {
-                    newStreak = 1;
-                }
-                
+                let newStreak = (diffDays === 1) ? streak + 1 : 1;
                 await supabase.from('user_profiles').update({
                     last_active_date: today,
                     current_streak: newStreak
@@ -79,17 +65,10 @@ export async function trackActivity(
         }
     }
 
-    // -------------------------------------------------------
     // 4. BADGES CHECKEN
-    // -------------------------------------------------------
     const nonBadgeActions = ['page_view', 'time_spent'];
-    
     if (!nonBadgeActions.includes(action)) {
-        const combinedMeta = { ...metaData, contentId };
-        
-        checkBadges(supabase, userId, action, combinedMeta).catch(err => 
-            console.error("Badge Check Error:", err)
-        );
+        checkBadges(supabase, userId, action, { ...metaData, contentId }).catch(console.error);
     }
 
   } catch (error) {
