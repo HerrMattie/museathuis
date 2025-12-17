@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient'; // Let op: Client import
+import { createClient } from '@/lib/supabaseClient'; 
 import Link from 'next/link';
 import { Clock, Share2, Lock, Play } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
-import AudioPlayer from '@/components/ui/AudioPlayer'; // De nieuwe universele player
+import AudioPlayer from '@/components/ui/AudioPlayer';
 import LikeButton from '@/components/LikeButton'; 
 import FeedbackButtons from '@/components/FeedbackButtons';
+import { trackActivity } from '@/lib/tracking'; // <--- 1. Importeer de centrale tracker
 
 export default function FocusDetailPage({ params }: { params: { id: string } }) {
     const [article, setArticle] = useState<any>(null);
@@ -35,6 +36,19 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
             if (error) console.error("Error fetching article:", error);
             setArticle(data);
             setLoading(false);
+
+            // 3. TRACKING: 'read_focus'
+            // We berekenen het aantal woorden om badges als 'Diepgraver' te kunnen geven
+            if (u?.user && data) {
+                const textContent = data.content_markdown || data.description || "";
+                const wordCount = textContent.split(/\s+/).length;
+
+                trackActivity(supabase, u.user.id, 'read_focus', data.id, {
+                    title: data.title,
+                    word_count: wordCount,
+                    reading_time: data.reading_time
+                });
+            }
         };
         
         fetchData();
