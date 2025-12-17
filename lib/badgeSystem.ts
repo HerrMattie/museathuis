@@ -21,40 +21,36 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         const isWin = safeScore >= (safeMax * 0.7); 
         const isPerfect = safeScore === safeMax && safeScore > 0;
 
-        // Directe checks
         if (isPerfect) earnedBadges.push('Scherpschutter');
         if (safeScore === 0) earnedBadges.push('Pechvogel');
         if (safeDuration <= 20) earnedBadges.push('Snelheidsduivel');
-        if (safeDuration > 300) earnedBadges.push('Slow Motion'); // > 5 min
+        if (safeDuration > 300) earnedBadges.push('Slow Motion');
         if (isWin && now.getDay() === 0) earnedBadges.push('Zondagskind');
 
-        // Tellers (Hoeveel games gespeeld/gewonnen?)
-        // We tellen de logs in de database
+        // Tellers (via database logs)
         const { count: gameCount } = await supabase
             .from('user_activity_logs')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId)
             .eq('action_type', 'complete_game');
         
-        const count = (gameCount || 0) + 1; // +1 voor de huidige game
+        const count = (gameCount || 0) + 1;
 
         if (count === 1) earnedBadges.push('Beginner');
         if (count >= 10) earnedBadges.push('Quiz Meester'); 
         if (count >= 50) earnedBadges.push('Professor');
         
-        // Voor 'Comeback Kid' (Winnen na 3x verliezen) zou je dieper in de historie moeten graven,
-        // dat is complexer en laten we voor nu even buiten beschouwing om de snelheid te bewaken.
+        // Net Niet (4x verliezen op rij) - Vereist complexe query, slaan we even over voor performance
+        // Comeback Kid - Idem
     }
 
 
     // -------------------------------------------------------
-    // 2. TIJD & DATUM (Wordt bij elke actie gecheckt)
+    // 2. TIJD & DATUM
     // -------------------------------------------------------
-    
-    // Tijdstippen
     if (hour >= 0 && hour < 4) earnedBadges.push('Nachtwacht');
     if (hour >= 5 && hour < 7) earnedBadges.push('Vroege Vogel');
-    if (now.getDay() === 5 && hour >= 17) earnedBadges.push('Vrijmibo'); // Vrijdag na 5
+    if (now.getDay() === 5 && hour >= 17) earnedBadges.push('Vrijmibo');
     if (hour === 23 && now.getMinutes() >= 50) earnedBadges.push('Op de Valreep');
     
     if (action === 'login' && hour >= 14) earnedBadges.push('Slaapkop');
@@ -62,22 +58,21 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
 
     // Speciale Dagen
     if (month === 12 && (day === 25 || day === 26)) earnedBadges.push('Kerstmis');
-    if (month === 12 && day >= 24 && day <= 26) earnedBadges.push('Kerst 2025'); // Specifiek jaar checken we niet, gewoon kerstperiode
+    if (month === 12 && day >= 24 && day <= 26) earnedBadges.push('Kerst 2025');
     if ((month === 12 && day === 31) || (month === 1 && day === 1)) earnedBadges.push('Oliebol');
     if (month === 2 && day === 14) earnedBadges.push('Valentijn');
     if (month === 4 && day === 27) earnedBadges.push('Koningsdag');
     if (month === 10 && day === 31) earnedBadges.push('Griezelig');
-    
-    // Blauwe Maandag (3e maandag van januari)
     if (month === 1 && now.getDay() === 1 && day >= 15 && day <= 21) earnedBadges.push('Blauwe Maandag');
 
 
     // -------------------------------------------------------
-    // 3. CONTENT (Kijken & Lezen)
+    // 3. CONTENT (Kijken & Lezen - UITGEBREID)
     // -------------------------------------------------------
     
-    // Kunst bekijken
+    // KUNST BEKIJKEN
     if (action === 'view_artwork') {
+        // A. Tellers
         const { count } = await supabase
             .from('user_activity_logs')
             .select('*', { count: 'exact', head: true })
@@ -90,11 +85,48 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (currentCount === 10) earnedBadges.push('Nieuwsgierig');
         if (currentCount === 50) earnedBadges.push('Kunstliefhebber');
         if (currentCount === 100) earnedBadges.push('Museumkaart');
-        if (currentCount === 500) earnedBadges.push('Curator'); // Let op: naamconflict met favorieten, zie onder
+        if (currentCount === 500) earnedBadges.push('Curator'); 
         if (currentCount === 1000) earnedBadges.push('Levend Inventaris');
+
+        // B. Inhoudelijke Checks (Metadata)
+        const artist = (meta.artist || '').toLowerCase();
+        const tags = Array.isArray(meta.tags) ? meta.tags.map((t: string) => t.toLowerCase()) : [];
+        const year = meta.year || 0;
+
+        // "Hollandse Glorie"
+        if (artist.includes('rembrandt') || artist.includes('vermeer')) {
+             earnedBadges.push('Hollandse Glorie'); 
+        }
+
+        // "Franse Slag" (Impressionisten)
+        const impressionists = ['monet', 'renoir', 'degas', 'manet'];
+        if (impressionists.some(name => artist.includes(name))) {
+            earnedBadges.push('Franse Slag');
+        }
+
+        // "Modernist" (20e eeuw)
+        if (year >= 1900 && year < 2000) {
+            earnedBadges.push('Modernist');
+        }
+
+        // "Dierenvriend"
+        const animalTags = ['dier', 'kat', 'hond', 'paard', 'vogel', 'koe', 'schaap'];
+        if (tags.some((t: string) => animalTags.some(animal => t.includes(animal)))) {
+            earnedBadges.push('Dierenvriend');
+        }
+
+        // "Landschapsarchitect"
+        if (tags.some((t: string) => t.includes('landschap'))) {
+            earnedBadges.push('Landschapsarchitect');
+        }
+        
+        // "Monochroom"
+        if (tags.some((t: string) => ['schets', 'zwart-wit', 'tekening', 'ets'].includes(t))) {
+            earnedBadges.push('Monochroom');
+        }
     }
 
-    // Focus Artikelen lezen
+    // FOCUS ARTIKELEN
     if (action === 'read_focus') {
          const { count } = await supabase
             .from('user_activity_logs')
@@ -107,21 +139,19 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (countReads === 3) earnedBadges.push('Boekenwurm');
         if (countReads === 20) earnedBadges.push('Bibliothecaris');
         
-        // Specifieke metadata checks (wordt meegegeven vanuit de pagina)
         if (meta.word_count && meta.word_count > 2000) earnedBadges.push('Diepgraver');
-        if (meta.duration && meta.duration < 5) earnedBadges.push('Scanner'); // < 5 sec
+        if (meta.duration && meta.duration < 5) earnedBadges.push('Scanner');
     }
 
     // Specifieke pagina's
     if (action === 'visit_salon') earnedBadges.push('De Deur Staat Open');
     if (action === '404_visit') earnedBadges.push('Verdwaald');
-    if (action === 'view_about') earnedBadges.push('Supporter');
+    if (action === 'visit_about') earnedBadges.push('Supporter');
 
 
     // -------------------------------------------------------
     // 4. INTERACTIE & INSTELLINGEN
     // -------------------------------------------------------
-    
     if (action === 'update_settings') earnedBadges.push('Instellingen Guru');
     if (action === 'update_avatar') earnedBadges.push('Profiel Plaatje');
 
@@ -144,13 +174,13 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
 
     if (action === 'share_item') {
         earnedBadges.push('Influencer');
+        // Voor 'Viral Gaan' (10x) zou je weer een count query moeten doen
     }
 
 
     // -------------------------------------------------------
-    // 5. STREAKS (Data uit user_profiles halen)
+    // 5. STREAKS
     // -------------------------------------------------------
-    // Streaks worden berekend in tracking.ts. Hier kijken we alleen of het genoeg is voor een badge.
     const { data: profile } = await supabase
         .from('user_profiles')
         .select('current_streak')
@@ -171,34 +201,25 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     // -------------------------------------------------------
     // 6. TOEKENNEN IN DATABASE
     // -------------------------------------------------------
-    
     if (earnedBadges.length > 0) {
-        // A. Zoek de ID's op van de badges
         const { data: badgeDefinitions } = await supabase
             .from('badges')
             .select('id, name')
             .in('name', earnedBadges);
 
         if (badgeDefinitions && badgeDefinitions.length > 0) {
-            
             for (const badgeDef of badgeDefinitions) {
-                // B. Probeer in te voegen
                 const { error } = await supabase
                     .from('user_badges')
                     .insert({
                         user_id: userId,
                         badge_id: badgeDef.id
                     })
-                    .select(); // Select zorgt dat we weten of het gelukt is
+                    .select();
 
                 if (!error) {
-                    console.log(`🏆 NIEUWE BADGE TOEGEKEND: ${badgeDef.name}`);
-                    // Omdat we Supabase Realtime gebruiken (in AchievementPopup),
-                    // hoeven we hier geen handmatige state update te doen. 
-                    // De database insert triggert de popup automatisch!
+                    console.log(`🏆 NIEUWE BADGE: ${badgeDef.name}`);
                 } else if (error.code !== '23505') {
-                    // 23505 = Unique Violation (Gebruiker heeft de badge al). 
-                    // Dit is geen echte fout, dus we loggen alleen andere errors.
                     console.error(`Fout bij toekennen ${badgeDef.name}:`, error.message);
                 }
             }
