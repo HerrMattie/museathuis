@@ -23,10 +23,10 @@ export default async function FavoritesPage() {
   }
 
   // 2. Sorteer ID's per type
-  const tourIds = [...new Set(favorites.filter(f => f.item_type === 'tour').map(f => f.item_id))];
-  const gameIds = [...new Set(favorites.filter(f => f.item_type === 'game').map(f => f.item_id))];
-  // Let op: in je favorites tabel heet het type 'focus', maar we halen data uit 'focus_items'
-  const focusIds = [...new Set(favorites.filter(f => f.item_type === 'focus').map(f => f.item_id))];
+  // FIX: Gebruik Array.from() in plaats van [...new Set()] om de TS error te voorkomen
+  const tourIds = Array.from(new Set(favorites.filter(f => f.item_type === 'tour').map(f => f.item_id)));
+  const gameIds = Array.from(new Set(favorites.filter(f => f.item_type === 'game').map(f => f.item_id)));
+  const focusIds = Array.from(new Set(favorites.filter(f => f.item_type === 'focus').map(f => f.item_id)));
 
   // 3. Haal de details op
   let tours: any[] = [];
@@ -43,7 +43,6 @@ export default async function FavoritesPage() {
     if (data) games = data;
   }
 
-  // AANGEPAST: Tabelnaam is nu correct 'focus_items'
   if (focusIds.length > 0) {
     const { data } = await supabase
         .from('focus_items') 
