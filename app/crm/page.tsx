@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
-import { Users, Crown, Activity, Image as ImageIcon, Gamepad2, Headphones, ArrowRight, Clock, TrendingUp } from 'lucide-react';
-import ExportButton from '@/components/crm/ExportButton'; // <--- TOEVOEGEN
+import { Users, Crown, Activity, Image as ImageIcon, Gamepad2, Headphones, ArrowRight, Clock, TrendingUp, Newspaper, Coffee } from 'lucide-react';
+import ExportButton from '@/components/crm/ExportButton';
 
 export default function CrmDashboardPage() {
     const [stats, setStats] = useState({
@@ -13,7 +13,9 @@ export default function CrmDashboardPage() {
         activeToday: 0,
         totalArtworks: 0,
         totalGames: 0,
-        totalTours: 0
+        totalTours: 0,
+        totalFocus: 0, // Nieuw
+        totalSalons: 0 // Nieuw
     });
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -27,13 +29,15 @@ export default function CrmDashboardPage() {
     const fetchDashboardData = async () => {
         const today = new Date().toISOString().split('T')[0];
 
-        // 1. Parallel Data Ophalen (Snelheid!)
+        // 1. Parallel Data Ophalen (Nu inclusief Focus en Salons!)
         const [
             users, 
             premium, 
             artworks, 
             games, 
             tours, 
+            focus, // Nieuw
+            salons, // Nieuw
             activity
         ] = await Promise.all([
             supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
@@ -41,17 +45,20 @@ export default function CrmDashboardPage() {
             supabase.from('artworks').select('*', { count: 'exact', head: true }),
             supabase.from('games').select('*', { count: 'exact', head: true }),
             supabase.from('tours').select('*', { count: 'exact', head: true }),
-            // Recente acties ophalen met user details
+            supabase.from('focus_items').select('*', { count: 'exact', head: true }), // Nieuw
+            supabase.from('salons').select('*', { count: 'exact', head: true }), // Nieuw
+            
+            // Recente acties
             supabase.from('user_activity_logs')
                 .select('action_type, created_at, metadata, user_profiles(full_name)')
                 .order('created_at', { ascending: false })
                 .limit(10)
         ]);
 
-        // 2. Unieke bezoekers vandaag berekenen
+        // 2. Unieke bezoekers vandaag
         const { count: todayCount } = await supabase
             .from('user_activity_logs')
-            .select('user_id', { count: 'exact', head: true }) // Eigenlijk wil je distinct count, maar dit is een goede benadering voor nu
+            .select('user_id', { count: 'exact', head: true })
             .gte('created_at', `${today}T00:00:00`);
 
         setStats({
@@ -60,14 +67,15 @@ export default function CrmDashboardPage() {
             activeToday: todayCount || 0,
             totalArtworks: artworks.count || 0,
             totalGames: games.count || 0,
-            totalTours: tours.count || 0
+            totalTours: tours.count || 0,
+            totalFocus: focus.count || 0, // Nieuw
+            totalSalons: salons.count || 0 // Nieuw
         });
 
         setRecentActivity(activity.data || []);
         setLoading(false);
     };
 
-    // Helper voor mooie labels in de feed
     const formatAction = (type: string, meta: any) => {
         switch(type) {
             case 'login': return 'is ingelogd';
@@ -85,21 +93,20 @@ export default function CrmDashboardPage() {
     );
 
     return (
-<div className="p-8 max-w-7xl mx-auto">
+        <div className="p-8 max-w-7xl mx-auto">
             <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-800 mb-2">Dashboard</h1>
                     <p className="text-slate-500">Welkom terug, Directeur. Hier is het overzicht.</p>
                 </div>
                 
-                {/* DE EXPORT KNOP */}
                 <ExportButton /> 
             </header>
 
             {/* --- STATS GRID --- */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 
-                {/* Users Card */}
+                {/* Users */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Gebruikers</p>
@@ -113,7 +120,7 @@ export default function CrmDashboardPage() {
                     </div>
                 </div>
 
-                {/* Activity Card */}
+                {/* Activity */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Acties Vandaag</p>
@@ -127,7 +134,7 @@ export default function CrmDashboardPage() {
                     </div>
                 </div>
 
-                {/* Content Card */}
+                {/* Content */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Collectie Grootte</p>
@@ -144,7 +151,7 @@ export default function CrmDashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                {/* --- LIVE FEED (Links, Breed) --- */}
+                {/* --- LIVE FEED (Links) --- */}
                 <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                         <h3 className="font-bold text-slate-800">Recente Activiteit</h3>
@@ -175,13 +182,14 @@ export default function CrmDashboardPage() {
                     </div>
                 </div>
 
-                {/* --- SNELKOPPELINGEN (Rechts, Smal) --- */}
+                {/* --- SNELKOPPELINGEN (Rechts) --- */}
                 <div className="space-y-6">
                     
                     {/* Content Overzicht */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                         <h3 className="font-bold text-slate-800 mb-4">Content Status</h3>
                         <div className="space-y-4">
+                            {/* Audiotours */}
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Headphones size={16}/></div>
@@ -189,6 +197,8 @@ export default function CrmDashboardPage() {
                                 </div>
                                 <span className="font-bold text-slate-800">{stats.totalTours}</span>
                             </div>
+                            
+                            {/* Games */}
                             <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><Gamepad2 size={16}/></div>
@@ -196,7 +206,26 @@ export default function CrmDashboardPage() {
                                 </div>
                                 <span className="font-bold text-slate-800">{stats.totalGames}</span>
                             </div>
+
+                            {/* Focus Items (Toegevoegd) */}
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Newspaper size={16}/></div>
+                                    <span className="text-sm font-medium text-slate-600">Focus Artikelen</span>
+                                </div>
+                                <span className="font-bold text-slate-800">{stats.totalFocus}</span>
+                            </div>
+
+                            {/* Salons (Toegevoegd) */}
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Coffee size={16}/></div>
+                                    <span className="text-sm font-medium text-slate-600">Salons</span>
+                                </div>
+                                <span className="font-bold text-slate-800">{stats.totalSalons}</span>
+                            </div>
                         </div>
+                        
                         <div className="mt-6 pt-4 border-t border-slate-100">
                             <Link href="/crm/import" className="block w-full py-2 bg-slate-900 text-white text-center rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors">
                                 + Nieuwe Content Importeren
@@ -205,7 +234,8 @@ export default function CrmDashboardPage() {
                     </div>
 
                     {/* Weekplanning Link */}
-                    <Link href="/crm/week" className="block bg-museum-gold rounded-xl p-6 shadow-lg shadow-yellow-900/10 hover:shadow-xl transition-all group">
+                    {/* LET OP: Ik heb de link aangepast naar /crm/schedule omdat je daar aan werkte in de vorige stap */}
+                    <Link href="/crm/schedule" className="block bg-museum-gold rounded-xl p-6 shadow-lg shadow-yellow-900/10 hover:shadow-xl transition-all group">
                         <h3 className="font-bold text-black mb-1 group-hover:underline">Weekplanning</h3>
                         <p className="text-sm text-yellow-900/80 mb-4">Beheer het dagprogramma.</p>
                         <div className="flex justify-end">
