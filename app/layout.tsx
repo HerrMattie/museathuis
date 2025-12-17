@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 // ✅ De juiste import (die andere mag je dus verwijderen)
 import PageTracker from '@/components/analytics/PageTracker';
+import AchievementPopup from "@/components/gamification/AchievementPopup";
 
 import Header from "@/components/layout/Header"; 
 import Footer from "@/components/layout/Footer"; 
@@ -38,6 +39,9 @@ export default function RootLayout({
         
         <main className="flex-1 flex flex-col pt-20"> 
           {children}
+        {/* 2. Voeg hem hier toe, zodat hij boven alles ligt */}
+        <AchievementPopup />
+          
         </main>
 
         <Footer />
