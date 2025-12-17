@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react';
 import Link from 'next/link';
-import AudioPlayer from './AudioPlayer'; 
+import AudioPlayer from '@/components/ui/AudioPlayer'; 
 import LikeButton from '@/components/LikeButton'; // <--- AANGEPAST: Juiste pad
 import FeedbackButtons from '@/components/FeedbackButtons'; // <--- NIEUW: Feedback
 import { motion, AnimatePresence } from 'framer-motion';
