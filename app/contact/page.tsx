@@ -1,43 +1,73 @@
-import { createClient } from '@/lib/supabaseServer';
-import { cookies } from 'next/headers';
-import Header from "@/components/layout/Header"; // Of gewoon "@/components/Header" als je die structuur hebt
-import Footer from "@/components/layout/Footer";
+'use client';
 
-export const revalidate = 0; // Zorg dat we altijd verse data hebben
+import { useState } from 'react';
+import { createClient } from '@/lib/supabaseClient';
+import { trackActivity } from '@/lib/tracking';
+import { ArrowLeft, Send, Bug } from 'lucide-react';
+import Link from 'next/link';
 
-export default async function ContactPage() {
-  const supabase = createClient(cookies());
+export default function ContactPage() {
+  const [sent, setSent] = useState(false);
+  const supabase = createClient();
 
-  // 1. HAAL DE TEKSTEN OP UIT DE DB
-  const { data: content } = await supabase
-    .from('site_content')
-    .select('*')
-    .in('key', ['contact_title', 'contact_text']); // <--- Hier geef je aan welke keys je nodig hebt
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // 1. Simuleer versturen (Hier zou je normaal een API call doen naar je mail service)
+    setSent(true);
 
-  // 2. Zet ze om naar een handig object: { contact_title: "...", contact_text: "..." }
-  const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
+    // 2. TRIGGER BADGE: Glitch Hunter
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        trackActivity(supabase, user.id, 'submit_contact');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-slate-200">
-      {/* Header en Footer zitten vaak al in layout.tsx, dus check even of je ze hier nodig hebt.
-          Als ze dubbel verschijnen, haal ze dan hier weg! */}
-      
-      <div className="max-w-4xl mx-auto px-6 py-24">
-        
-        {/* 3. GEBRUIK DE VARIABELEN */}
-        <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-6">
-            {texts.contact_title || "Neem Contact Op"} 
-        </h1>
-        
-        <p className="text-xl text-slate-400 mb-12 leading-relaxed">
-            {texts.contact_text || "Heb je vragen? Stuur ons een bericht."}
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
+      <div className="max-w-2xl mx-auto">
+        <Link href="/" className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 text-sm font-bold uppercase">
+            <ArrowLeft size={16}/> Terug
+        </Link>
+
+        <h1 className="text-4xl font-serif font-bold mb-4">Contact & Support</h1>
+        <p className="text-gray-400 mb-12">
+            Heb je een vraag, of heb je een foutje gevonden in de app? Laat het ons weten.
         </p>
 
-        {/* Hieronder de rest van je formulier of contactgegevens... */}
-        <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
-            <p className="text-museum-gold">info@museathuis.nl</p>
-        </div>
+        {sent ? (
+            <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-2xl text-center">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Send size={32} className="text-black"/>
+                </div>
+                <h3 className="text-xl font-bold text-green-400 mb-2">Bericht Verzonden!</h3>
+                <p className="text-gray-300">Bedankt voor je feedback. We kijken er zo snel mogelijk naar.</p>
+            </div>
+        ) : (
+            <form onSubmit={handleSubmit} className="space-y-6 bg-midnight-900 p-8 rounded-2xl border border-white/5">
+                <div>
+                    <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-400">Onderwerp</label>
+                    <select className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold focus:outline-none">
+                        <option>Algemene Vraag</option>
+                        <option>Foutmelding / Bug Report</option>
+                        <option>Feedback</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-bold uppercase tracking-wider mb-2 text-gray-400">Bericht</label>
+                    <textarea required rows={5} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold focus:outline-none"></textarea>
+                </div>
 
+                <button type="submit" className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                    <Send size={18}/> Verstuur Bericht
+                </button>
+                
+                <p className="text-xs text-center text-gray-500 mt-4 flex items-center justify-center gap-1">
+                    <Bug size={12}/> Het melden van bugs wordt beloond!
+                </p>
+            </form>
+        )}
       </div>
     </div>
   );
