@@ -54,16 +54,22 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
     };
 
     // 2. De Finish Functie (Hier gebeurt de magie!)
-const playAudio = (src: string, title: string) => {
-    setActiveAudio({ src, title });
+const finishGame = async (finalScore: number) => {
+    setFinished(true);
+    if (!user) return;
 
-    // Als de gebruiker ingelogd is, loggen we de start
-    // Dit triggert eventueel badges zoals 'Lunchpauze' of 'Vrijmibo'
-    if (user) {
-        trackActivity(supabase, user.id, 'start_tour', tour.id, {
-            tour_title: tour.title
-        });
-    }
+    const duration = Math.floor((Date.now() - startTime) / 1000);
+    const maxScore = questions.length * 100;
+
+    // VERVANG ALLES HIERONDER MET DIT:
+    // We sturen alle data naar je centrale tracking.
+    // Die regelt opslag, streaks én badges (zoals 'Snelheidsduivel' of 'Quiz Meester').
+    await trackActivity(supabase, user.id, 'complete_game', params.id, {
+        score: finalScore,
+        max_score: maxScore,
+        duration: duration,
+        type: 'quiz' // Of haal dit dynamisch op
+    });
 };
 
     if (questions.length === 0) return <div className="bg-midnight-950 min-h-screen"/>;
