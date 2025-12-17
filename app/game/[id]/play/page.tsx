@@ -7,6 +7,7 @@ import { X, Trophy } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import FeedbackButtons from '@/components/FeedbackButtons';
 import { checkBadges } from '@/lib/badgeSystem'; // <--- BELANGRIJK: Importeer dit!
+import { trackActivity } from '@/lib/tracking'; // <--- Importeer de centrale tracker
 
 export default function GamePlayPage({ params }: { params: { id: string } }) {
     const [questions, setQuestions] = useState<any[]>([]);
@@ -53,34 +54,17 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
     };
 
     // 2. De Finish Functie (Hier gebeurt de magie!)
-    const finishGame = async (finalScore: number) => {
-        setFinished(true);
-        
-        if (!user) return;
+const playAudio = (src: string, title: string) => {
+    setActiveAudio({ src, title });
 
-        // Bereken duur in seconden
-        const duration = Math.floor((Date.now() - startTime) / 1000);
-        const maxScore = questions.length * 100;
-
-        // A. Sla score op in database (optioneel, als je een scoreboard hebt)
-        // await supabase.from('game_scores').insert({ ... });
-
-        // B. TRIGGER BADGES
-        // Dit roept jouw badgeSystem aan dat we net gemaakt hebben
-        await checkBadges(supabase, user.id, 'complete_game', {
-            type: 'quiz',
-            score: finalScore,
-            max_score: maxScore,
-            duration: duration
+    // Als de gebruiker ingelogd is, loggen we de start
+    // Dit triggert eventueel badges zoals 'Lunchpauze' of 'Vrijmibo'
+    if (user) {
+        trackActivity(supabase, user.id, 'start_tour', tour.id, {
+            tour_title: tour.title
         });
-
-        // C. Log de activiteit (voor statistieken)
-        await supabase.from('user_activity_logs').insert({
-            user_id: user.id,
-            action_type: 'complete_game',
-            metadata: { score: finalScore, duration }
-        });
-    };
+    }
+};
 
     if (questions.length === 0) return <div className="bg-midnight-950 min-h-screen"/>;
 
