@@ -1,57 +1,57 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-// Zorg dat deze ID's matchen met je database tabel 'badge_definitions'
 export async function checkBadges(supabase: SupabaseClient, userId: string, action: string, meta: any) {
-    const newBadges = [];
+    const earnedBadges: string[] = [];
 
-    // --- LOGICA PER BADGE ---
+    // --- 1. BEPAAL WELKE BADGES VERDIEND ZIJN (De Logica) ---
 
-    // 1. QUIZ MASTER (Foutloze score bij een quiz)
+    // Voorbeeld: 'Beginner' (Eerste keer een quiz)
+    if (action === 'complete_game') {
+        earnedBadges.push('Beginner'); // Zorg dat deze naam EXACT zo in je 'badges' tabel staat (kolom 'name')
+    }
+
+    // Voorbeeld: 'Quiz Master' (Foutloze score)
     if (action === 'complete_game' && meta.type === 'quiz' && meta.score === meta.max_score) {
-        newBadges.push('quiz_master');
+        earnedBadges.push('Quiz Master'); 
     }
 
-    // 2. SPEED DEMON (Erg snel een game afgerond)
+    // Voorbeeld: 'Speed Demon' (< 20 sec)
     if (action === 'complete_game' && meta.duration < 20) {
-        newBadges.push('speed_demon'); 
+        earnedBadges.push('Speed Demon'); 
     }
 
-    // 3. CURATOR (Eerste item bewaard)
+    // Voorbeeld: 'Curator' (Favoriet opslaan)
     if (action === 'favorite_item') {
-        newBadges.push('curator');
+        earnedBadges.push('Curator');
     }
 
-    // 4. NIGHT OWL (Spelen tussen 00:00 en 04:00)
-    const hour = new Date().getHours();
-    if (action === 'complete_game' && (hour >= 0 && hour < 4)) {
-        newBadges.push('night_owl');
-    }
-
-    // 5. EARLY BIRD (Spelen tussen 05:00 en 08:00)
-    if (action === 'complete_game' && (hour >= 5 && hour < 8)) {
-        newBadges.push('early_bird');
-    }
-
-    // 6. SCHERP OOG (Hoge score bij Pixel Hunt)
-    if (action === 'complete_game' && meta.type === 'pixel_hunt' && meta.score > 25) {
-        newBadges.push('eagle_eye');
-    }
-
-    // --- TOEKENNEN ---
+    // --- 2. DE DATABASE ACTIE (De Fix) ---
     
-    if (newBadges.length > 0) {
-        for (const badgeSlug of newBadges) {
-            // Probeer badge toe te voegen.
-            // Zorg dat je 'user_badges' tabel een UNIQUE constraint heeft op (user_id, badge_id)
-            // zodat dubbele badges automatisch worden genegeerd door de database.
-            const { error } = await supabase.from('user_badges').insert({
-                user_id: userId,
-                badge_id: badgeSlug
-            });
+    if (earnedBadges.length > 0) {
+        // A. Zoek eerst de UUID's op van deze badges
+        const { data: badgeDefinitions } = await supabase
+            .from('badges')
+            .select('id, name')
+            .in('name', earnedBadges); // We zoeken op NAAM
 
-            if (!error) {
-                console.log(`🏆 Nieuwe Badge voor ${userId}: ${badgeSlug}`);
-                // Optioneel: Hier zou je een notificatie kunnen triggeren
+        if (badgeDefinitions && badgeDefinitions.length > 0) {
+            
+            for (const badgeDef of badgeDefinitions) {
+                // B. Probeer ze in te voegen in user_badges met het juiste ID
+                const { error } = await supabase
+                    .from('user_badges')
+                    .insert({
+                        user_id: userId,
+                        badge_id: badgeDef.id // <--- HIER GEBRUIKEN WE NU DE UUID!
+                    })
+                    .select();
+
+                // Negeer error code 23505 (betekent: heeft badge al), log andere fouten
+                if (!error) {
+                    console.log(`🏆 Badge Toegekend: ${badgeDef.name}`);
+                } else if (error.code !== '23505') {
+                    console.error('Badge Error:', error.message);
+                }
             }
         }
     }
