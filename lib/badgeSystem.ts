@@ -57,7 +57,7 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     if (month === 12 && (day === 25 || day === 26)) earnedBadges.push('Kerstmis');
     if ((month === 12 && day === 31) || (month === 1 && day === 1)) earnedBadges.push('Oliebol');
     if (month === 2 && day === 14) earnedBadges.push('Valentijn');
-    if (month === 4 && day === 27) earnedBadges.push('Koningsdag');
+    if (month === 4 && day === 30) earnedBadges.push('Koningsdag');
     if (month === 10 && day === 31) earnedBadges.push('Griezelig');
     // Blauwe maandag (Simpele check: 3e maandag jan)
     if (month === 1 && now.getDay() === 1 && day >= 15 && day <= 21) earnedBadges.push('Blauwe Maandag');
