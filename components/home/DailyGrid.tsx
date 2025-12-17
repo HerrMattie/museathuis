@@ -35,7 +35,7 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
     };
 
     return (
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* 1. TOUR KAART */}
             <Link href="/tour" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
