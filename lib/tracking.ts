@@ -1,16 +1,12 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { checkBadges } from '@/lib/badgeSystem';
 
-// 1. Uitgebreide Actie Types (Nu compleet met alle nieuwe badges)
 export type ActionType = 
-  // Content consumptie
   | 'complete_tour' | 'start_tour' | 'complete_game' 
   | 'read_focus' | 'visit_salon' | 'visit_best_of' | 'visit_about'
   | 'view_artwork' | '404_visit' | 'complete_onboarding'
-  // Interactie
   | 'rate_item' | 'favorite_item' | 'share_item'
   | 'update_settings' | 'update_avatar'
-  // Passief / Systeem
   | 'login' | 'page_view' | 'time_spent' | 'buy_premium';
 
 export async function trackActivity(
@@ -24,13 +20,14 @@ export async function trackActivity(
 
   try {
     // -------------------------------------------------------
-    // 1. LOG IN DATABASE
+    // 1. LOG IN DATABASE (AANGEPAST AAN JOUW KOLOMMEN)
     // -------------------------------------------------------
     const { error } = await supabase.from('user_activity_logs').insert({
       user_id: userId,
       action_type: action,
-      entity_id: contentId || null, 
-      metadata: metaData
+      // 👇 DEZE TWEE REGELS ZIJN AANGEPAST:
+      content_id: contentId || null, // Was: entity_id
+      meta_data: metaData            // Was: metadata
     });
 
     if (error) console.error("Log Error:", error.message);
@@ -46,9 +43,8 @@ export async function trackActivity(
     }
 
     // -------------------------------------------------------
-    // 3. CHECK STREAK (1x per sessie)
+    // 3. CHECK STREAK
     // -------------------------------------------------------
-    // We sluiten passieve events uit om DB calls te besparen
     if (action !== 'time_spent' && action !== 'page_view') {
         const today = new Date().toISOString().split('T')[0];
         
@@ -62,7 +58,6 @@ export async function trackActivity(
             const lastDate = profile.last_active_date;
             const streak = profile.current_streak || 0;
             
-            // Bereken verschil in dagen
             const d1 = new Date(today).getTime();
             const d2 = new Date(lastDate).getTime();
             const diffTime = Math.abs(d1 - d2);
@@ -71,12 +66,11 @@ export async function trackActivity(
             if (lastDate !== today) {
                 let newStreak = streak;
                 if (diffDays === 1) {
-                    newStreak = streak + 1; // Gisteren was laatste keer -> Streak +1
+                    newStreak = streak + 1;
                 } else if (diffDays > 1) {
-                    newStreak = 1; // Langer geleden -> Reset
+                    newStreak = 1;
                 }
                 
-                // Update Profiel
                 await supabase.from('user_profiles').update({
                     last_active_date: today,
                     current_streak: newStreak
@@ -93,7 +87,6 @@ export async function trackActivity(
     if (!nonBadgeActions.includes(action)) {
         const combinedMeta = { ...metaData, contentId };
         
-        // Fire & Forget (niet wachten op resultaat)
         checkBadges(supabase, userId, action, combinedMeta).catch(err => 
             console.error("Badge Check Error:", err)
         );
