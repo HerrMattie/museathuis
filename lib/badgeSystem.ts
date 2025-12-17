@@ -45,9 +45,11 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     }
 
 
-    // -------------------------------------------------------
+// -------------------------------------------------------
     // 2. TIJD & DATUM
     // -------------------------------------------------------
+    // Tijdstippen
+    if (hour >= 18) earnedBadges.push('Donkere Modus'); // <--- NIEUW: Avond (vanaf 18:00)
     if (hour >= 0 && hour < 4) earnedBadges.push('Nachtwacht');
     if (hour >= 5 && hour < 7) earnedBadges.push('Vroege Vogel');
     if (now.getDay() === 5 && hour >= 17) earnedBadges.push('Vrijmibo');
@@ -64,7 +66,6 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     if (month === 4 && day === 27) earnedBadges.push('Koningsdag');
     if (month === 10 && day === 31) earnedBadges.push('Griezelig');
     if (month === 1 && now.getDay() === 1 && day >= 15 && day <= 21) earnedBadges.push('Blauwe Maandag');
-
 
     // -------------------------------------------------------
     // 3. CONTENT (Kijken & Lezen - UITGEBREID)
@@ -108,7 +109,14 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (year >= 1900 && year < 2000) {
             earnedBadges.push('Modernist');
         }
-
+// "Portret Jager"
+        if (tags.some((t: string) => t.includes('portret'))) {
+            earnedBadges.push('Portret Jager');
+        }
+        // VIP Badge (Als gebruiker Premium koopt)
+    if (action === 'buy_premium') {
+        earnedBadges.push('VIP');
+    }
         // "Dierenvriend"
         const animalTags = ['dier', 'kat', 'hond', 'paard', 'vogel', 'koe', 'schaap'];
         if (tags.some((t: string) => animalTags.some(animal => t.includes(animal)))) {
