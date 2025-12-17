@@ -41,7 +41,7 @@ export default function Footer() {
               <li><Link href="/terms" className="hover:text-museum-gold transition-colors">Algemene Voorwaarden</Link></li>
             </ul>
           </div>
-
+</div>
 
         {/* COPYRIGHT BAR */}
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-600">
