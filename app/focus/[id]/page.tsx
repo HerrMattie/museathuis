@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabaseClient'; // Let op: Client import
 import Link from 'next/link';
 import { Clock, Share2, Lock, Play } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
-import AudioPlayer from '@/components/ui/AudioPlayer';
-// DE NIEUWE COMPONENTS
+import AudioPlayer from '@/components/ui/AudioPlayer'; // De nieuwe universele player
 import LikeButton from '@/components/LikeButton'; 
 import FeedbackButtons from '@/components/FeedbackButtons';
 
@@ -14,29 +13,37 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
     const [article, setArticle] = useState<any>(null);
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [isPlaying, setIsPlaying] = useState(false);
+    
+    // State voor de audio speler
+    const [showAudio, setShowAudio] = useState(false);
     
     const supabase = createClient();
 
     useEffect(() => {
         const fetchData = async () => {
+            // 1. Haal User op
             const { data: u } = await supabase.auth.getUser();
             setUser(u?.user);
 
-            const { data } = await supabase
+            // 2. Haal Artikel op
+            const { data, error } = await supabase
                 .from('focus_items')
                 .select('*')
                 .eq('id', params.id)
                 .single();
             
+            if (error) console.error("Error fetching article:", error);
             setArticle(data);
             setLoading(false);
         };
+        
         fetchData();
-        return () => setIsPlaying(false);
-    }, [params.id]);
+        
+        // Cleanup: stop audio als je de pagina verlaat
+        return () => setShowAudio(false);
+    }, [params.id, supabase]);
 
-    if (loading) return <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">Laden...</div>;
+    if (loading) return <div className="min-h-screen bg-midnight-950 text-white pt-32 px-6 text-center">Laden...</div>;
     if (!article) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">Artikel niet gevonden.</div>;
 
     const isLocked = article.is_premium && !user;
@@ -54,31 +61,37 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
 
             <div className="max-w-3xl mx-auto px-6 -mt-20 relative z-20">
                 
-                {/* ACTIE BALK */}
+                {/* ACTIE KAART */}
                 <div className="bg-midnight-900/90 border border-white/10 p-6 rounded-2xl backdrop-blur-md shadow-2xl mb-12">
-                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                         
-                        {isLocked ? (
-                            <Link href="/pricing" className="w-full bg-museum-gold text-black py-3 rounded-xl font-bold flex items-center justify-center gap-2">
-                                <Lock size={20}/> Word lid om te lezen
-                            </Link>
-                        ) : (
-                            <button onClick={() => setIsPlaying(true)} className="w-full bg-white text-black py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
-                                <Play size={20} fill="black"/> Luister Artikel
-                            </button>
-                        )}
+                        {/* Audio / Lock Knop */}
+                        <div className="w-full md:w-auto md:flex-1">
+                            {isLocked ? (
+                                <Link href="/pricing" className="w-full bg-museum-gold hover:bg-yellow-500 text-black py-3 px-6 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                                    <Lock size={20}/> Word lid om te lezen
+                                </Link>
+                            ) : (
+                                <button 
+                                    onClick={() => setShowAudio(true)} 
+                                    className="w-full bg-white hover:bg-gray-100 text-black py-3 px-6 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <Play size={20} fill="black"/> Luister Artikel
+                                </button>
+                            )}
+                        </div>
 
-                        <div className="flex items-center gap-6 text-sm font-bold text-gray-400 w-full md:w-auto justify-center">
+                        {/* Meta Info & Actions */}
+                        <div className="flex items-center gap-6 text-sm font-bold text-gray-400">
                             <span className="flex items-center gap-2"><Clock size={16}/> {article.reading_time || 5} min</span>
-                            <div className="w-px h-6 bg-white/10 mx-2"></div>
+                            <div className="w-px h-6 bg-white/10"></div>
                             
-                            {/* HARTJE (Favoriet) */}
                             {user && (
                                 <LikeButton 
                                     itemId={article.id} 
                                     itemType="focus" 
                                     userId={user.id} 
-                                    className="p-2 hover:bg-white/10 rounded-full"
+                                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
                                 />
                             )}
                             
@@ -87,18 +100,17 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                     </div>
                 </div>
 
-                {/* ARTIKEL INHOUD */}
+                {/* INHOUD */}
                 <div className="prose prose-invert prose-lg max-w-none text-gray-300 leading-relaxed font-serif mb-16">
-                    {/* ... (Jouw text rendering logica) ... */}
                     <div className="whitespace-pre-wrap">
-                        {article.content_markdown || "..."}
+                        {article.content_markdown || article.description || "Geen inhoud beschikbaar."}
                     </div>
                 </div>
                 
-                {/* FEEDBACK (Duimpjes) - Alleen als gebruiker toegang heeft */}
+                {/* FEEDBACK */}
                 {!isLocked && (
                     <div className="border-t border-white/10 pt-8 flex flex-col items-center">
-                        <p className="text-gray-400 font-bold mb-4">Vond u dit interessant?</p>
+                        <p className="text-gray-400 font-bold mb-4 text-sm uppercase tracking-wider">Vond u dit interessant?</p>
                         <FeedbackButtons 
                             entityId={article.id} 
                             entityType="focus" 
@@ -107,11 +119,14 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                 )}
             </div>
 
-            {isPlaying && !isLocked && (
+            {/* AUDIO PLAYER (Verschijnt alleen als showAudio true is) */}
+            {showAudio && !isLocked && (
                 <AudioPlayer 
-                    src={article.audio_url || ""} 
+                    src={article.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} 
                     title={article.title}
-                    onClose={() => setIsPlaying(false)}
+                    variant="fixed"
+                    autoPlay={true}
+                    onClose={() => setShowAudio(false)}
                 />
             )}
 
