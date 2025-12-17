@@ -26,7 +26,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   const { data: content } = await supabase
     .from('site_content')
     .select('*')
-    .in('key', ['game_title', 'game_subtitle']);
+    .in('key', ['game_title', 'game_subtitle', 'game_label_free', 'game_label_premium']); // Ook labels ophalen
   const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
 
   // Games ophalen
@@ -51,7 +51,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
       
-      {/* NIEUWE GECENTREERDE HEADER */}
+      {/* HEADER */}
       <div className="max-w-4xl mx-auto text-center flex flex-col items-center mb-16">
           <div className="flex items-center gap-2 text-museum-gold text-xs font-bold tracking-widest uppercase mb-4 animate-in fade-in slide-in-from-bottom-4">
               <Gamepad2 size={16} /> Dagelijkse Challenges
@@ -80,16 +80,28 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
 
                     return (
                         <Link key={game.id} href={isLocked ? '/pricing' : `/game/${game.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl flex flex-col">
+                            
+                            {/* Afbeelding Container */}
                             <div className="h-48 relative bg-black flex items-center justify-center overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-black"></div>
                                 <Gamepad2 size={64} className="text-emerald-500/20 group-hover:scale-110 transition-transform duration-500"/>
                                 
-                                <div className={`absolute top-4 right-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest border border-white/10 shadow-lg ${isContentPremium ? 'bg-black/80 text-white' : 'bg-emerald-600 text-white'}`}>
+                                {/* Label - CONSISTENTE STIJL (Links Boven) */}
+                                <div className="absolute top-4 left-4 z-10">
                                     {isContentPremium ? (
-                                        <span className="flex items-center gap-1">{isLocked ? <Lock size={10}/> : <Crown size={10}/>} Premium</span>
-                                    ) : 'Gratis'}
+                                        <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
+                                            {isLocked ? <Lock size={10} /> : <Crown size={10} />}
+                                            <span>{texts.game_label_premium || "Premium"}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
+                                            {texts.game_label_free || "Gratis"}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
+
+                            {/* Content */}
                             <div className="p-8 flex-1 flex flex-col">
                                 <h3 className="font-serif font-bold text-2xl mb-3 text-white group-hover:text-museum-gold transition-colors">{game.title}</h3>
                                 <p className="text-gray-400 text-sm leading-relaxed mb-6 line-clamp-2">{game.short_description}</p>
