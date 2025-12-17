@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import SettingsForm from '@/components/profile/SettingsForm'; // Zorg dat dit pad klopt
+import SettingsForm from '@/components/profile/SettingsForm';
 
 export const revalidate = 0;
 
@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
   if (!user) redirect('/login');
 
-  // Haal de profielgegevens op om het formulier vooraf in te vullen
+  // select('*') haalt automatisch al je nieuwe kolommen (education, gender, etc) op!
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -22,15 +22,20 @@ export default async function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
-      <div className="max-w-2xl mx-auto">
+      {/* AANGEPAST: Van max-w-2xl naar max-w-4xl voor meer ruimte voor de tabs */}
+      <div className="max-w-4xl mx-auto">
         
-        {/* Terug knop */}
-        <Link href="/profile" className="text-gray-400 hover:text-white flex items-center gap-2 mb-8 text-sm font-bold uppercase tracking-widest transition-colors">
-            <ArrowLeft size={16}/> Terug naar Profiel
-        </Link>
+        {/* Header Sectie */}
+        <div className="flex items-center justify-between mb-8">
+            <div>
+                <Link href="/profile" className="text-gray-400 hover:text-white flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors mb-2">
+                    <ArrowLeft size={16}/> Terug naar Profiel
+                </Link>
+                <h1 className="text-3xl font-serif font-bold text-white">Instellingen</h1>
+            </div>
+        </div>
 
-        {/* Het Client Component Formulier */}
-        {/* We geven de user en profile data mee als 'props' */}
+        {/* Het Formulier */}
         <SettingsForm user={user} initialData={profile} />
 
       </div>
