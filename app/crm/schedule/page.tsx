@@ -63,6 +63,7 @@ export default async function CrmSchedulePage() {
       const isFullyReady = dayData && 
                            dayTours.length >= 3 && 
                            dayGames.length >= 3 && 
+                           daySalons.length >= 3 &&  
                            dayFocus.length >= 3;
 
       return (
