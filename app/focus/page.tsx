@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { ArrowRight, Lock, Calendar, FileText, Crown } from 'lucide-react';
+import { ArrowRight, Lock, Calendar, FileText, Crown, Clock } from 'lucide-react';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
 import { getHistoryAccess } from '@/lib/accessControl';
 
+// Zorg dat de pagina altijd vers is
 export const revalidate = 0;
 
 export default async function FocusPage({ searchParams }: { searchParams: { date?: string } }) {
@@ -30,16 +31,35 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
   const access = getHistoryAccess(level);
 
   // 3. ARTIKELEN OPHALEN
-  const { data: articles } = await supabase.from('focus_items').select('*').eq('status', 'published').limit(10);
-  
-  let dailyFocus = articles || [];
-  if (dailyFocus.length > 3) {
-      const dayNum = new Date(selectedDate).getDate();
-      const start = dayNum % (dailyFocus.length - 2);
-      dailyFocus = dailyFocus.slice(start, start + 3);
+  // Eerst kijken we in de planning van vandaag
+  const { data: schedule } = await supabase
+      .from('dayprogram_schedule')
+      .select('focus_ids')
+      .eq('day_date', selectedDate)
+      .single();
+
+  let dailyFocus: any[] = [];
+
+  if (schedule?.focus_ids && schedule.focus_ids.length > 0) {
+      // Haal geplande items op
+      const { data } = await supabase
+          .from('focus_items')
+          .select('*')
+          .in('id', schedule.focus_ids)
+          .eq('status', 'published');
+      if (data) dailyFocus = data;
+  } else {
+      // FALLBACK: Geen planning? Haal de nieuwste op.
+      const { data } = await supabase
+          .from('focus_items')
+          .select('*')
+          .eq('status', 'published')
+          .order('created_at', { ascending: false })
+          .limit(3);
+      if (data) dailyFocus = data;
   }
 
-  // Sorteer: Gratis op plek 1
+  // Sorteer: Gratis op plek 1 (als het kan)
   if (dailyFocus.length > 0) {
       const freeIndex = dailyFocus.findIndex(a => !a.is_premium);
       if (freeIndex > 0) {
@@ -49,9 +69,9 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
   }
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6 pb-20">
       
-      {/* NIEUWE GECENTREERDE HEADER */}
+      {/* HEADER */}
       <div className="max-w-4xl mx-auto text-center flex flex-col items-center mb-16">
           <div className="flex items-center gap-2 text-museum-gold text-xs font-bold tracking-widest uppercase mb-4 animate-in fade-in slide-in-from-bottom-4">
               <FileText size={16} /> Verdieping & Analyse
@@ -70,39 +90,58 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
           </div>
       </div>
 
-      <div className="max-w-7xl mx-auto pb-20 relative z-20">
+      <div className="max-w-7xl mx-auto relative z-20">
         {dailyFocus.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {dailyFocus.map((item, index) => {
+                    // Logica: Alleen het eerste item is gratis, de rest premium (tenzij het item zelf premium is)
                     const isPremiumSlot = index > 0;
                     const isContentPremium = isPremiumSlot || item.is_premium;
+                    // Als user ingelogd is, is het NIET locked (behalve als je ook nog checkt op 'is_premium' user status, maar hier checken we alleen op 'user')
+                    // Wil je dat alleen premium LEDEN het zien? Gebruik dan: isContentPremium && (!user || !user.is_premium)
+                    // Voor nu houden we het simpel: account nodig voor slot 2 & 3.
                     const isLocked = isContentPremium && !user;
 
                     return (
                         <Link key={item.id} href={isLocked ? '/pricing' : `/focus/${item.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl flex flex-col h-full">
+                            
+                            {/* Afbeelding */}
                             <div className="h-56 relative overflow-hidden bg-black">
-                                {item.cover_image ? (
-                                    <img src={item.cover_image} alt={item.title} className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale' : ''}`} />
+                                {item.cover_image || item.image_url ? (
+                                    <img src={item.cover_image || item.image_url} alt={item.title} className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale opacity-50' : ''}`} />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><FileText size={48} className="opacity-20"/></div>
                                 )}
                                 
-                                {/* Overlay Gradient */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-midnight-900/80 to-transparent opacity-60"></div>
+                                {/* Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-midnight-900 via-transparent to-transparent opacity-90"></div>
 
-                                {/* Label */}
-                                <div className={`absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest border border-white/10 shadow-lg ${isContentPremium ? 'bg-black/80 text-white' : 'bg-museum-gold text-black'}`}>
+                                {/* BADGE FIX: De consistente stijl */}
+                                <div className="absolute top-4 right-4">
                                     {isContentPremium ? (
-                                        <span className="flex items-center gap-1">{isLocked ? <Lock size={10}/> : <Crown size={10}/>} Premium</span>
-                                    ) : 'Gratis'}
+                                        <span className="bg-black/80 backdrop-blur text-museum-gold text-[10px] font-bold px-2 py-1 rounded border border-museum-gold/30 uppercase tracking-wider flex items-center gap-1">
+                                            {isLocked ? <Lock size={10}/> : <Crown size={10}/>} Premium
+                                        </span>
+                                    ) : (
+                                        <span className="bg-emerald-500/90 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded border border-emerald-400/30 uppercase tracking-wider">
+                                            Gratis
+                                        </span>
+                                    )}
                                 </div>
                             </div>
-                            <div className="p-8 flex-1 flex flex-col">
-                                <h3 className="font-serif font-bold text-2xl mb-3 text-white group-hover:text-museum-gold transition-colors">{item.title}</h3>
-                                <p className="text-gray-400 text-sm leading-relaxed mb-6 line-clamp-3 flex-1">{item.intro || "Lees het volledige achtergrondverhaal bij dit kunstwerk."}</p>
+
+                            {/* Content */}
+                            <div className="p-8 flex-1 flex flex-col relative">
+                                <h3 className="font-serif font-bold text-2xl mb-3 text-white group-hover:text-museum-gold transition-colors line-clamp-2">{item.title}</h3>
+                                <p className="text-gray-400 text-sm leading-relaxed mb-6 line-clamp-3 flex-1">
+                                    {item.intro || item.summary || "Lees het volledige achtergrondverhaal."}
+                                </p>
+                                
                                 <div className="mt-auto pt-4 border-t border-white/5 flex justify-between items-center text-sm text-gray-500">
-                                    <span className="flex items-center gap-2"><Calendar size={14}/> {new Date(item.created_at).toLocaleDateString('nl-NL')}</span>
-                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest group-hover:text-white transition-colors">Lees Verder <ArrowRight size={14} className="text-museum-gold"/></div>
+                                    <span className="flex items-center gap-2 text-xs uppercase tracking-widest"><Clock size={12}/> {item.read_time || '5 MIN'}</span>
+                                    <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isLocked ? 'text-gray-600' : 'text-museum-gold group-hover:text-white'}`}>
+                                        {isLocked ? 'Ontgrendel' : 'Lees Verder'} <ArrowRight size={14} />
+                                    </div>
                                 </div>
                             </div>
                         </Link>
@@ -110,7 +149,9 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
                 })}
             </div>
         ) : (
-            <div className="text-center py-20 text-gray-400">Geen artikelen vandaag.</div>
+            <div className="text-center py-20 text-gray-500 italic border border-white/5 rounded-2xl bg-white/5">
+                Geen artikelen gevonden voor deze datum.
+            </div>
         )}
       </div>
     </div>
