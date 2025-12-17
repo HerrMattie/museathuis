@@ -39,11 +39,11 @@ export default function RootLayout({
         
         <main className="flex-1 flex flex-col pt-20"> 
           {children}
+
+        </main>
         {/* 2. Voeg hem hier toe, zodat hij boven alles ligt */}
         <AchievementPopup />
           
-        </main>
-
         <Footer />
         
       </body>
