@@ -116,18 +116,20 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
                                 {/* Overlay */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-900 via-transparent to-transparent opacity-90"></div>
 
-                                {/* BADGE FIX: De consistente stijl */}
-                                <div className="absolute top-4 right-4">
-                                    {isContentPremium ? (
-                                        <span className="bg-black/80 backdrop-blur text-museum-gold text-[10px] font-bold px-2 py-1 rounded border border-museum-gold/30 uppercase tracking-wider flex items-center gap-1">
-                                            {isLocked ? <Lock size={10}/> : <Crown size={10}/>} Premium
-                                        </span>
-                                    ) : (
-                                        <span className="bg-emerald-500/90 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded border border-emerald-400/30 uppercase tracking-wider">
-                                            Gratis
-                                        </span>
-                                    )}
-                                </div>
+                            
+                            {/* Label - CONSISTENTE STIJL (Groen = Gratis, Zwart = Premium) */}
+                            <div className="absolute top-4 left-4 z-10">
+                                {isContentPremium ? (
+                                    <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
+                                        {isLocked ? <Lock size={10} /> : <Crown size={10} />}
+                                        <span>{texts.tour_label_premium || "Premium"}</span>
+                                    </span>
+                                ) : (
+                                    <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
+                                        {texts.tour_label_free || "Gratis"}
+                                    </span>
+                                )}
+                            </div>
                             </div>
 
                             {/* Content */}
