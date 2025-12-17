@@ -4,9 +4,8 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     const earnedBadges: string[] = [];
     const now = new Date();
     
-    // --- HULPVARIABELEN ---
     const hour = now.getHours();
-    const month = now.getMonth() + 1; // 1-12
+    const month = now.getMonth() + 1;
     const day = now.getDate();
     
     // -------------------------------------------------------
@@ -27,7 +26,6 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (safeDuration > 300) earnedBadges.push('Slow Motion');
         if (isWin && now.getDay() === 0) earnedBadges.push('Zondagskind');
 
-        // Tellers (via database logs)
         const { count: gameCount } = await supabase
             .from('user_activity_logs')
             .select('*', { count: 'exact', head: true })
@@ -41,11 +39,10 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (count >= 50) earnedBadges.push('Professor');
     }
 
-
     // -------------------------------------------------------
     // 2. TIJD & DATUM
     // -------------------------------------------------------
-    if (hour >= 18) earnedBadges.push('Donkere Modus'); // Avond
+    if (hour >= 18) earnedBadges.push('Donkere Modus');
     if (hour >= 0 && hour < 4) earnedBadges.push('Nachtwacht');
     if (hour >= 5 && hour < 7) earnedBadges.push('Vroege Vogel');
     if (now.getDay() === 5 && hour >= 17) earnedBadges.push('Vrijmibo');
@@ -53,6 +50,23 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     
     if (action === 'login' && hour >= 14) earnedBadges.push('Slaapkop');
     if (action === 'start_tour' && hour >= 12 && hour < 13) earnedBadges.push('Lunchpauze');
+
+    // Weekend Warrior (Ben je er Zaterdag EN Zondag?)
+    if (now.getDay() === 0) { // Het is Zondag
+        // Check of er activiteit was op Zaterdag (gisteren)
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yStr = yesterday.toISOString().split('T')[0];
+
+        const { count } = await supabase
+            .from('user_activity_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gte('created_at', `${yStr}T00:00:00`)
+            .lte('created_at', `${yStr}T23:59:59`);
+        
+        if (count && count > 0) earnedBadges.push('Weekend Warrior');
+    }
 
     // Speciale Dagen
     if (month === 12 && (day === 25 || day === 26)) earnedBadges.push('Kerstmis');
@@ -68,9 +82,7 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     // 3. CONTENT (Kijken & Lezen)
     // -------------------------------------------------------
     
-    // KUNST BEKIJKEN
     if (action === 'view_artwork') {
-        // A. Tellers
         const { count } = await supabase
             .from('user_activity_logs')
             .select('*', { count: 'exact', head: true })
@@ -86,50 +98,40 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (currentCount === 500) earnedBadges.push('Curator'); 
         if (currentCount === 1000) earnedBadges.push('Levend Inventaris');
 
-        // B. Inhoudelijke Checks (Metadata)
+        // --- NIEUW: Badge 60 (Tinder Gedrag -> Nu: Snelkijker) ---
+        // Logic: 5 kunstwerken bekeken in de laatste minuut
+        const oneMinuteAgo = new Date(now.getTime() - 60 * 1000).toISOString();
+        const { count: recentCount } = await supabase
+            .from('user_activity_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('action_type', 'view_artwork')
+            .gte('created_at', oneMinuteAgo);
+        
+        if ((recentCount || 0) >= 4) { // +1 huidige = 5
+            earnedBadges.push('Tinder Gedrag');
+        }
+        // ----------------------------------------------------------
+
         const artist = (meta.artist || '').toLowerCase();
         const tags = Array.isArray(meta.tags) ? meta.tags.map((t: string) => t.toLowerCase()) : [];
         const year = meta.year || 0;
 
-        // "Hollandse Glorie"
-        if (artist.includes('rembrandt') || artist.includes('vermeer')) {
-             earnedBadges.push('Hollandse Glorie'); 
-        }
-
-        // "Franse Slag" (Impressionisten)
-        const impressionists = ['monet', 'renoir', 'degas', 'manet'];
-        if (impressionists.some(name => artist.includes(name))) {
-            earnedBadges.push('Franse Slag');
-        }
-
-        // "Modernist" (20e eeuw)
-        if (year >= 1900 && year < 2000) {
-            earnedBadges.push('Modernist');
-        }
-
-        // "Dierenvriend"
-        const animalTags = ['dier', 'kat', 'hond', 'paard', 'vogel', 'koe', 'schaap'];
-        if (tags.some((t: string) => animalTags.some(animal => t.includes(animal)))) {
-            earnedBadges.push('Dierenvriend');
-        }
-
-        // "Landschapsarchitect"
-        if (tags.some((t: string) => t.includes('landschap'))) {
-            earnedBadges.push('Landschapsarchitect');
-        }
+        if (artist.includes('rembrandt') || artist.includes('vermeer')) earnedBadges.push('Hollandse Glorie'); 
         
-        // "Monochroom"
-        if (tags.some((t: string) => ['schets', 'zwart-wit', 'tekening', 'ets'].includes(t))) {
-            earnedBadges.push('Monochroom');
-        }
+        const impressionists = ['monet', 'renoir', 'degas', 'manet'];
+        if (impressionists.some(name => artist.includes(name))) earnedBadges.push('Franse Slag');
 
-        // "Portret Jager"
-        if (tags.some((t: string) => t.includes('portret'))) {
-            earnedBadges.push('Portret Jager');
-        }
-    } // <--- HIER SLUIT 'view_artwork'. BELANGRIJK!
+        if (year >= 1900 && year < 2000) earnedBadges.push('Modernist');
 
-    // FOCUS ARTIKELEN
+        const animalTags = ['dier', 'kat', 'hond', 'paard', 'vogel', 'koe', 'schaap'];
+        if (tags.some((t: string) => animalTags.some(animal => t.includes(animal)))) earnedBadges.push('Dierenvriend');
+
+        if (tags.some((t: string) => t.includes('landschap'))) earnedBadges.push('Landschapsarchitect');
+        if (tags.some((t: string) => ['schets', 'zwart-wit', 'tekening', 'ets'].includes(t))) earnedBadges.push('Monochroom');
+        if (tags.some((t: string) => t.includes('portret'))) earnedBadges.push('Portret Jager');
+    }
+
     if (action === 'read_focus') {
          const { count } = await supabase
             .from('user_activity_logs')
@@ -146,26 +148,20 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (meta.duration && meta.duration < 5) earnedBadges.push('Scanner');
     }
 
-    // Specifieke pagina's
     if (action === 'visit_salon') earnedBadges.push('De Deur Staat Open');
     if (action === '404_visit') earnedBadges.push('Verdwaald');
     if (action === 'visit_about') earnedBadges.push('Supporter');
 
 
     // -------------------------------------------------------
-    // 4. INTERACTIE & INSTELLINGEN
+    // 4. INTERACTIE
     // -------------------------------------------------------
     if (action === 'update_settings') earnedBadges.push('Instellingen Guru');
     if (action === 'update_avatar') earnedBadges.push('Profiel Plaatje');
-
-    // VIP Badge (Staat nu netjes apart in de hoofdstructuur)
-    if (action === 'buy_premium') {
-        earnedBadges.push('VIP');
-    }
+    if (action === 'buy_premium') earnedBadges.push('VIP');
 
     if (action === 'rate_item') {
         const rating = meta.rating || 0;
-        
         const { count } = await supabase.from('user_activity_logs')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId)
@@ -175,15 +171,21 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
 
         if (reviewCount === 1) earnedBadges.push('Recensent');
         if (reviewCount === 10) earnedBadges.push('Feedback Koning');
-        
         if (rating === 5) earnedBadges.push('Fanboy');
         if (rating === 1) earnedBadges.push('Kritische Noot');
     }
 
     if (action === 'share_item') {
         earnedBadges.push('Influencer');
+        
+        // Check Viral Gaan (10x gedeeld)
+        const { count } = await supabase.from('user_activity_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('action_type', 'share_item');
+        
+        if ((count || 0) + 1 >= 10) earnedBadges.push('Viral Gaan');
     }
-
 
     // -------------------------------------------------------
     // 5. STREAKS
@@ -204,9 +206,8 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (s >= 365) earnedBadges.push('Jaarring');
     }
 
-
     // -------------------------------------------------------
-    // 6. TOEKENNEN IN DATABASE
+    // 6. OPSLAAN
     // -------------------------------------------------------
     if (earnedBadges.length > 0) {
         const { data: badgeDefinitions } = await supabase
@@ -218,17 +219,10 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
             for (const badgeDef of badgeDefinitions) {
                 const { error } = await supabase
                     .from('user_badges')
-                    .insert({
-                        user_id: userId,
-                        badge_id: badgeDef.id
-                    })
+                    .insert({ user_id: userId, badge_id: badgeDef.id })
                     .select();
 
-                if (!error) {
-                    console.log(`🏆 NIEUWE BADGE: ${badgeDef.name}`);
-                } else if (error.code !== '23505') {
-                    console.error(`Fout bij toekennen ${badgeDef.name}:`, error.message);
-                }
+                if (!error) console.log(`🏆 NIEUWE BADGE: ${badgeDef.name}`);
             }
         }
     }
