@@ -97,14 +97,19 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
                                     </div>
                                 )}
 
-                                {/* Label */}
-                                <div className={`absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest border border-white/10 shadow-lg ${isContentPremium ? 'bg-black/80 text-white' : 'bg-museum-gold text-black'}`}>
-                                    {isContentPremium ? (
-                                        <span className="flex items-center gap-1">
-                                            {isLocked ? <Lock size={10}/> : <Crown size={10}/>} {texts.tour_label_premium || "Premium"}
-                                        </span>
-                                    ) : (texts.tour_label_free || "Gratis")}
-                                </div>
+{/* Label - CONSISTENTE STIJL (Groen = Gratis, Zwart = Premium) */}
+<div className="absolute top-4 left-4 z-10">
+    {isContentPremium ? (
+        <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
+            {isLocked ? <Lock size={10} /> : <Crown size={10} />}
+            <span>{texts.tour_label_premium || "Premium"}</span>
+        </span>
+    ) : (
+        <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
+            {texts.tour_label_free || "Gratis"}
+        </span>
+    )}
+</div>
                             </div>
 
                             <div className="p-8 flex-1 flex flex-col">
