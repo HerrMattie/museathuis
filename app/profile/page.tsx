@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, Edit3 } from 'lucide-react';
+import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, MapPin, User, Ticket } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
@@ -15,17 +15,36 @@ export default async function ProfilePage() {
 
   // 1. Haal data op
   const { data: profile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
-  const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
   const { count: badgeCount } = await supabase.from('user_badges').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
 
-  // 2. Bereken Level
-  const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
+  // 2. Bereken Level (Gebruik opgeslagen XP als die er is, anders 0)
+  const xp = profile?.xp || 0;
   const { level, title: levelTitle, nextLevelXp } = getLevel(xp);
-  const progress = (xp / nextLevelXp) * 100;
+  
+  // Progress bar percentage (max 100%)
+  const progress = Math.min((xp / nextLevelXp) * 100, 100);
 
   // Check Admin
   const isAdmin = profile?.role === 'admin';
+
+  // Helper voor Museumkaart weergave
+  let museumCardText = "Geen";
+  if (profile?.has_museum_card) {
+      museumCardText = "Ja";
+      // Probeer de JSON string te parsen als die in de CSV staat als ["Museumkaart"]
+      try {
+          if (profile.museum_cards && typeof profile.museum_cards === 'string') {
+             const parsed = JSON.parse(profile.museum_cards);
+             if (Array.isArray(parsed) && parsed.length > 0) museumCardText = parsed.join(', ');
+          } else if (Array.isArray(profile.museum_cards)) {
+             museumCardText = profile.museum_cards.join(', ');
+          }
+      } catch (e) {
+          // Fallback
+          museumCardText = "Museumkaart";
+      }
+  }
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
@@ -53,7 +72,6 @@ export default async function ProfilePage() {
                             {profile?.full_name || "Kunstliefhebber"}
                         </h1>
                         
-                        {/* ADMIN KNOP (Verplaatst naar hier) */}
                         {isAdmin && (
                             <Link href="/crm" className="inline-flex items-center gap-1 px-3 py-1 bg-rose-600/20 text-rose-500 border border-rose-600/50 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-colors mx-auto md:mx-0">
                                 <LayoutDashboard size={12}/> Admin Dashboard
@@ -89,10 +107,29 @@ export default async function ProfilePage() {
             </div>
         </div>
 
+        {/* PERSOONLIJKE GEGEVENS (NIEUW) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><MapPin size={14}/> Provincie</div>
+                <div className="text-white font-bold">{profile?.province || 'Onbekend'}</div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><User size={14}/> Leeftijd</div>
+                <div className="text-white font-bold">{profile?.age_group || 'Onbekend'}</div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Ticket size={14}/> Lidmaatschap</div>
+                <div className="text-white font-bold">{museumCardText}</div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Award size={14}/> Badges</div>
+                <div className="text-white font-bold">{badgeCount} Behaald</div>
+            </div>
+        </div>
+
         {/* DASHBOARD GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            {/* 1. Collectie */}
             <Link href="/favorites" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-rose-900/20 text-rose-500 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-colors">
@@ -104,7 +141,6 @@ export default async function ProfilePage() {
                 <p className="text-sm text-gray-500 mt-1">Bekijk uw bewaarde kunstwerken.</p>
             </Link>
 
-            {/* 2. Ere-Galerij */}
             <Link href="/profile/achievements" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-yellow-900/20 text-yellow-500 rounded-xl group-hover:bg-yellow-500 group-hover:text-black transition-colors">
@@ -116,7 +152,6 @@ export default async function ProfilePage() {
                 <p className="text-sm text-gray-500 mt-1">Bekijk uw behaalde medailles.</p>
             </Link>
 
-            {/* 3. Instellingen (NU ACTIEF) */}
             <Link href="/profile/settings" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-blue-900/20 text-blue-500 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors">
