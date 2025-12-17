@@ -3,13 +3,16 @@
 import { useState } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
+// We gebruiken je 'cn' utility om de classes netjes samen te voegen
+import { cn } from '@/lib/utils'; 
 
 interface FeedbackProps {
     entityId: string;
-    entityType: 'tour' | 'focus' | 'game' | 'salon'; // Pas aan naar wens
+    entityType: 'tour' | 'focus' | 'game' | 'salon';
+    className?: string; // 👈 HIER ZAT HET PROBLEEM: Deze regel ontbrak!
 }
 
-export default function FeedbackButtons({ entityId, entityType }: FeedbackProps) {
+export default function FeedbackButtons({ entityId, entityType, className }: FeedbackProps) {
   const [status, setStatus] = useState<'idle' | 'liked' | 'disliked'>('idle');
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
@@ -21,17 +24,15 @@ export default function FeedbackButtons({ entityId, entityType }: FeedbackProps)
     // UI Update
     setStatus(vote === 'up' ? 'liked' : 'disliked');
     
-    // Verstuur naar Supabase tabel 'user_feedback'
+    // Verstuur naar Supabase
     const { error } = await supabase.from('user_feedback').insert({
         entity_id: entityId,
         entity_type: entityType,
         vote: vote
-        // user_id sturen we niet mee, dus het is anonieme feedback (of wordt door RLS geregeld)
     });
 
     if (error) {
         console.error("Feedback error:", error);
-        // Optioneel: toon error, maar vaak niet nodig voor feedback
     }
     
     setIsLoading(false);
@@ -40,7 +41,7 @@ export default function FeedbackButtons({ entityId, entityType }: FeedbackProps)
   // Bedankje tonen na stemmen
   if (status === 'liked') {
       return (
-        <div className="text-museum-gold font-bold text-sm animate-in fade-in slide-in-from-bottom-2">
+        <div className={cn("text-museum-gold font-bold text-sm animate-in fade-in slide-in-from-bottom-2", className)}>
             🎉 Dankuwel! Fijn dat u ervan genoten heeft.
         </div>
       );
@@ -48,14 +49,15 @@ export default function FeedbackButtons({ entityId, entityType }: FeedbackProps)
 
   if (status === 'disliked') {
       return (
-        <div className="text-gray-400 font-bold text-sm animate-in fade-in slide-in-from-bottom-2">
+        <div className={cn("text-gray-400 font-bold text-sm animate-in fade-in slide-in-from-bottom-2", className)}>
             Dankuwel voor uw feedback. We gaan het verbeteren.
         </div>
       );
   }
 
   return (
-    <div className="flex gap-4">
+    // 👇 HIER WORDT DE className NU TOEGEPAST
+    <div className={cn("flex gap-4", className)}>
       <button 
         onClick={() => sendFeedback('up')} 
         disabled={isLoading}
