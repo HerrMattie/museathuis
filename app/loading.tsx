@@ -13,7 +13,7 @@ export default function Loading() {
         />
       </div>
       <p className="mt-4 text-museum-gold/60 text-sm font-serif animate-pulse">
-        Kunstwerk laden...
+        Kunstwerken maken...
       </p>
     </div>
   );
