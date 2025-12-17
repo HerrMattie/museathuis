@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 interface LikeButtonProps {
   itemId: string;
-  itemType: 'tour' | 'focus' | 'artwork' | 'game' | 'salon'; // Pas aan wat je nodig hebt
+  itemType: string; // Maak hier string van om flexibeler te zijn
   userId?: string;
   className?: string;
 }
@@ -17,102 +17,82 @@ export default function LikeButton({ itemId, itemType, userId, className }: Like
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
 
-  // 1. Check of item al geliket is bij laden
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !itemId) return;
     
     const checkLike = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('favorites')
         .select('id')
         .eq('user_id', userId)
         .eq('item_id', itemId)
-        .eq('item_type', itemType)
-        .single();
+        .eq('item_type', itemType) // Check of 'itemType' matcht met wat in DB staat (bijv 'tour' vs 'tours')
+        .maybeSingle(); // Gebruik maybeSingle om errors bij 0 resultaten te voorkomen
       
       if (data) setIsLiked(true);
     };
-    
     checkLike();
   }, [itemId, itemType, userId, supabase]);
 
-  // 2. De Toggle Functie
-  const toggleLike = async () => {
-    // Voorkom klikken als je niet ingelogd bent
-    if (!userId) {
-        alert("Log in om dit item te bewaren!");
-        return;
-    }
+  const toggleLike = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!userId) return alert("Log in om te bewaren!");
     if (isLoading) return;
 
+    // 1. Optimistic Update
+    const previousState = isLiked;
+    setIsLiked(!previousState);
     setIsLoading(true);
-    
-    // Optimistic UI: verander de kleur meteen voor een snel gevoel
-    const newState = !isLiked;
-    setIsLiked(newState);
 
-    if (newState) {
-      // --> TOEVOEGEN AAN FAVORITES
-      const { error } = await supabase
-        .from('favorites')
-        .insert({ 
-            user_id: userId, 
-            item_id: itemId, 
-            item_type: itemType 
-        });
+    try {
+        if (previousState) {
+            // VERWIJDEREN
+            const { error } = await supabase
+                .from('favorites')
+                .delete()
+                .eq('user_id', userId)
+                .eq('item_id', itemId)
+                .eq('item_type', itemType);
+            
+            if (error) throw error;
+        } else {
+            // TOEVOEGEN
+            const { error } = await supabase
+                .from('favorites')
+                .insert({ 
+                    user_id: userId, 
+                    item_id: itemId, 
+                    item_type: itemType 
+                });
+            
+            if (error) throw error;
 
-      if (!error) {
-        // 🎉 Confetti effect (werkt via de CDN link in je layout)
-        if (typeof window !== 'undefined' && (window as any).confetti) {
-            (window as any).confetti({ 
-                particleCount: 40, 
-                spread: 50, 
-                origin: { y: 0.7 },
-                colors: ['#EAB308', '#FF0000'],
-                disableForReducedMotion: true
-            });
+            // Confetti als het lukt
+            if (typeof window !== 'undefined' && (window as any).confetti) {
+                (window as any).confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 }, colors: ['#EAB308'] });
+            }
         }
-      } else {
-        // Als het mislukt, draai de UI terug
-        setIsLiked(false);
-        console.error("Like mislukt:", error);
-      }
-
-    } else {
-      // --> VERWIJDEREN UIT FAVORITES
-      const { error } = await supabase
-        .from('favorites')
-        .delete()
-        .eq('user_id', userId)
-        .eq('item_id', itemId)
-        .eq('item_type', itemType);
-        
-      if (error) {
-         setIsLiked(true); // Revert bij error
-         console.error("Unlike mislukt:", error);
-      }
+    } catch (error: any) {
+        console.error("[LIKE ERROR]:", error.message);
+        // Rollback bij error
+        setIsLiked(previousState);
+        alert("Kon niet opslaan. Check console voor details.");
+    } finally {
+        setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (
     <button 
-      onClick={(e) => { 
-        e.preventDefault(); // Voorkom dat een link eromheen ook klikt
-        e.stopPropagation();
-        toggleLike(); 
-      }}
+      onClick={toggleLike}
       disabled={isLoading}
-      className={cn("transition-transform active:scale-90", className)}
-      title={isLiked ? "Verwijder uit favorieten" : "Voeg toe aan favorieten"}
+      className={cn("transition-transform active:scale-90 p-2 rounded-full bg-black/20 hover:bg-black/40 backdrop-blur-sm", className)}
     >
       <Heart 
         size={24} 
-        className={cn(
-            "transition-colors duration-300", 
-            isLiked ? "fill-red-500 text-red-500 drop-shadow-md" : "text-white hover:text-red-400"
-        )} 
+        className={cn("transition-colors", isLiked ? "fill-red-500 text-red-500" : "text-white")} 
       />
     </button>
   );
