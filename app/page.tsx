@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import Link from 'next/link';
-import { ArrowRight, Calendar } from 'lucide-react';
+import Image from 'next/image'; // <--- 1. Importeer Image
+import { Calendar } from 'lucide-react';
 import DailyGrid from '@/components/home/DailyGrid';
 import OnboardingCheck from '@/components/onboarding/OnboardingCheck';
 
@@ -32,17 +32,19 @@ export default async function Home() {
 
       {/* --- ACHTERGROND LAAG --- */}
       <div className="absolute inset-0 z-0 h-[85vh] overflow-hidden">
-         
-         {/* 👇 HIER IS DE AANPASSING 👇 */}
-         {/* Zorg dat je afbeelding in de map 'public' staat en 'hero-background.jpg' heet */}
-         <img
+          
+          {/* 👇 DE AANPASSING: Next.js Image Component 👇 */}
+          <Image
             src="/hero-background.jpg" 
             alt="Museum Hall"
-            className="absolute inset-0 w-full h-full object-cover"
-         />
-         
-         {/* De Fade overlay */}
-         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-midnight-950/70 to-midnight-950" />
+            fill={true}       // Zorgt dat hij de div vult (vervangt w-full h-full)
+            priority={true}   // BELANGRIJK: Laadt deze afbeelding met voorrang (LCP optimalisatie)
+            className="object-cover"
+            quality={90}      // Iets hogere kwaliteit voor deze grote hero image
+          />
+          
+          {/* De Fade overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-midnight-950/70 to-midnight-950" />
       </div>
 
       {/* --- CONTENT LAAG --- */}
@@ -76,7 +78,6 @@ export default async function Home() {
               />
           </div>
           
-
       </div>
     </main>
   );
