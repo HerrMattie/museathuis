@@ -13,7 +13,7 @@ interface ScheduleItem {
 interface HistoryItem {
     date: string;
     item_id: string;
-    type: 'tour' | 'game' | 'focus';
+    type: 'tour' | 'game' | 'focus' | 'salon';
 }
 
 interface Props {
@@ -22,17 +22,20 @@ interface Props {
         tour_ids: string[];
         game_ids: string[];
         focus_ids: string[];
+        salon_ids?: string[]; // Kan undefined zijn als de kolom nog niet bestaat
     };
     availableTours: ScheduleItem[];
     availableGames: ScheduleItem[];
     availableFocus: ScheduleItem[];
-    history: HistoryItem[]; // De lijst van wat er eerder is gedraaid
+    availableSalons: ScheduleItem[];
+    history: HistoryItem[]; 
 }
 
-export default function EditScheduleForm({ date, initialData, availableTours, availableGames, availableFocus, history }: Props) {
+export default function EditScheduleForm({ date, initialData, availableTours, availableGames, availableFocus, availableSalons, history }: Props) {
     const [selectedTours, setSelectedTours] = useState<string[]>(initialData.tour_ids || []);
     const [selectedGames, setSelectedGames] = useState<string[]>(initialData.game_ids || []);
     const [selectedFocus, setSelectedFocus] = useState<string[]>(initialData.focus_ids || []);
+    const [selectedSalons, setSelectedSalons] = useState<string[]>(initialData.salon_ids || []);
     
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState('');
@@ -41,7 +44,7 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
     const router = useRouter();
 
     // Helper: Check of een item recent is gebruikt
-    const checkDuplicate = (id: string, type: 'tour' | 'game' | 'focus') => {
+    const checkDuplicate = (id: string, type: 'tour' | 'game' | 'focus' | 'salon') => {
         const found = history.find(h => h.item_id === id && h.type === type);
         if (found) {
             return `Let op: Dit item is recent ingepland op ${found.date}`;
@@ -53,15 +56,17 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
         setIsSaving(true);
         setMessage('');
 
+        // Let op: zorg dat je tabel 'dayprogram_schedule' een kolom 'salon_ids' (array van text/uuid) heeft!
         const { error } = await supabase.from('dayprogram_schedule').upsert({
             day_date: date,
             tour_ids: selectedTours,
             game_ids: selectedGames,
             focus_ids: selectedFocus,
-            // Je kunt hier later thema titels toevoegen
+            salon_ids: selectedSalons,
         }, { onConflict: 'day_date' });
 
         if (error) {
+            console.error("Save error:", error);
             setMessage(`Error: ${error.message}`);
         } else {
             setMessage('Planning succesvol opgeslagen!');
@@ -83,7 +88,7 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
         items: ScheduleItem[], 
         selectedIds: string[], 
         setSelected: (ids: string[]) => void,
-        type: 'tour' | 'game' | 'focus'
+        type: 'tour' | 'game' | 'focus' | 'salon'
     }) => {
         return (
             <div className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
@@ -133,7 +138,7 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
 
     return (
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="p-8">
+            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <SelectionSection 
                     title="Audio Tours" 
                     items={availableTours} 
@@ -156,6 +161,14 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
                     selectedIds={selectedFocus} 
                     setSelected={setSelectedFocus} 
                     type="focus"
+                />
+
+                <SelectionSection 
+                    title="Salons" 
+                    items={availableSalons} 
+                    selectedIds={selectedSalons} 
+                    setSelected={setSelectedSalons} 
+                    type="salon"
                 />
             </div>
 
