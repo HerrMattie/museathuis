@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { ArrowRight, Lock, Calendar, FileText, Crown, Clock } from 'lucide-react';
+import { ArrowRight, Lock, FileText, Crown, Clock } from 'lucide-react';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
 import { getHistoryAccess } from '@/lib/accessControl';
@@ -46,14 +46,14 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
           .from('focus_items')
           .select('*')
           .in('id', schedule.focus_ids)
-          .eq('status', 'published');
+          .eq('status', 'published'); // <--- CHECK DEZE STATUS IN JE DATABASE!
       if (data) dailyFocus = data;
   } else {
-      // FALLBACK: Geen planning? Haal de nieuwste op.
+      // FALLBACK: Geen planning? Haal de 3 nieuwste op.
       const { data } = await supabase
           .from('focus_items')
           .select('*')
-          .eq('status', 'published')
+          .eq('status', 'published') // <--- EN DEZE OOK
           .order('created_at', { ascending: false })
           .limit(3);
       if (data) dailyFocus = data;
@@ -94,12 +94,8 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
         {dailyFocus.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {dailyFocus.map((item, index) => {
-                    // Logica: Alleen het eerste item is gratis, de rest premium (tenzij het item zelf premium is)
                     const isPremiumSlot = index > 0;
                     const isContentPremium = isPremiumSlot || item.is_premium;
-                    // Als user ingelogd is, is het NIET locked (behalve als je ook nog checkt op 'is_premium' user status, maar hier checken we alleen op 'user')
-                    // Wil je dat alleen premium LEDEN het zien? Gebruik dan: isContentPremium && (!user || !user.is_premium)
-                    // Voor nu houden we het simpel: account nodig voor slot 2 & 3.
                     const isLocked = isContentPremium && !user;
 
                     return (
@@ -116,20 +112,19 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
                                 {/* Overlay */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-900 via-transparent to-transparent opacity-90"></div>
 
-                            
-                            {/* Label - CONSISTENTE STIJL (Groen = Gratis, Zwart = Premium) */}
-                            <div className="absolute top-4 left-4 z-10">
-                                {isContentPremium ? (
-                                    <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
-                                        {isLocked ? <Lock size={10} /> : <Crown size={10} />}
-                                        <span>{texts.tour_label_premium || "Premium"}</span>
-                                    </span>
-                                ) : (
-                                    <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
-                                        {texts.tour_label_free || "Gratis"}
-                                    </span>
-                                )}
-                            </div>
+                                {/* Label - CONSISTENTE STIJL */}
+                                <div className="absolute top-4 left-4 z-10">
+                                    {isContentPremium ? (
+                                        <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
+                                            {isLocked ? <Lock size={10} /> : <Crown size={10} />}
+                                            <span>Premium</span>
+                                        </span>
+                                    ) : (
+                                        <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
+                                            Gratis
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Content */}
@@ -153,6 +148,7 @@ export default async function FocusPage({ searchParams }: { searchParams: { date
         ) : (
             <div className="text-center py-20 text-gray-500 italic border border-white/5 rounded-2xl bg-white/5">
                 Geen artikelen gevonden voor deze datum.
+                <br/><span className="text-xs mt-2 block opacity-50">(Check of items op 'published' staan in de database)</span>
             </div>
         )}
       </div>
