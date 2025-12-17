@@ -1,107 +1,36 @@
 'use client';
-
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { createClient } from '@/lib/supabaseClient'; // Of jouw path
+import { createClient } from '@/lib/supabaseClient';
 
-interface FeedbackButtonsProps {
-  entityId: string; // ID van de Tour, Game, Focus
-  entityType: 'tour' | 'game' | 'focus' | 'salon';
-  className?: string;
-}
-
-export default function FeedbackButtons({ entityId, entityType, className = "" }: FeedbackButtonsProps) {
-  const [vote, setVote] = useState<'up' | 'down' | null>(null);
-  const [loading, setLoading] = useState(false);
+export default function FeedbackButtons({ entityId, entityType }: { entityId: string, entityType: string }) {
+  const [status, setStatus] = useState<'idle' | 'liked' | 'disliked'>('idle');
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchVote();
-  }, [entityId]);
-
-  const fetchVote = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase
-      .from('user_feedback')
-      .select('vote')
-      .eq('user_id', user.id)
-      .eq('entity_type', entityType)
-      .eq('entity_id', entityId)
-      .single();
-
-    if (data) setVote(data.vote as 'up' | 'down');
-  };
-
-  const handleVote = async (newVote: 'up' | 'down') => {
-    setLoading(true);
+  const sendFeedback = async (vote: 'up' | 'down') => {
+    setStatus(vote === 'up' ? 'liked' : 'disliked');
     
-    // 1. Optimistische UI update (meteen kleur geven)
-    // Als je op dezelfde knop klikt, haal je de stem weg (toggle) - optioneel, hier laten we hem staan
-    setVote(newVote);
-
-    // 2. Stuur naar API
-    try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entity_type: entityType,
-          entity_id: entityId,
-          vote: newVote
-        })
-      });
-
-      if (!res.ok) throw new Error('Failed to vote');
-
-    } catch (error) {
-      console.error(error);
-      // Revert bij error zou netjes zijn, maar voor nu ok
-      alert("Er ging iets mis met stemmen.");
-    } finally {
-      setLoading(false);
-    }
+    // Stuur naar je analytics of feedback tabel
+    await supabase.from('feedback').insert({
+        entity_id: entityId,
+        entity_type: entityType,
+        vote: vote
+    });
   };
+
+  if (status === 'liked') return <div className="text-museum-gold font-bold animate-in fade-in">Dankuwel! Fijn dat u ervan genoten heeft.</div>;
+  if (status === 'disliked') return <div className="text-gray-400 font-bold animate-in fade-in">Dankuwel. We gaan proberen het te verbeteren.</div>;
 
   return (
-    <div className={`flex items-center gap-4 ${className}`}>
-      <span className="text-sm text-gray-400 font-medium hidden sm:block">
-        Wat vond je hiervan?
-      </span>
-      
-      <div className="flex gap-2 bg-white/5 p-1 rounded-full border border-white/10 backdrop-blur-sm">
-        {/* Duimpje Omhoog */}
-        <button
-          onClick={() => handleVote('up')}
-          disabled={loading}
-          className={`p-2 rounded-full transition-all active:scale-90 ${
-            vote === 'up' 
-              ? 'bg-green-500 text-white shadow-lg shadow-green-900/20' 
-              : 'text-gray-400 hover:bg-white/10 hover:text-white'
-          }`}
-          title="Leuk / Interessant"
-        >
-          <ThumbsUp size={20} className={vote === 'up' ? 'fill-current' : ''} />
-        </button>
-
-        {/* Scheidingslijn */}
-        <div className="w-px bg-white/10 my-1"></div>
-
-        {/* Duimpje Omlaag */}
-        <button
-          onClick={() => handleVote('down')}
-          disabled={loading}
-          className={`p-2 rounded-full transition-all active:scale-90 ${
-            vote === 'down' 
-              ? 'bg-red-500 text-white shadow-lg shadow-red-900/20' 
-              : 'text-gray-400 hover:bg-white/10 hover:text-white'
-          }`}
-          title="Niet leuk / Te moeilijk / Saai"
-        >
-          <ThumbsDown size={20} className={vote === 'down' ? 'fill-current' : ''} />
-        </button>
-      </div>
+    <div className="flex gap-4">
+      <button onClick={() => sendFeedback('up')} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-green-500/20 hover:text-green-400 rounded-full transition-colors border border-white/10">
+        <ThumbsUp size={18} />
+        <span>Boeiend</span>
+      </button>
+      <button onClick={() => sendFeedback('down')} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors border border-white/10">
+        <ThumbsDown size={18} />
+        <span>Minder</span>
+      </button>
     </div>
   );
 }
