@@ -7,7 +7,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_KEY = process.env.GOOGLE_AI_API_KEY;
 
 // We gebruiken Flash (snel, efficiënt en gratis in de free tier)
-const MODEL_NAME = "gemini-1.5-flash"; 
+const MODEL_NAME = "gemini-2.5-flash"; 
 
 // ⚠️ BELANGRIJK: Rate Limit instellingen voor Gratis Tier
 // Google staat ~15 requests per minuut toe.
