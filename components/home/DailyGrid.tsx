@@ -104,33 +104,6 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
                 </div>
             </Link>
 
-            {/* 4. SALON (PREMIUM) KAART */}
-            <Link href="/pricing" className="group relative h-96 rounded-3xl overflow-hidden border border-museum-gold/30 shadow-2xl transition-transform hover:-translate-y-2">
-                {/* De Salon is Premium, dus we maken hem visueel anders */}
-                <div 
-                    className="absolute inset-0 bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-700"
-                    style={{ backgroundImage: `url(${getBg(3)})` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent"></div>
-                
-                <div className="absolute top-4 right-4 bg-museum-gold text-black text-[10px] font-bold px-2 py-1 rounded uppercase flex items-center gap-1">
-                    <Lock size={10} /> Premium
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <div className="bg-gradient-to-br from-museum-gold to-yellow-600 w-10 h-10 rounded-full flex items-center justify-center mb-4 text-black shadow-lg shadow-museum-gold/20">
-                        <Crown size={20} />
-                    </div>
-                    <h3 className="text-2xl font-serif font-bold text-white mb-2">De Salon</h3>
-                    <p className="text-sm text-gray-300 mb-4">
-                        Exclusieve wekelijkse collecties voor de fijnproever.
-                    </p>
-                    <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-museum-gold">
-                        Word Lid <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
-                    </span>
-                </div>
-            </Link>
-
         </div>
     );
 }
