@@ -2,74 +2,57 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { MAIN_NAV_LINKS } from '@/lib/navConfig';
+import { cn } from '@/lib/utils'; 
 
 export default function Header() {
-  const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
-  // NU MET ALLE ITEMS
-  const navItems = [
-    { name: 'Tour', href: '/tour' },
-    { name: 'Game', href: '/game' },
-    { name: 'Focus', href: '/focus' },
-    { name: 'Salon', href: '/salon' },     // <--- Terug
-    { name: 'Academie', href: '/academie' },
-    { name: 'Best Of', href: '/best-of' }, // <--- Terug
-
-  ];
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-midnight-950/90 backdrop-blur-md border-b border-white/10 h-20">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-midnight-950/80 backdrop-blur-md border-b border-white/5 h-20">
       <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
         
         {/* LOGO */}
-        <Link href="/" className="text-2xl font-serif font-bold tracking-widest text-white hover:text-museum-gold transition-colors">
-          MUSEA<span className="text-museum-gold">THUIS</span>
+        <Link href="/home" className="flex items-center gap-2 group">
+          <div className="w-10 h-10 bg-museum-gold rounded-lg flex items-center justify-center text-black font-serif font-bold text-xl group-hover:rotate-3 transition-transform">
+            M
+          </div>
+          <span className="font-serif text-2xl font-bold tracking-tight text-white hidden sm:block">
+            Musea<span className="text-museum-gold">Thuis</span>
+          </span>
         </Link>
 
-        {/* DESKTOP NAV */}
-        <nav className="hidden md:flex items-center gap-6 lg:gap-8">
-          {navItems.map((item) => (
-            <Link 
-              key={item.href} 
-              href={item.href}
-              className={`text-xs lg:text-sm font-bold tracking-widest uppercase transition-colors ${
-                pathname.startsWith(item.href) ? 'text-museum-gold' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {item.name}
-            </Link>
-          ))}
+        {/* DESKTOP NAVIGATIE */}
+        <nav className="hidden md:flex items-center gap-1">
+          {MAIN_NAV_LINKS.map((link) => {
+            const Icon = link.icon;
+            // Check of we op deze pagina zijn (of een subpagina ervan)
+            const isActive = pathname.startsWith(link.href);
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300",
+                  isActive 
+                    ? "bg-white text-black shadow-lg shadow-white/10 scale-105" 
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                )}
+              >
+                <Icon size={18} className={cn(isActive ? "text-black" : "text-current")} />
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* ICONS */}
-        <div className="flex items-center gap-4">
-          <Link href="/profile" className="p-2 bg-white/5 rounded-full hover:bg-white/20 text-white transition-colors">
-            <User size={20} />
-          </Link>
-          <button onClick={() => setIsOpen(!isOpen)} className="md:hidden text-white p-2">
-             {isOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+        {/* RECHTS (Bijv. Upgrade knop of Avatar - optioneel) */}
+        <div className="w-10">
+            {/* Ruimte voor profiel foto of niets */}
         </div>
-      </div>
 
-      {/* MOBILE MENU */}
-      {isOpen && (
-        <div className="md:hidden bg-midnight-950 border-b border-white/10 absolute top-20 left-0 right-0 p-6 flex flex-col gap-4 shadow-2xl animate-in slide-in-from-top-2">
-          {navItems.map((item) => (
-             <Link 
-               key={item.href} 
-               href={item.href} 
-               onClick={() => setIsOpen(false)}
-               className="text-lg font-serif font-bold text-white py-3 border-b border-white/5 last:border-0 hover:text-museum-gold"
-             >
-               {item.name}
-             </Link>
-          ))}
-        </div>
-      )}
+      </div>
     </header>
   );
 }
