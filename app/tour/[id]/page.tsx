@@ -7,7 +7,7 @@ import { ArrowLeft, Headphones, Clock, Play } from 'lucide-react';
 import AudioPlayer from '@/components/ui/AudioPlayer';
 import LikeButton from '@/components/LikeButton';            
 import FeedbackButtons from '@/components/FeedbackButtons';
-import { checkBadges } from '@/lib/badgeSystem'; // <--- 1. Importeer Badge Systeem
+import { trackActivity } from '@/lib/tracking'; // <--- Gebruik de centrale tracker
 
 export default function TourDetailPage({ params }: { params: { id: string } }) {
   const [tour, setTour] = useState<any>(null);
@@ -42,16 +42,27 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
   const allStops = tour.stops_data?.stops || [];
   const tourStops = allStops.slice(0, 8);
 
-  // 2. Update de playAudio functie om badges te checken
-  const playAudio = (src: string, title: string) => {
+  // 2. SLIMME AUDIO PLAYER
+  // We accepteren nu een optionele 'context' (is het een stop? of de intro?)
+  const playAudio = (src: string, title: string, stopContext?: any) => {
       setActiveAudio({ src, title });
 
-      // Badge Check: Start Tour (Voor bijv. Lunchpauze, Vrijmibo, etc.)
       if (user) {
-          checkBadges(supabase, user.id, 'start_tour', {
-              tour_id: tour.id,
-              tour_title: tour.title
-          });
+          if (stopContext) {
+              // A. Gebruiker klikt op een specifiek SCHILDERIJ in de lijst
+              // Dit telt als 'view_artwork', zodat je badges als 'Rembrandt' of 'Dierenvriend' kunt halen
+              trackActivity(supabase, user.id, 'view_artwork', tour.id, {
+                  artist: stopContext.artist, // "Rembrandt"
+                  title: stopContext.title,
+                  tags: stopContext.tags || [] // Als je tags in je JSON hebt, stuur ze mee!
+              });
+          } else {
+              // B. Gebruiker klikt op START TOUR (Intro)
+              // Dit telt voor 'Lunchpauze', 'Vrijmibo', etc.
+              trackActivity(supabase, user.id, 'start_tour', tour.id, {
+                  tour_title: tour.title
+              });
+          }
       }
   };
 
@@ -87,7 +98,7 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
                 </p>
              </div>
 
-             {/* INTRO AUDIO KNOP */}
+             {/* INTRO AUDIO KNOP (Geen stop context, dus telt als start_tour) */}
              <div className="flex items-center gap-4">
                  <button 
                     onClick={() => playAudio(tour.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", `Intro: ${tour.title}`)}
@@ -143,9 +154,9 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
                             <p>{stop.description}</p>
                         </div>
                         
-                        {/* Audio Knop voor DEZE stop */}
+                        {/* Audio Knop voor DEZE stop (Met stop context -> telt als view_artwork!) */}
                         <div 
-                            onClick={() => playAudio(stop.audio_url || tour.audio_url, stop.title)}
+                            onClick={() => playAudio(stop.audio_url || tour.audio_url, stop.title, stop)}
                             className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group/audio"
                         >
                             <div className="flex items-center gap-3">
