@@ -5,10 +5,9 @@ import {
     Award, Lock, HelpCircle, Brain, Crown, LayoutGrid, Star, 
     BookOpen, Eye, Target, Globe, Map, Flame, Library, Trophy,
     Scroll, Coffee, Search, MoonStar, UserCheck, Compass, PenTool,
-    Heart, CloudRain, Moon, Sun, Clock, Palette
+    Heart, CloudRain, Moon, Sun, Clock, Palette, ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 
 export const revalidate = 0;
 
@@ -19,7 +18,7 @@ const getIcon = (iconName: string) => {
         'Award': Award,
         'Crown': Crown,
         'Grid': LayoutGrid,
-        'LayoutGrid': LayoutGrid, // Dubbel voor zekerheid (soms heet het Grid of LayoutGrid)
+        'LayoutGrid': LayoutGrid,
         'Star': Star,
         'BookOpen': BookOpen,
         'Eye': Eye,
@@ -52,7 +51,7 @@ export default async function AchievementsPage() {
 
     if (!user) return redirect('/login');
     
-    // 1. Haal ALLE mogelijke badges op uit de tabel 'badges'
+    // 1. Haal ALLE mogelijke badges op (standaard gesorteerd op XP)
     const { data: allBadges } = await supabase
         .from('badges')
         .select('*')
@@ -66,6 +65,22 @@ export default async function AchievementsPage() {
 
     // Maak een set voor snelle lookup op ID
     const unlockedSet = new Set(userBadges?.map(b => b.badge_id));
+
+    // 3. SORTEREN: Behaald bovenaan, daarna op XP
+    const sortedBadges = allBadges?.sort((a, b) => {
+        const hasA = unlockedSet.has(a.id);
+        const hasB = unlockedSet.has(b.id);
+
+        // Als A behaald is en B niet -> A komt eerst (-1)
+        if (hasA && !hasB) return -1;
+        
+        // Als B behaald is en A niet -> B komt eerst (1)
+        if (!hasA && hasB) return 1;
+
+        // Als status gelijk is (beide behaald of beide niet), behoud originele XP volgorde
+        // (De database fetch had ze al op XP gesorteerd, maar voor zekerheid:)
+        return a.xp_reward - b.xp_reward;
+    });
 
     return (
         <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
@@ -86,11 +101,7 @@ export default async function AchievementsPage() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {allBadges?.map((badge) => {
-                        // Omdat we in SQL insert geen UUIDs hebben gebruikt maar database auto-generate, 
-                        // is de kans groot dat user_badges nog leeg is of IDs niet matchen als je handmatig test.
-                        // Zorg dat je systeem straks op badge.id of badge.name checkt.
-                        // Hier gebruiken we ID.
+                    {sortedBadges?.map((badge) => {
                         const isUnlocked = unlockedSet.has(badge.id);
                         
                         const isSecret = badge.is_secret || false; 
@@ -109,8 +120,8 @@ export default async function AchievementsPage() {
                             >
                                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-inner ${
                                     isUnlocked 
-                                        ? 'bg-museum-gold text-black shadow-museum-gold/50' 
-                                        : 'bg-black/30 text-gray-600'
+                                    ? 'bg-museum-gold text-black shadow-museum-gold/50' 
+                                    : 'bg-black/30 text-gray-600'
                                 }`}>
                                     {isUnlocked ? <BadgeIcon size={40} /> : (isHidden ? <HelpCircle size={32}/> : <Lock size={32} />)}
                                 </div>
