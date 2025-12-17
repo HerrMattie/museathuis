@@ -12,10 +12,12 @@ export default async function EditSchedulePage({ params }: { params: { date: str
   const dateStr = params.date;
 
   // 1. Haal alle beschikbare content op (voor de keuzelijsten)
-  const [{ data: tours }, { data: games }, { data: focusItems }] = await Promise.all([
+  // TOEGEVOEGD: Salons ophalen
+  const [{ data: tours }, { data: games }, { data: focusItems }, { data: salons }] = await Promise.all([
     supabase.from('tours').select('id, title').order('title'),
     supabase.from('games').select('id, title').order('title'),
     supabase.from('focus_items').select('id, title').order('title'),
+    supabase.from('salons').select('id, title').order('title'),
   ]);
 
   // 2. Haal de HUIDIGE planning voor deze dag op
@@ -40,6 +42,8 @@ export default async function EditSchedulePage({ params }: { params: { date: str
       day.tour_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'tour' }));
       day.game_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'game' }));
       day.focus_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'focus' }));
+      // Optioneel: salons ook toevoegen aan geschiedenis als je daarop wilt checken
+      day.salon_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'salon' }));
   });
 
   const formattedDate = format(parseISO(dateStr), 'EEEE d MMMM yyyy', { locale: nl });
@@ -58,10 +62,11 @@ export default async function EditSchedulePage({ params }: { params: { date: str
 
       <EditScheduleForm 
         date={dateStr}
-        initialData={dayData || { tour_ids: [], game_ids: [], focus_ids: [] }}
+        initialData={dayData || { tour_ids: [], game_ids: [], focus_ids: [], salon_ids: [] }}
         availableTours={tours || []}
         availableGames={games || []}
         availableFocus={focusItems || []}
+        availableSalons={salons || []}
         history={history}
       />
     </div>
