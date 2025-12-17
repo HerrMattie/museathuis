@@ -76,16 +76,7 @@ export default async function Home() {
               />
           </div>
           
-          {/* CTA */}
-          <div className="relative z-20 bg-museum-gold text-black py-20 px-6 text-center">
-              <div className="max-w-2xl mx-auto">
-                  <h2 className="text-3xl font-serif font-bold mb-6">Nog geen lid?</h2>
-                  <p className="mb-8 text-black/80 font-medium">Ontgrendel elke dag de volledige tour, alle games en de salon.</p>
-                  <Link href="/salon" className="inline-flex items-center gap-2 bg-black text-white px-8 py-4 rounded-xl font-bold hover:scale-105 transition-transform shadow-xl">
-                      Start Gratis Proefperiode <ArrowRight size={18}/>
-                  </Link>
-              </div>
-          </div>
+
       </div>
     </main>
   );
