@@ -8,7 +8,7 @@ export default function Footer() {
     <footer className="bg-midnight-950 border-t border-white/10 pt-16 pb-8 mt-auto">
       <div className="max-w-7xl mx-auto px-6">
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
           
           {/* KOLOM 1: MERK */}
           <div className="col-span-1 md:col-span-1">
@@ -42,17 +42,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* KOLOM 4: SOCIALS */}
-          <div>
-            <h4 className="text-white font-bold uppercase tracking-widest text-xs mb-6">Volg Ons</h4>
-            <div className="flex gap-4">
-              <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-white/20 text-white transition-colors"><Instagram size={18}/></a>
-              <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-white/20 text-white transition-colors"><Facebook size={18}/></a>
-              <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-white/20 text-white transition-colors"><Twitter size={18}/></a>
-              <a href="mailto:info@museathuis.nl" className="p-2 bg-white/5 rounded-full hover:bg-white/20 text-white transition-colors"><Mail size={18}/></a>
-            </div>
-          </div>
-        </div>
 
         {/* COPYRIGHT BAR */}
         <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-600">
