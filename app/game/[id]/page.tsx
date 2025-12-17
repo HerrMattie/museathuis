@@ -1,133 +1,94 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
-import { X, Trophy } from 'lucide-react';
-import confetti from 'canvas-confetti';
-import FeedbackButtons from '@/components/FeedbackButtons';
-import { checkBadges } from '@/lib/badgeSystem'; // <--- Importeer de badge functie
+import Link from 'next/link';
+import { Play, Trophy, Users, Clock, ArrowLeft } from 'lucide-react';
 
-export default function GamePlayPage({ params }: { params: { id: string } }) {
-    const [questions, setQuestions] = useState<any[]>([]);
-    const [currentQ, setCurrentQ] = useState(0);
-    const [score, setScore] = useState(0);
-    const [finished, setFinished] = useState(false);
-    const [startTime, setStartTime] = useState<number>(Date.now());
-    const [user, setUser] = useState<any>(null);
-
-    const router = useRouter();
+export default function GameLobbyPage({ params }: { params: { id: string } }) {
+    const [game, setGame] = useState<any>(null);
+    const [highscores, setHighscores] = useState<any[]>([]);
     const supabase = createClient();
 
-    // 1. Data ophalen & Timer starten
     useEffect(() => {
-        const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-            
-            // TODO: Haal echte vragen op uit DB op basis van params.id
-            // const { data } = await supabase.from('game_questions').select('*').eq('game_id', params.id);
-            // setQuestions(data || []);
+        const fetchData = async () => {
+            // 1. Haal game details op
+            const { data } = await supabase.from('games').select('*').eq('id', params.id).single();
+            setGame(data);
 
-            // Mock data voor nu
-            setQuestions([
-                { text: "Wie schilderde de Nachtwacht?", options: ["Vermeer", "Rembrandt", "Van Gogh", "Hals"], correct: 1 },
-                { text: "Welk jaar?", options: ["1642", "1500", "1900", "1750"], correct: 0 }
+            // 2. Haal highscores (mock data of echt)
+            // Als je straks een 'game_scores' tabel hebt, kun je die hier fetchen
+            setHighscores([
+                { name: 'RembrandtLover', score: 950 },
+                { name: 'ArtNerd99', score: 820 },
+                { name: 'VermeerFan', score: 780 },
             ]);
-            setStartTime(Date.now()); // Reset starttijd als vragen geladen zijn
         };
-        init();
+        fetchData();
     }, [params.id]);
 
-    const handleAnswer = (index: number) => {
-        const isCorrect = index === questions[currentQ].correct;
-        
-        // Optimistische update voor UI snelheid
-        let newScore = score;
-        if (isCorrect) {
-            newScore += 100;
-            setScore(newScore);
-            confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
-        }
+    if (!game) return <div className="min-h-screen bg-midnight-950"/>;
 
-        setTimeout(() => {
-            if (currentQ < questions.length - 1) {
-                setCurrentQ(curr => curr + 1);
-            } else {
-                // Game is klaar!
-                finishGame(newScore);
-            }
-        }, 1000);
-    };
-
-    // 2. De Finish Functie met Badge Check
-    const finishGame = async (finalScore: number) => {
-        setFinished(true);
-        
-        if (!user) return;
-
-        // Bereken duur in seconden
-        const duration = Math.floor((Date.now() - startTime) / 1000);
-        const maxScore = questions.length * 100;
-
-        // A. TRIGGER BADGES (Dit is de koppeling!)
-        await checkBadges(supabase, user.id, 'complete_game', {
-            type: 'quiz',
-            score: finalScore,
-            max_score: maxScore,
-            duration: duration
-        });
-
-        // B. Log de activiteit (voor statistieken & streaks)
-        await supabase.from('user_activity_logs').insert({
-            user_id: user.id,
-            action_type: 'complete_game',
-            metadata: { score: finalScore, duration, game_id: params.id }
-        });
-        
-        // C. Update streak in user_profiles (Optioneel, kan ook via database trigger)
-        // await updateUserStreak(supabase, user.id); 
-    };
-
-    if (questions.length === 0) return <div className="bg-midnight-950 min-h-screen"/>;
-
-    if (finished) {
-        return (
-            <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center text-white animate-in zoom-in-95">
-                <div className="max-w-md w-full bg-slate-900 p-8 rounded-3xl border border-white/10 shadow-2xl">
-                    <Trophy className="w-24 h-24 text-museum-gold mx-auto mb-6 animate-bounce"/>
-                    <h1 className="text-4xl font-serif font-black mb-2">Goed Gedaan!</h1>
-                    <div className="text-6xl font-black text-white mb-8">{score} <span className="text-xl text-gray-500">PTN</span></div>
-                    
-                    <div className="bg-white/5 rounded-2xl p-4 mb-8">
-                        <FeedbackButtons entityId={params.id} entityType="game" className="justify-center"/>
-                    </div>
-
-                    <button onClick={() => router.push('/game')} className="w-full bg-white text-black px-8 py-4 rounded-xl font-bold hover:scale-105 transition-transform">
-                        Terug naar Overzicht
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const q = questions[currentQ];
-    
     return (
-        <div className="min-h-screen bg-midnight-950 text-white flex flex-col">
-            <div className="p-6 flex justify-between items-center">
-               <button onClick={() => router.back()}><X className="text-gray-500 hover:text-white"/></button>
-               <div className="font-mono text-museum-gold">{score}</div>
-            </div>
+        <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6 pb-12">
             
-            <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full p-6">
-                <h2 className="text-2xl md:text-3xl font-serif font-bold text-center mb-12">{q.text}</h2>
-                <div className="grid grid-cols-1 gap-4">
-                   {q.options.map((opt: string, i: number) => (
-                      <button key={i} onClick={() => handleAnswer(i)} className="p-4 rounded-xl border border-white/10 bg-white/5 text-left font-bold hover:bg-white/10 transition-colors">
-                         {opt}
-                      </button>
-                   ))}
+            {/* Header / Terug knop */}
+            <div className="max-w-4xl mx-auto mb-8">
+                <Link href="/game" className="text-gray-400 hover:text-white flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors mb-4">
+                    <ArrowLeft size={16}/> Terug naar Games
+                </Link>
+                <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-2">{game.title}</h1>
+                <p className="text-gray-400 text-lg">{game.short_description}</p>
+            </div>
+
+            <div className="max-w-4xl mx-auto relative z-20">
+                <div className="bg-midnight-900 border border-white/10 rounded-2xl p-8 shadow-2xl">
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        
+                        {/* LINKS: INFO & START */}
+                        <div>
+                            <h2 className="text-2xl font-bold mb-6 text-white">Jouw Uitdaging</h2>
+                            <div className="space-y-4 mb-8">
+                                <div className="flex items-center gap-3 text-gray-300">
+                                    <Clock className="text-museum-gold"/> 
+                                    <span>Tijdsduur: <strong>2 minuten</strong></span>
+                                </div>
+                                <div className="flex items-center gap-3 text-gray-300">
+                                    <Trophy className="text-museum-gold"/> 
+                                    <span>Te winnen: <strong>50 XP</strong></span>
+                                </div>
+                                <div className="flex items-center gap-3 text-gray-300">
+                                    <Users className="text-museum-gold"/> 
+                                    <span>Gespeeld door: <strong>1.2k mensen</strong></span>
+                                </div>
+                            </div>
+
+                            <Link 
+                                href={`/game/${params.id}/play`} 
+                                className="w-full bg-museum-gold text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-white transition-colors shadow-lg hover:scale-105 transform duration-200"
+                            >
+                                <Play size={20} fill="black"/> Start Game
+                            </Link>
+                        </div>
+
+                        {/* RECHTS: HIGHSCORES */}
+                        <div className="bg-black/20 rounded-xl p-6 border border-white/5">
+                            <h3 className="font-bold text-gray-400 uppercase tracking-widest text-xs mb-4">Topspelers Vandaag</h3>
+                            <div className="space-y-3">
+                                {highscores.map((score, i) => (
+                                    <div key={i} className="flex justify-between items-center border-b border-white/5 pb-2 last:border-0">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`font-black w-6 ${i === 0 ? 'text-yellow-400' : 'text-gray-600'}`}>{i + 1}</span>
+                                            <span className="font-medium text-sm">{score.name}</span>
+                                        </div>
+                                        <span className="font-mono text-museum-gold font-bold">{score.score}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
         </div>
