@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient'; 
+import { createClient } from '@/lib/supabaseClient'; // Zorg dat dit de client import is
 import Link from 'next/link';
 import { Clock, Share2, Lock, Play } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 import AudioPlayer from '@/components/ui/AudioPlayer';
 import LikeButton from '@/components/LikeButton'; 
 import FeedbackButtons from '@/components/FeedbackButtons';
-import { trackActivity } from '@/lib/tracking'; // <--- 1. Importeer de centrale tracker
+import { trackActivity } from '@/lib/tracking'; // <--- Importeer de tracker
 
 export default function FocusDetailPage({ params }: { params: { id: string } }) {
     const [article, setArticle] = useState<any>(null);
@@ -52,9 +52,23 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
         };
         
         fetchData();
+
+        // 4. TIMER VOOR 'VERF DROOGT' BADGE (10 minuten = 600.000 ms)
+        const timer = setTimeout(async () => {
+             const { data: u } = await supabase.auth.getUser();
+             if (u?.user) {
+                 console.log("⏱️ 10 minuten voorbij: Verf Droogt trigger!");
+                 trackActivity(supabase, u.user.id, 'time_spent', params.id, {
+                     duration: 600 // We sturen 600 seconden mee als bewijs
+                 });
+             }
+        }, 600000); 
         
-        // Cleanup: stop audio als je de pagina verlaat
-        return () => setShowAudio(false);
+        // Cleanup: Als gebruiker weggaat, stop timer en audio
+        return () => {
+            clearTimeout(timer);
+            setShowAudio(false);
+        };
     }, [params.id, supabase]);
 
     if (loading) return <div className="min-h-screen bg-midnight-950 text-white pt-32 px-6 text-center">Laden...</div>;
