@@ -39,17 +39,13 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (count === 1) earnedBadges.push('Beginner');
         if (count >= 10) earnedBadges.push('Quiz Meester'); 
         if (count >= 50) earnedBadges.push('Professor');
-        
-        // Net Niet (4x verliezen op rij) - Vereist complexe query, slaan we even over voor performance
-        // Comeback Kid - Idem
     }
 
 
-// -------------------------------------------------------
+    // -------------------------------------------------------
     // 2. TIJD & DATUM
     // -------------------------------------------------------
-    // Tijdstippen
-    if (hour >= 18) earnedBadges.push('Donkere Modus'); // <--- NIEUW: Avond (vanaf 18:00)
+    if (hour >= 18) earnedBadges.push('Donkere Modus'); // Avond
     if (hour >= 0 && hour < 4) earnedBadges.push('Nachtwacht');
     if (hour >= 5 && hour < 7) earnedBadges.push('Vroege Vogel');
     if (now.getDay() === 5 && hour >= 17) earnedBadges.push('Vrijmibo');
@@ -67,8 +63,9 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     if (month === 10 && day === 31) earnedBadges.push('Griezelig');
     if (month === 1 && now.getDay() === 1 && day >= 15 && day <= 21) earnedBadges.push('Blauwe Maandag');
 
+
     // -------------------------------------------------------
-    // 3. CONTENT (Kijken & Lezen - UITGEBREID)
+    // 3. CONTENT (Kijken & Lezen)
     // -------------------------------------------------------
     
     // KUNST BEKIJKEN
@@ -109,14 +106,7 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (year >= 1900 && year < 2000) {
             earnedBadges.push('Modernist');
         }
-// "Portret Jager"
-        if (tags.some((t: string) => t.includes('portret'))) {
-            earnedBadges.push('Portret Jager');
-        }
-        // VIP Badge (Als gebruiker Premium koopt)
-    if (action === 'buy_premium') {
-        earnedBadges.push('VIP');
-    }
+
         // "Dierenvriend"
         const animalTags = ['dier', 'kat', 'hond', 'paard', 'vogel', 'koe', 'schaap'];
         if (tags.some((t: string) => animalTags.some(animal => t.includes(animal)))) {
@@ -132,7 +122,12 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
         if (tags.some((t: string) => ['schets', 'zwart-wit', 'tekening', 'ets'].includes(t))) {
             earnedBadges.push('Monochroom');
         }
-    }
+
+        // "Portret Jager"
+        if (tags.some((t: string) => t.includes('portret'))) {
+            earnedBadges.push('Portret Jager');
+        }
+    } // <--- HIER SLUIT 'view_artwork'. BELANGRIJK!
 
     // FOCUS ARTIKELEN
     if (action === 'read_focus') {
@@ -163,6 +158,11 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
     if (action === 'update_settings') earnedBadges.push('Instellingen Guru');
     if (action === 'update_avatar') earnedBadges.push('Profiel Plaatje');
 
+    // VIP Badge (Staat nu netjes apart in de hoofdstructuur)
+    if (action === 'buy_premium') {
+        earnedBadges.push('VIP');
+    }
+
     if (action === 'rate_item') {
         const rating = meta.rating || 0;
         
@@ -182,7 +182,6 @@ export async function checkBadges(supabase: SupabaseClient, userId: string, acti
 
     if (action === 'share_item') {
         earnedBadges.push('Influencer');
-        // Voor 'Viral Gaan' (10x) zou je weer een count query moeten doen
     }
 
 
