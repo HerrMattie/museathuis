@@ -42,7 +42,7 @@ const getIcon = (iconName: string) => {
         'Clock': Clock,
         'Palette': Palette
     };
-    return icons[iconName] || Award; // Fallback naar Award als icoon niet bestaat
+    return icons[iconName] || Award;
 };
 
 export default async function AchievementsPage() {
@@ -51,11 +51,10 @@ export default async function AchievementsPage() {
 
     if (!user) return redirect('/login');
     
-    // 1. Haal ALLE mogelijke badges op (standaard gesorteerd op XP)
+    // 1. Haal alle badges op
     const { data: allBadges } = await supabase
         .from('badges')
-        .select('*')
-        .order('xp_reward', { ascending: true });
+        .select('*');
 
     // 2. Haal de badges op die de user HEEFT
     const { data: userBadges } = await supabase
@@ -63,23 +62,30 @@ export default async function AchievementsPage() {
         .select('badge_id')
         .eq('user_id', user.id);
 
-    // Maak een set voor snelle lookup op ID
     const unlockedSet = new Set(userBadges?.map(b => b.badge_id));
 
-    // 3. SORTEREN: Behaald bovenaan, daarna op XP
+    // 3. SORTEREN: 3 Niveau's
     const sortedBadges = allBadges?.sort((a, b) => {
         const hasA = unlockedSet.has(a.id);
         const hasB = unlockedSet.has(b.id);
 
-        // Als A behaald is en B niet -> A komt eerst (-1)
-        if (hasA && !hasB) return -1;
-        
-        // Als B behaald is en A niet -> B komt eerst (1)
-        if (!hasA && hasB) return 1;
+        // Helper functie om de "Rang" te bepalen
+        const getRank = (badge: any, unlocked: boolean) => {
+            if (unlocked) return 0;         // Rang 0: Behaald (Bovenaan)
+            if (!badge.is_secret) return 1; // Rang 1: Openbaar & Nog niet behaald
+            return 2;                       // Rang 2: Geheim & Nog niet behaald (Onderaan)
+        };
 
-        // Als status gelijk is (beide behaald of beide niet), behoud originele XP volgorde
-        // (De database fetch had ze al op XP gesorteerd, maar voor zekerheid:)
-        return a.xp_reward - b.xp_reward;
+        const rankA = getRank(a, hasA);
+        const rankB = getRank(b, hasB);
+
+        // Stap A: Sorteer op Rang (0 -> 1 -> 2)
+        if (rankA !== rankB) {
+            return rankA - rankB;
+        }
+
+        // Stap B: Als rang gelijk is, sorteer op XP (Laag -> Hoog)
+        return (a.xp_reward || 0) - (b.xp_reward || 0);
     });
 
     return (
@@ -103,8 +109,9 @@ export default async function AchievementsPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {sortedBadges?.map((badge) => {
                         const isUnlocked = unlockedSet.has(badge.id);
-                        
                         const isSecret = badge.is_secret || false; 
+                        
+                        // Een badge is alleen 'visueel' geheim als hij secret is ÉN nog niet behaald
                         const isHidden = isSecret && !isUnlocked;
 
                         const BadgeIcon = getIcon(badge.icon_name);
