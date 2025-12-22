@@ -22,7 +22,7 @@ interface Props {
         tour_ids: string[];
         game_ids: string[];
         focus_ids: string[];
-        salon_ids?: string[]; // Kan undefined zijn als de kolom nog niet bestaat
+        salon_ids?: string[]; 
     };
     availableTours: ScheduleItem[];
     availableGames: ScheduleItem[];
@@ -45,6 +45,9 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
 
     // Helper: Check of een item recent is gebruikt
     const checkDuplicate = (id: string, type: 'tour' | 'game' | 'focus' | 'salon') => {
+        // UITZONDERING: Salons mogen (moeten zelfs) herhaald worden in een week
+        if (type === 'salon') return null;
+
         const found = history.find(h => h.item_id === id && h.type === type);
         if (found) {
             return `Let op: Dit item is recent ingepland op ${found.date}`;
@@ -56,7 +59,6 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
         setIsSaving(true);
         setMessage('');
 
-        // Let op: zorg dat je tabel 'dayprogram_schedule' een kolom 'salon_ids' (array van text/uuid) heeft!
         const { error } = await supabase.from('dayprogram_schedule').upsert({
             day_date: date,
             tour_ids: selectedTours,
@@ -70,7 +72,7 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
             setMessage(`Error: ${error.message}`);
         } else {
             setMessage('Planning succesvol opgeslagen!');
-            router.push('/crm/schedule'); // Terug naar overzicht
+            router.push('/crm/schedule');
             router.refresh();
         }
         setIsSaving(false);
@@ -164,7 +166,7 @@ export default function EditScheduleForm({ date, initialData, availableTours, av
                 />
 
                 <SelectionSection 
-                    title="Salons" 
+                    title="Salons (Weekcontent)" 
                     items={availableSalons} 
                     selectedIds={selectedSalons} 
                     setSelected={setSelectedSalons} 
