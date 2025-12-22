@@ -11,8 +11,7 @@ export default async function EditSchedulePage({ params }: { params: { date: str
   const supabase = createClient(cookies());
   const dateStr = params.date;
 
-  // 1. Haal alle beschikbare content op (voor de keuzelijsten)
-  // TOEGEVOEGD: Salons ophalen
+  // 1. Haal alle beschikbare content op
   const [{ data: tours }, { data: games }, { data: focusItems }, { data: salons }] = await Promise.all([
     supabase.from('tours').select('id, title').order('title'),
     supabase.from('games').select('id, title').order('title'),
@@ -27,22 +26,20 @@ export default async function EditSchedulePage({ params }: { params: { date: str
     .eq('day_date', dateStr)
     .single();
 
-  // 3. Haal GESCHIEDENIS op (laatste 30 dagen) voor de duplicaat-check
+  // 3. Haal GESCHIEDENIS op
   const thirtyDaysAgo = format(subDays(parseISO(dateStr), 30), 'yyyy-MM-dd');
   
   const { data: pastSchedules } = await supabase
     .from('dayprogram_schedule')
     .select('*')
-    .lt('day_date', dateStr) // Alles voor vandaag
-    .gte('day_date', thirtyDaysAgo); // Tot 30 dagen terug
+    .lt('day_date', dateStr) 
+    .gte('day_date', thirtyDaysAgo); 
 
-  // Flatten de geschiedenis naar een simpele lijst voor makkelijk zoeken
   const history: any[] = [];
   pastSchedules?.forEach(day => {
       day.tour_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'tour' }));
       day.game_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'game' }));
       day.focus_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'focus' }));
-      // Optioneel: salons ook toevoegen aan geschiedenis als je daarop wilt checken
       day.salon_ids?.forEach((id: string) => history.push({ date: day.day_date, item_id: id, type: 'salon' }));
   });
 
