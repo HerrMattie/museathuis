@@ -19,11 +19,10 @@ export default async function FavoritesPage() {
       );
   }
 
-  // 1. HAAL FAVORIETEN OP (Met fix voor de kolom-verwarring)
-  // We selecteren gewoon alle varianten, zodat we zeker weten dat we de ID hebben.
+  // 1. HAAL FAVORIETEN OP
   const { data: favs } = await supabase
     .from('favorites')
-    .select('item_id, item_ID, content_id, item_type, created_at') // <--- We pakken ze allebei
+    .select('item_id, item_ID, content_id, item_type, created_at')
     .eq('user_id', user.id);
 
   if (!favs || favs.length === 0) {
@@ -38,35 +37,33 @@ export default async function FavoritesPage() {
       );
   }
 
-  // 2. DATA SORTEREN EN OPHALEN
-  // Helper om de echte ID te vinden uit de rommelige kolommen
+  // 2. DATA SORTEREN
   const getRealId = (f: any) => f.item_id || f.item_ID || f.content_id;
 
   const tourIds = favs.filter(f => f.item_type === 'tour').map(getRealId).filter(Boolean);
   const focusIds = favs.filter(f => f.item_type === 'focus').map(getRealId).filter(Boolean);
   const salonIds = favs.filter(f => f.item_type === 'salon').map(getRealId).filter(Boolean);
 
-  // Parallel ophalen voor snelheid
   const [tours, focusItems, salons] = await Promise.all([
      tourIds.length > 0 ? supabase.from('tours').select('*').in('id', tourIds) : { data: [] },
      focusIds.length > 0 ? supabase.from('focus_items').select('*').in('id', focusIds) : { data: [] },
      salonIds.length > 0 ? supabase.from('salons').select('*').in('id', salonIds) : { data: [] },
   ]);
 
-  // 3. COMBINEREN TOT VISUELE ITEMS
+  // 3. COMBINEREN
   const allItems = [
       ...(tours.data || []).map((i: any) => ({ 
           ...i, 
           typeLabel: 'Tour', 
           typeIcon: <Compass size={16}/>, 
-          url: '/tour', // Tours hebben vaak geen detailpagina, link naar overzicht of speel af
+          url: '/tour', 
           image: i.image_url 
       })),
       ...(focusItems.data || []).map((i: any) => ({ 
           ...i, 
           typeLabel: 'Focus', 
           typeIcon: <BookOpen size={16}/>, 
-          url: `/focus`, // Of `/focus/${i.id}` als je detailpagina's hebt
+          url: `/focus`, 
           image: i.cover_image || i.image_url 
       })),
       ...(salons.data || []).map((i: any) => ({ 
@@ -78,9 +75,9 @@ export default async function FavoritesPage() {
       })),
   ];
 
-  // Helper voor afbeelding optimalisatie
-  const getOptimizedImage = (url: string) => {
-     if (!url) return null;
+  // Helper: Accepteert nu ook null/undefined en geeft altijd een geldige string of undefined terug
+  const getOptimizedImage = (url: string | null | undefined) => {
+     if (!url) return undefined;
      if (url.includes('images.unsplash.com')) return `${url.split('?')[0]}?w=600&q=70&auto=format&fit=crop`;
      return url;
   };
@@ -106,7 +103,7 @@ export default async function FavoritesPage() {
                         {/* AFBEELDING */}
                         {item.image ? (
                             <img 
-                                src={getOptimizedImage(item.image)} 
+                                src={getOptimizedImage(item.image) || ""} 
                                 alt={item.title} 
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                 loading="lazy"
@@ -117,24 +114,19 @@ export default async function FavoritesPage() {
                             </div>
                         )}
 
-                        {/* OVERLAY & GRADIENT */}
                         <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/50 to-transparent"></div>
 
-                        {/* CONTENT */}
                         <div className="absolute bottom-0 left-0 right-0 p-6">
-                            {/* Label */}
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="bg-museum-gold text-black text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md flex items-center gap-1">
                                     {item.typeIcon} {item.typeLabel}
                                 </span>
                             </div>
                             
-                            {/* Titel */}
                             <h3 className="text-xl font-serif font-bold text-white mb-1 line-clamp-2 leading-tight group-hover:text-museum-gold transition-colors">
                                 {item.title}
                             </h3>
                             
-                            {/* Datum (optioneel, anders description) */}
                             <p className="text-sm text-gray-400 line-clamp-1">
                                 {item.intro || item.description || "Geen beschrijving beschikbaar"}
                             </p>
