@@ -25,11 +25,11 @@ export default async function CrmSchedulePage() {
       s.tour_ids?.forEach((id: string) => allIds.add(id));
       s.game_ids?.forEach((id: string) => allIds.add(id));
       s.focus_ids?.forEach((id: string) => allIds.add(id));
-      s.salon_ids?.forEach((id: string) => allIds.add(id)); // <--- NIEUW: Salons
+      s.salon_ids?.forEach((id: string) => allIds.add(id));
   });
   const idArray = Array.from(allIds);
 
-  // 3. Haal de titels op uit de verschillende tabellen
+  // 3. Haal de titels op
   const { data: tours } = await supabase.from('tours').select('id, title').in('id', idArray);
   const { data: games } = await supabase.from('games').select('id, title').in('id', idArray);
   const { data: focusItems } = await supabase.from('focus_items').select('id, title').in('id', idArray);
@@ -54,17 +54,17 @@ export default async function CrmSchedulePage() {
       const dayTours = getTitles(dayData?.tour_ids || [], tours || []);
       const dayGames = getTitles(dayData?.game_ids || [], games || []);
       const dayFocus = getTitles(dayData?.focus_ids || [], focusItems || []);
-      const daySalons = getTitles(dayData?.salon_ids || [], salons || []); // <--- NIEUW
+      const daySalons = getTitles(dayData?.salon_ids || [], salons || []);
 
       // LOGICA: Hebben we inhoud?
       const hasSomething = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0 || daySalons.length > 0);
       
-      // LOGICA: Is de dag 'Gereed'? (Minimaal 3 van de kern-content, 1 salon is bonus)
+      // LOGICA: Is de dag 'Gereed'? (Minimaal 3 van de kern-content)
+      // Salons tellen mee als "bonus" of vervanging
       const isFullyReady = dayData && 
                            dayTours.length >= 3 && 
                            dayGames.length >= 3 && 
-                           daySalons.length >= 3 &&  
-                           dayFocus.length >= 3;
+                           (dayFocus.length >= 3 || daySalons.length >= 1); // <--- AANGEPAST: 1 Salon is genoeg voor 'Gereed'
 
       return (
         <div key={dateStr} className={`bg-white rounded-xl shadow-sm border overflow-hidden mb-4 ${isFullyReady ? 'border-green-200' : 'border-orange-200 bg-orange-50/10'} ${isArchive ? 'opacity-75 grayscale-[0.5]' : ''}`}>
@@ -102,7 +102,7 @@ export default async function CrmSchedulePage() {
                     </div>
                     <div>
                         <strong className="block text-slate-400 mb-1 uppercase tracking-wider text-[10px]">Salons</strong>
-                        {daySalons.length > 0 ? <span className="text-slate-800 font-bold">{daySalons.length}</span> : <span className="text-slate-400">-</span>}
+                        {daySalons.length > 0 ? <span className="text-slate-800 font-bold text-museum-gold">{daySalons.length}</span> : <span className="text-slate-400">-</span>}
                     </div>
                 </div>
             )}
