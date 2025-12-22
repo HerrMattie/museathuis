@@ -25,9 +25,9 @@ export default function Footer() {
             <h4 className="text-white font-bold uppercase tracking-widest text-xs mb-6">Ontdekken</h4>
             <ul className="space-y-3 text-sm text-slate-400">
               <li><Link href="/tour" className="hover:text-museum-gold transition-colors">Audiotours</Link></li>
-              <li><Link href="/game" className="hover:text-museum-gold transition-colors">Games & Quiz</Link></li>
-              <li><Link href="/focus" className="hover:text-museum-gold transition-colors">In Focus</Link></li>
-              <li><Link href="/academie" className="hover:text-museum-gold transition-colors">De Academie</Link></li>
+              <li><Link href="/game" className="hover:text-museum-gold transition-colors">Games</Link></li>
+              <li><Link href="/focus" className="hover:text-museum-gold transition-colors">Focus</Link></li>
+              <li><Link href="/salon" className="hover:text-museum-gold transition-colors">Gallerij</Link></li>
             </ul>
           </div>
 
