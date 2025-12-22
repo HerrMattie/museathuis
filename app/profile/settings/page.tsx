@@ -13,7 +13,6 @@ export default async function SettingsPage() {
 
   if (!user) redirect('/login');
 
-  // select('*') haalt automatisch al je nieuwe kolommen (education, gender, etc) op!
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -22,10 +21,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
-      {/* AANGEPAST: Van max-w-2xl naar max-w-4xl voor meer ruimte voor de tabs */}
       <div className="max-w-4xl mx-auto">
-        
-        {/* Header Sectie */}
         <div className="flex items-center justify-between mb-8">
             <div>
                 <Link href="/profile" className="text-gray-400 hover:text-white flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors mb-2">
@@ -35,9 +31,8 @@ export default async function SettingsPage() {
             </div>
         </div>
 
-        {/* Het Formulier */}
+        {/* Hieronder de Form Component met de fix voor het opslaan */}
         <SettingsForm user={user} initialData={profile} />
-
       </div>
     </div>
   );
