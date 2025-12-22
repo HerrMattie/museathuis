@@ -10,7 +10,6 @@ import {
 
 // We voegen hier de iconen toe aan de configuratie
 const navItems = [
-  { label: 'Vandaag', href: '/', icon: Home },
   { label: 'Tour', href: '/tour', icon: Compass },
   { label: 'Game', href: '/game', icon: Gamepad2 },
   { label: 'Focus', href: '/focus', icon: BookOpen },
