@@ -27,7 +27,7 @@ export default function Footer() {
               <li><Link href="/tour" className="hover:text-museum-gold transition-colors">Audiotours</Link></li>
               <li><Link href="/game" className="hover:text-museum-gold transition-colors">Games</Link></li>
               <li><Link href="/focus" className="hover:text-museum-gold transition-colors">Focus</Link></li>
-              <li><Link href="/salon" className="hover:text-museum-gold transition-colors">Gallerij</Link></li>
+              <li><Link href="/salon" className="hover:text-museum-gold transition-colors">Galerij</Link></li>
             </ul>
           </div>
 
