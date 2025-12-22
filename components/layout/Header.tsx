@@ -2,125 +2,125 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MAIN_NAV_LINKS } from '@/lib/navConfig';
-import { cn } from '@/lib/utils'; 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient';
-import { User, Menu, X } from 'lucide-react'; // Menu en X toegevoegd
+import { useState, useEffect } from 'react'; // useEffect toegevoegd
+import { Menu, X, User } from 'lucide-react';
+
+const navItems = [
+  { label: 'Vandaag', href: '/' },
+  { label: 'Tour', href: '/tour' },
+  { label: 'Game', href: '/game' },
+  { label: 'Focus', href: '/focus' },
+  { label: 'Salon', href: '/salon' },
+  { label: 'Academie', href: '/academy' },
+  { label: 'Best Of', href: '/favorites' },
+];
 
 export default function Header() {
   const pathname = usePathname();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State voor mobiel menu
-  const supabase = createClient();
+  const [isOpen, setIsOpen] = useState(false);
 
-  // Haal de avatar op bij het laden
+  // Zorg dat scrollen blokkeert als menu open is (voorkomt bewegen van achtergrond)
   useEffect(() => {
-    const getAvatar = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('user_profiles')
-          .select('avatar_url')
-          .eq('user_id', user.id)
-          .single();
-        if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-      }
-    };
-    getAvatar();
-  }, []);
-
-  // Sluit mobiel menu als we van pagina wisselen
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [pathname]);
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-midnight-950/90 backdrop-blur-md border-b border-white/5 h-20">
-      <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
-        
-        {/* LOGO */}
-        <Link href="/" className="flex items-center gap-2 group relative z-50">
-          <div className="w-10 h-10 bg-museum-gold rounded-lg flex items-center justify-center text-black font-serif font-bold text-xl group-hover:rotate-3 transition-transform">
-            M
-          </div>
-          <span className="font-serif text-2xl font-bold tracking-tight text-white hidden sm:block">
-            Musea<span className="text-museum-gold">Thuis</span>
-          </span>
-        </Link>
+    <>
+      {/* VASTE HEADER BALK */}
+      <header className="fixed top-0 left-0 right-0 z-[60] bg-midnight-950/90 backdrop-blur-md border-b border-white/10 h-20">
+        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
+          
+          {/* LOGO */}
+          <Link href="/" className="flex items-center gap-2 group z-[70]" onClick={() => setIsOpen(false)}>
+            <div className="w-10 h-10 bg-museum-gold rounded-lg flex items-center justify-center text-black font-serif font-bold text-xl group-hover:rotate-3 transition-transform">
+              M
+            </div>
+            <span className="font-serif font-bold text-2xl tracking-tight text-white">
+              Musea<span className="text-museum-gold">Thuis</span>
+            </span>
+          </Link>
 
-        {/* DESKTOP NAVIGATIE (Hidden on Mobile) */}
-        <nav className="hidden md:flex items-center gap-1">
-          {MAIN_NAV_LINKS.map((link) => {
-            const Icon = link.icon;
-            const isActive = link.href === '/' 
-                ? pathname === '/' 
-                : pathname.startsWith(link.href);
-
-            return (
+          {/* DESKTOP NAVIGATIE */}
+          <nav className="hidden md:flex items-center gap-8">
+            {navItems.map((item) => (
               <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 border border-transparent",
-                  isActive 
-                    ? "bg-museum-gold/10 text-museum-gold border-museum-gold/20" 
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
+                key={item.href}
+                href={item.href}
+                className={`text-sm font-bold uppercase tracking-widest transition-colors ${
+                  pathname === item.href ? 'text-museum-gold' : 'text-gray-400 hover:text-white'
+                }`}
               >
-                <Icon size={16} className={cn(isActive ? "text-museum-gold" : "text-current opacity-70 group-hover:opacity-100")} />
-                {link.label}
+                {item.label}
               </Link>
-            );
-          })}
-        </nav>
+            ))}
+          </nav>
 
-        {/* RECHTS: Profiel & Mobiel Toggle */}
-        <div className="flex items-center gap-4 relative z-50">
-            {/* Profiel Avatar (Altijd zichtbaar) */}
-            <Link href="/profile" className="w-10 h-10 rounded-full overflow-hidden border border-white/10 hover:border-museum-gold transition-colors flex items-center justify-center bg-black/40 group">
-                {avatarUrl ? (
-                    <img src={avatarUrl} alt="Profiel" className="w-full h-full object-cover" />
-                ) : (
-                    <User size={20} className="text-gray-400 group-hover:text-white transition-colors"/>
-                )}
-            </Link>
+          {/* RECHTS: PROFIEL & KNOPPEN */}
+          <div className="flex items-center gap-4 z-[70]">
+              <Link href="/profile" className="hidden md:flex w-10 h-10 rounded-full border border-white/20 items-center justify-center hover:bg-white hover:text-black transition-colors">
+                  <User size={20} />
+              </Link>
 
-            {/* Hamburger Menu Knop (Alleen Mobiel) */}
-            <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2 text-gray-300 hover:text-white transition-colors"
+              {/* Hamburger Knop */}
+              <button 
+                  onClick={() => setIsOpen(!isOpen)} 
+                  className="md:hidden p-2 text-white hover:text-museum-gold transition-colors relative"
+                  aria-label="Menu openen"
+              >
+                  {isOpen ? <X size={28} /> : <Menu size={28} />}
+              </button>
+          </div>
+        </div>
+      </header>
+
+      {/* MOBIEL MENU OVERLAY (Volledig Scherm) */}
+      <div 
+        className={`fixed inset-0 z-[50] bg-midnight-950 flex flex-col justify-center px-8 transition-all duration-300 ease-in-out md:hidden ${
+          isOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+        }`}
+      >
+          {/* Achtergrond decoratie */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+
+          <nav className="flex flex-col gap-6 relative z-10">
+            {navItems.map((item, index) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                className={`text-3xl font-serif font-bold transition-all duration-300 hover:text-museum-gold ${
+                   // Staggered animatie effect als menu opent
+                   isOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+                }`}
+                style={{ 
+                    transitionDelay: `${index * 50}ms`,
+                    color: pathname === item.href ? '#EAB308' : 'white'
+                }}
+              >
+                {item.label}
+              </Link>
+            ))}
+            
+            <hr className="border-white/10 my-4" />
+            
+            <Link 
+              href="/profile" 
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-4 text-xl font-bold uppercase tracking-widest text-gray-400 hover:text-white"
             >
-                {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-            </button>
-        </div>
+               <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                  <User size={24}/> 
+               </div>
+               Mijn Profiel
+            </Link>
+          </nav>
       </div>
-
-      {/* MOBIEL MENU OVERLAY */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 top-20 bg-midnight-950 z-40 md:hidden flex flex-col p-6 border-t border-white/10 animate-in slide-in-from-top-5">
-            <nav className="flex flex-col gap-4">
-                {MAIN_NAV_LINKS.map((link) => {
-                    const Icon = link.icon;
-                    const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
-                    
-                    return (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            className={cn(
-                                "flex items-center gap-4 p-4 rounded-xl text-lg font-bold border border-white/5",
-                                isActive ? "bg-museum-gold/10 text-museum-gold border-museum-gold/20" : "text-gray-400 hover:bg-white/5"
-                            )}
-                        >
-                            <Icon size={24} />
-                            {link.label}
-                        </Link>
-                    )
-                })}
-            </nav>
-        </div>
-      )}
-    </header>
+    </>
   );
 }
