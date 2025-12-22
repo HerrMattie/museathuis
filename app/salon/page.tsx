@@ -12,13 +12,13 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
+  // 1. DATUM LOGICA: Bepaal de "Maandag van de week"
   const selectedDateStr = searchParams.date || new Date().toISOString().split('T')[0];
   const selectedDate = new Date(selectedDateStr);
-
-  // 1. BEREKEN DE WEEK RANGE (Maandag t/m Zondag)
-  // Fix: Zorg dat we altijd terugrekenen naar de Maandag van DEZE week
-  const day = selectedDate.getDay(); // 0 = zondag, 1 = maandag
-  const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); 
+  
+  // getDay(): Zondag is 0, Maandag is 1. We willen dat de week op Maandag begint.
+  const day = selectedDate.getDay(); 
+  const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); // Pas aan naar vorige maandag
   
   const monday = new Date(selectedDate);
   monday.setDate(diff);
@@ -28,44 +28,31 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   sunday.setDate(monday.getDate() + 6);
   const sundayStr = sunday.toISOString().split('T')[0];
 
-  // 2. QUERY AANPASSEN
-  // We zoeken nu: Is er een salon met een datum >= Maandag EN <= Zondag?
-  const { data: weeklySalons } = await supabase
-    .from('salons')
-    .select('*')
-    .eq('status', 'published')
-    .gte('day_date', mondayStr) 
-    .lte('day_date', sundayStr)
-    .order('day_date', { ascending: true })
-    .limit(3);
-  // 2. LEVEL & ACCESS BEPALEN
-  const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
-  const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
-  const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
-  
-  const { level } = getLevel(xp);
-  const access = getHistoryAccess(level);
-
-  // --- FIX: BEREKEN DE CUTOFF DATUM HIER ---
-  // access.weeks geeft aan hoeveel weken je terug mag. We rekenen dat om naar een datum.
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - (access.weeks * 7));
-  // ----------------------------------------
-
-  // 3. HAAL CRM TEKSTEN OP
+  // 2. HAAL CRM TEKSTEN OP
   const { data: content } = await supabase
     .from('site_content')
     .select('*')
     .in('key', ['salon_title', 'salon_subtitle', 'salon_unlock_btn']);
   const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
 
-  // 4. HAAL SALONS OP
+  // 3. LEVEL & ACCESS
+  const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
+  const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
+  const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
+  const { level } = getLevel(xp);
+  const access = getHistoryAccess(level);
+  
+  // Cutoff datum berekenen
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - (access.weeks * 7));
+
+  // 4. HAAL SALONS OP VOOR DEZE HELE WEEK
   const { data: weeklySalons } = await supabase
     .from('salons')
     .select('*')
     .eq('status', 'published')
-    .gte('day_date', mondayStr)
-    .lte('day_date', sundayStr)
+    .gte('day_date', mondayStr) // Vanaf maandag
+    .lte('day_date', sundayStr) // Tot en met zondag
     .order('day_date', { ascending: true })
     .limit(3);
 
@@ -82,7 +69,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
             {texts.salon_subtitle || "Wekelijkse exclusieve collecties voor rust en inspiratie."}
           </p>
           <div className="flex items-center justify-center gap-4">
-             <DateNavigator basePath="/salon" currentDate={selectedDate} maxBack={access.weeks} mode="week" />
+             <DateNavigator basePath="/salon" currentDate={selectedDateStr} maxBack={access.weeks} mode="week" />
           </div>
        </div>
 
@@ -90,9 +77,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
         {weeklySalons && weeklySalons.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {weeklySalons.map((salon) => {
-                    // Check: Is de salon datum ouder dan de berekende cutoffDate?
                     const salonDate = new Date(salon.day_date);
-                    // FIX: Gebruik hier de berekende variabele 'cutoffDate'
                     const isLocked = !user || salonDate < cutoffDate;
 
                     return (
