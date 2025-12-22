@@ -26,17 +26,24 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   const { data: content } = await supabase
     .from('site_content')
     .select('*')
-    .in('key', ['game_title', 'game_subtitle', 'game_label_free', 'game_label_premium']); // Ook labels ophalen
+    .in('key', ['game_title', 'game_subtitle', 'game_label_free', 'game_label_premium']); 
   const texts = content?.reduce((acc: any, item: any) => ({ ...acc, [item.key]: item.content }), {}) || {};
 
-  // Games ophalen
-  const { data: games } = await supabase.from('games').select('*').eq('status', 'published').limit(10);
-    
-  let dailyGames = games || [];
-  if (dailyGames.length > 3) {
-      const dayNum = new Date(selectedDate).getDate();
-      const start = dayNum % (dailyGames.length - 2);
-      dailyGames = dailyGames.slice(start, start + 3);
+  // GAMES OPHALEN VIA PLANNING
+  let dailyGames: any[] = [];
+  const { data: schedule } = await supabase
+      .from('dayprogram_schedule')
+      .select('game_ids')
+      .eq('day_date', selectedDate)
+      .single();
+
+  if (schedule?.game_ids && schedule.game_ids.length > 0) {
+      const { data } = await supabase
+          .from('games')
+          .select('*')
+          .in('id', schedule.game_ids)
+          .eq('status', 'published');
+      if (data) dailyGames = data;
   }
 
   // Sorteer: Index 0 = Gratis
@@ -49,7 +56,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
   }
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6 pb-20">
       
       {/* HEADER */}
       <div className="max-w-4xl mx-auto text-center flex flex-col items-center mb-16">
@@ -70,7 +77,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
           </div>
       </div>
 
-      <div className="max-w-7xl mx-auto pb-20 relative z-20">
+      <div className="max-w-7xl mx-auto relative z-20">
         {dailyGames.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {dailyGames.map((game, index) => {
@@ -84,9 +91,13 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
                             {/* Afbeelding Container */}
                             <div className="h-48 relative bg-black flex items-center justify-center overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-black"></div>
-                                <Gamepad2 size={64} className="text-emerald-500/20 group-hover:scale-110 transition-transform duration-500"/>
+                                {game.image_url ? (
+                                    <img src={game.image_url} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity"/>
+                                ) : (
+                                    <Gamepad2 size={64} className="text-emerald-500/20 group-hover:scale-110 transition-transform duration-500"/>
+                                )}
                                 
-                                {/* Label - CONSISTENTE STIJL (Links Boven) */}
+                                {/* Label */}
                                 <div className="absolute top-4 left-4 z-10">
                                     {isContentPremium ? (
                                         <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
@@ -115,7 +126,7 @@ export default async function GamePage({ searchParams }: { searchParams: { date?
                 })}
             </div>
         ) : (
-            <div className="text-center py-20 text-gray-400">Geen games voor vandaag.</div>
+            <div className="text-center py-20 text-gray-400 bg-white/5 rounded-2xl border border-dashed border-white/10">Geen games ingepland voor vandaag.</div>
         )}
       </div>
     </div>
