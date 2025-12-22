@@ -1,33 +1,34 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { addDays, format, subDays, parseISO } from 'date-fns';
-import { generateWithAI } from '@/lib/aiHelper'; // Zorg dat deze helper JSON returnt
+import { addDays, format, subDays, parseISO, nextMonday } from 'date-fns';
+import { generateWithAI } from '@/lib/aiHelper'; 
 import { WEEKLY_STRATEGY, PROMPTS } from '@/lib/scheduleConfig';
+import OpenAI from 'openai'; // Nodig voor salon generatie
 
 // 1. Config & Auth
-export const maxDuration = 300; // 5 minuten (Max voor Vercel Pro)
+export const maxDuration = 300; // 5 minuten
 export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY! // ESSENTIEEL: Service Role voor schrijfrechten
+    process.env.SUPABASE_SERVICE_ROLE_KEY! 
 );
 
-// HULPFUNCTIE: Maak slimme context string van je enriched data
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+// HULPFUNCTIE: Maak context string
 const createArtContext = (artworks: any[]) => {
     return artworks.map(a => {
-        // Als we enriched data hebben, gebruik die! Anders fallback op beschrijving.
         const meta = a.ai_metadata;
         const details = meta 
             ? `Stijl: ${meta.artistic_style?.movement}. Kleuren: ${meta.visual_analysis?.color_names?.join(', ')}. Weetje: ${meta.fun_fact}.` 
             : a.description;
-        
         return `[ID:${a.id}] "${a.title}" van ${a.artist}. (${details})`;
     }).join('\n');
 };
 
 export async function GET(req: Request) {
-    // 2. Beveiliging (Check CRON_SECRET)
+    // 2. Beveiliging
     const authHeader = req.headers.get('authorization');
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -38,12 +39,14 @@ export async function GET(req: Request) {
         const COOLDOWN_DAYS = 60;
         const cooldownDate = subDays(today, COOLDOWN_DAYS);
 
-        // 3. De "Rollende Buffer" Strategie
-        // We kijken precies 7 dagen vooruit. Is die dag leeg? Dan vullen we hem.
-        // Zo heb je altijd precies 1 week programma klaarstaan.
+        // 3. Rollende Buffer: Genereer content voor over precies 7 dagen
         const targetDate = addDays(today, 7); 
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         const dayOfWeek = targetDate.getDay(); // 0=Zondag, 1=Maandag...
+        
+        // CHECK: IS HET VOOR MAANDAG? (Dan moeten we ook Salons maken)
+        // We controleren of de dag waarvoor we genereren (targetDate) een maandag is.
+        const isMonday = dayOfWeek === 1;
 
         // Check of dag al bestaat
         const { data: existing } = await supabase
@@ -56,44 +59,82 @@ export async function GET(req: Request) {
             return NextResponse.json({ message: `✅ Dag ${dateStr} is al gevuld. Rusten maar.` });
         }
 
-        console.log(`🚀 Start generatie voor: ${dateStr}`);
+        console.log(`🚀 Start generatie voor: ${dateStr} (Is Maandag: ${isMonday})`);
+        
         let usedArtworkIds: string[] = [];
         const createdIds = { tours: [] as string[], focus: [] as string[], games: [] as string[], salons: [] as string[] };
 
         // ---------------------------------------------------------
-        // STAP A: HET MAGAZIJN (Ophalen & Filteren)
+        // STAP A: SALONS GENEREREN (ALLEEN OP MAANDAG)
         // ---------------------------------------------------------
-        
-        // We halen data op INCLUSIEF je nieuwe 'ai_metadata' kolom
-        // Let op: 'get_random_artworks' moet wel 'ai_metadata' returnen in de RPC functie!
-        // Als je RPC dat niet doet, pas die aan of doe een gewone .select().
+        if (isMonday) {
+            console.log("🎨 Het is maandag! Nieuwe week-salons genereren...");
+            
+            try {
+                const salonPrompt = `
+                    Genereer 3 unieke, artistieke thema's voor een digitale "Salon" tentoonstelling.
+                    Antwoord puur in JSON format: { "salons": [{ "title": "...", "description": "...", "tags": ["..."] }] }
+                `;
+
+                // We gebruiken hier even direct OpenAI ipv de helper, voor specifieke JSON controle
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4-turbo-preview",
+                    messages: [{ role: "system", content: "Je bent een kunstcurator. Output JSON." }, { role: "user", content: salonPrompt }],
+                    response_format: { type: "json_object" },
+                });
+
+                const data = JSON.parse(completion.choices[0].message.content || '{}');
+                const newSalons = data.salons || [];
+
+                for (const item of newSalons) {
+                    // Placeholder plaatje
+                    const img = `https://source.unsplash.com/1600x900/?art,${item.title.split(' ')[0]}`;
+                    
+                    const { data: insertedSalon } = await supabase.from('salons').insert({
+                        title: item.title,
+                        description: item.description,
+                        day_date: dateStr, // Ze starten op deze maandag
+                        status: 'published',
+                        image_url: img,
+                        tags: item.tags,
+                        is_premium: true
+                    }).select('id').single();
+
+                    if (insertedSalon) createdIds.salons.push(insertedSalon.id);
+                }
+            } catch (salonError) {
+                console.error("Fout bij genereren salons:", salonError);
+                // We gaan door, zodat de rest van de dag wel gevuld wordt
+            }
+        }
+
+        // ---------------------------------------------------------
+        // STAP B: HET MAGAZIJN (Kunst ophalen voor Tour/Game/Focus)
+        // ---------------------------------------------------------
         const { data: rawPool, error: poolError } = await supabase
             .from('artworks')
             .select('id, title, artist, description, image_url, last_used_at, ai_metadata')
-            .is('status', 'active') // Alleen actieve werken
-            .not('image_url', 'is', null) // Moet plaatje hebben
-            .limit(300); // Haal er genoeg op om te kunnen mixen
+            .is('status', 'active')
+            .not('image_url', 'is', null)
+            .limit(300);
 
         if (poolError || !rawPool) throw new Error("Kon geen kunstwerken ophalen.");
 
-        // Filter op 'versheid' (Cooldown)
         const artPool = rawPool.filter((a: any) => {
             if (!a.last_used_at) return true; 
             return parseISO(a.last_used_at) < cooldownDate;
         });
 
         if (artPool.length < 40) {
-            return NextResponse.json({ error: "Te weinig 'verse' kunstwerken. Draai import!" }, { status: 500 });
+             console.warn("Te weinig verse kunstwerken! Importeer nieuwe data.");
+             // We gaan door met wat we hebben om crashes te voorkomen, maar loggen warning
         }
         
-        // Shuffle de pool voor toeval
         const shuffledPool = artPool.sort(() => 0.5 - Math.random());
 
         // ---------------------------------------------------------
-        // STAP B: DE CURATOR (Thema Bepalen)
+        // STAP C: DE CURATOR (Thema Bepalen & Tour)
         // ---------------------------------------------------------
-        
-        // We geven de AI een lijst van 50 opties om een thema uit te kiezen
         const selectionPool = shuffledPool.slice(0, 50);
         const catalogText = createArtContext(selectionPool);
 
@@ -103,59 +144,30 @@ export async function GET(req: Request) {
 
         OPDRACHT:
         Kies 6 tot 8 werken die samen een boeiend thema vormen voor een Audiotour.
-        Kijk naar overeenkomsten in onderwerp, kleur, stijl of gevoel.
-
-        Geef JSON:
-        {
-            "theme_title": "Pakkende Titel",
-            "theme_description": "Korte sfeervolle introductie van het thema.",
-            "selected_ids": [12, 45, ...] // De ID's uit de lijst
-        }
+        Geef JSON: { "theme_title": "...", "theme_description": "...", "selected_ids": [...] }
         `;
 
         const curationData: any = await generateWithAI(curationPrompt, true);
         const tourIds = curationData?.selected_ids || [];
-        
-        // De daadwerkelijke objecten ophalen
         const tourSelection = selectionPool.filter((a:any) => tourIds.includes(a.id));
-        
-        // Markeer als gebruikt
         tourSelection.forEach((a:any) => usedArtworkIds.push(a.id));
 
         const themeTitle = curationData?.theme_title || `Collectie van ${dateStr}`;
 
         // ---------------------------------------------------------
-        // STAP C: DE TOUR (Makers)
+        // STAP D: DE TOUR MAKEN
         // ---------------------------------------------------------
-        
         if (tourSelection.length > 0) {
-            // Nu geven we de uitgebreide metadata mee voor het script!
             const tourContext = createArtContext(tourSelection);
-            
             const tourPrompt = `
             Schrijf een Audiotour script voor thema: "${themeTitle}".
-            
-            Context van de werken:
-            ${tourContext}
-
-            Vereisten:
-            - Toon: Enthousiast, verhalend, niet te stijf.
-            - Intro: Kort welkom (max 50 woorden).
-            - Stops: Voor elk werk een boeiende tekst (ca. 100-150 woorden) die wijst op details (kleur, techniek) die in de data staan.
-            
-            Output JSON:
-            {
-                "intro_text": "...",
-                "stops": [
-                    { "artwork_id": 12, "title": "...", "description": "..." }
-                ]
-            }
+            Context: ${tourContext}
+            Output JSON: { "intro_text": "...", "stops": [ { "artwork_id": 12, "title": "...", "description": "..." } ] }
             `;
 
             const tourContent: any = await generateWithAI(tourPrompt, true);
 
             if (tourContent?.stops) {
-                // Match de gegenereerde tekst terug aan de database data (voor image_urls)
                 const finalStops = tourContent.stops.map((stop: any) => {
                     const original = tourSelection.find((a:any) => a.id === stop.artwork_id) || tourSelection[0];
                     return {
@@ -163,14 +175,13 @@ export async function GET(req: Request) {
                         description: stop.description,
                         image_id: original.id,
                         image_url: original.image_url,
-                        // audio_url: ... (optioneel, als je TTS hebt)
                     };
                 });
 
                 const { data: tour } = await supabase.from('tours').insert({
                     title: themeTitle,
                     intro: tourContent.intro_text,
-                    stops_data: { stops: finalStops }, // Sla op als JSON
+                    stops_data: { stops: finalStops },
                     hero_image_url: tourSelection[0]?.image_url,
                     status: 'published',
                     type: 'daily',
@@ -182,50 +193,16 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP D: SALON (Visuele selectie)
-        // ---------------------------------------------------------
-        // Pak 30 willekeurige werken uit de REST van de pool (niet de tour werken)
-        const salonPool = shuffledPool.filter(a => !usedArtworkIds.includes(a.id));
-        const salonSelection = salonPool.slice(0, 30);
-        
-        if (salonSelection.length > 0) {
-            salonSelection.forEach((a:any) => usedArtworkIds.push(a.id));
-
-            // Simpele Salon aanmaak (AI hier niet per se nodig, bespaart tijd/geld)
-            const { data: salon } = await supabase.from('salons').insert({
-                title: `Salon: ${themeTitle}`,
-                description: "Een rustgevende stroom beelden uit onze collectie.",
-                image_url: salonSelection[0].image_url,
-                status: 'published',
-                is_premium: true
-            }).select().single();
-
-            if (salon) {
-                createdIds.salons.push(salon.id);
-                const salonItems = salonSelection.map((art: any, idx: number) => ({
-                    salon_id: salon.id,
-                    artwork_id: art.id,
-                    position: idx
-                }));
-                await supabase.from('salon_items').insert(salonItems);
-            }
-        }
-
-        // ---------------------------------------------------------
         // STAP E: FOCUS & GAMES
         // ---------------------------------------------------------
         
-        // 1. Focus Item (Deep dive op 1 werk uit de tour)
-        const focusArt = tourSelection[0]; // Pak de 'hero' van de tour
+        // 1. FOCUS
+        const focusArt = tourSelection[0]; 
         if (focusArt) {
-            // Gebruik de 'ai_metadata' voor een diep artikel
             const focusPrompt = `
-            Schrijf een diepgravend artikel (markdown) over "${focusArt.title}".
-            Gebruik deze details: ${JSON.stringify(focusArt.ai_metadata || focusArt.description)}.
-            Focus op: Symboliek, techniek en historie.
+            Schrijf een markdown artikel over "${focusArt.title}".
             JSON: { "title": "...", "intro": "...", "content_markdown": "..." }
             `;
-            
             const fData: any = await generateWithAI(focusPrompt, true);
             if (fData) {
                 const { data: f } = await supabase.from('focus_items').insert({
@@ -234,27 +211,24 @@ export async function GET(req: Request) {
                     content_markdown: fData.content_markdown,
                     cover_image: focusArt.image_url,
                     status: 'published',
-                    artwork_id: focusArt.id // Handig voor linkjes
+                    artwork_id: focusArt.id 
                 }).select().single();
                 if (f) createdIds.focus.push(f.id);
             }
         }
 
-        // 2. Games (Gebaseerd op de Tour selectie)
+        // 2. GAMES
         const strategy = WEEKLY_STRATEGY[dayOfWeek] || WEEKLY_STRATEGY[0];
-        // We doen 1 game type per dag om timeout te voorkomen (of 3 als je durft)
         const gameType = strategy.slot1; 
-
         const gameContext = createArtContext(tourSelection);
+        
         const gamePrompt = `
-        Maak een '${gameType}' quiz (3 vragen) over dit thema: ${themeTitle}.
-        Gebruik de details in deze data voor de vragen (zoals kleuren/details):
-        ${gameContext}
-
-        JSON Output: [ { "question": "...", "correct_answer": "...", "wrong_answers": ["...", "..."], "related_artwork_id": 12 } ]
+        Maak een '${gameType}' quiz (3 vragen) over thema: ${themeTitle}.
+        Context: ${gameContext}
+        JSON Output: [ { "question": "...", "correct_answer": "...", "wrong_answers": ["..."], "related_artwork_id": 12 } ]
         `;
 
-        const gData: any = await generateWithAI(gamePrompt, true); // Verwacht Array
+        const gData: any = await generateWithAI(gamePrompt, true); 
         if (gData && Array.isArray(gData)) {
             const { data: gm } = await supabase.from('games').insert({
                 title: `${themeTitle} Challenge`,
@@ -266,7 +240,6 @@ export async function GET(req: Request) {
             if (gm) {
                 createdIds.games.push(gm.id);
                 const gameItems = gData.map((it:any, idx:number) => {
-                    // Zoek het plaatje erbij
                     const relatedArt = tourSelection.find((a:any) => a.id == it.related_artwork_id) || tourSelection[idx % tourSelection.length];
                     return {
                         game_id: gm.id,
@@ -286,19 +259,29 @@ export async function GET(req: Request) {
         // ---------------------------------------------------------
 
         // 1. Sla het dagprogramma op
-        const { error: scheduleError } = await supabase.from('dayprogram_schedule').insert({
+        // Als createdIds.salons leeg is (bv. op dinsdag), slaat hij een lege array op
+        // of (beter): we laten de kolom weg als hij leeg is, zodat we geen bestaande salons overschrijven
+        // Maar omdat we elke dag een NIEUWE row maken (insert), is dat hier geen issue.
+        // De frontend zoekt salons o.b.v. "Maandag van deze week", niet o.b.v. de dagelijkse koppeling van dinsdag.
+        
+        const scheduleData: any = {
             day_date: dateStr,
             theme_title: themeTitle,
             theme_description: curationData?.theme_description,
             tour_ids: createdIds.tours,
             focus_ids: createdIds.focus,
             game_ids: createdIds.games,
-            salon_ids: createdIds.salons,
-        });
+        };
+
+        if (createdIds.salons.length > 0) {
+            scheduleData.salon_ids = createdIds.salons;
+        }
+
+        const { error: scheduleError } = await supabase.from('dayprogram_schedule').insert(scheduleData);
 
         if (scheduleError) throw scheduleError;
 
-        // 2. Update last_used_at (zodat ze niet morgen weer gekozen worden)
+        // 2. Update last_used_at
         if (usedArtworkIds.length > 0) {
             await supabase
                 .from('artworks')
@@ -310,7 +293,8 @@ export async function GET(req: Request) {
             success: true, 
             date: dateStr, 
             theme: themeTitle, 
-            items_count: usedArtworkIds.length 
+            salonsCreated: createdIds.salons.length,
+            isMonday
         });
 
     } catch (error: any) {
