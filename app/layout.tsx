@@ -1,50 +1,55 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google"; 
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-// ✅ De juiste import (die andere mag je dus verwijderen)
-import PageTracker from '@/components/analytics/PageTracker';
-import AchievementPopup from "@/components/gamification/AchievementPopup";
+import Header from "@/components/layout/Header";
+import BadgeListener from "@/components/badges/BadgeListener";
+import { createClient } from "@/lib/supabaseServer";
+import { cookies } from "next/headers";
 
-import Header from "@/components/layout/Header"; 
-import Footer from "@/components/layout/Footer"; 
-
+// Fonts configureren
 const inter = Inter({ 
   subsets: ["latin"], 
-  variable: "--font-inter" 
+  variable: "--font-inter",
+  display: "swap", // Zorgt dat tekst direct zichtbaar is
 });
 
 const playfair = Playfair_Display({ 
   subsets: ["latin"], 
-  variable: "--font-serif" 
+  variable: "--font-serif",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "MuseaThuis | Jouw dagelijkse kunst dosis",
-  description: "Ontdek elke dag nieuwe kunstwerken.",
+  title: "MuseaThuis | Jouw dagelijkse kunstbeleving",
+  description: "Ontdek elke dag nieuwe kunstwerken, audiotours en games.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Check of user is ingelogd voor de badges
+  const supabase = createClient(cookies());
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <html lang="nl" className={`${inter.variable} ${playfair.variable}`}>
-      <body className="bg-midnight-950 text-slate-200 font-sans antialiased flex flex-col min-h-screen selection:bg-museum-gold selection:text-black">
+      <head>
+        {/* SNELHEIDS FIX: Alvast verbinding maken met Unsplash */}
+        <link rel="preconnect" href="https://images.unsplash.com" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
+      </head>
+      <body className="font-sans bg-midnight-950 text-white antialiased selection:bg-museum-gold selection:text-black">
         
-        {/* 👇 HIER MOET HIJ STAAN! Anders werkt de tracking niet. */}
-        <PageTracker />
-
+        {/* De Header staat altijd bovenaan */}
         <Header />
         
-        <main className="flex-1 flex flex-col pt-20"> 
-          {children}
+        {/* De pagina inhoud */}
+        {children}
 
-        </main>
-        {/* 2. Voeg hem hier toe, zodat hij boven alles ligt */}
-        <AchievementPopup />
-          
-        <Footer />
+        {/* Luistert naar nieuwe badges (alleen als ingelogd) */}
+        {user && <BadgeListener userId={user.id} />}
         
       </body>
     </html>
