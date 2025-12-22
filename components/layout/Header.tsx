@@ -14,8 +14,8 @@ const navItems = [
   { label: 'Game', href: '/game', icon: Gamepad2 },
   { label: 'Focus', href: '/focus', icon: BookOpen },
   { label: 'Salon', href: '/salon', icon: Coffee },
-  { label: 'Academie', href: '/academy', icon: GraduationCap },
-  { label: 'Best Of', href: '/favorites', icon: Star },
+  { label: 'Academie', href: '/academie', icon: GraduationCap },
+  { label: 'Best Of', href: '/best-of', icon: Star },
 ];
 
 export default function Header() {
