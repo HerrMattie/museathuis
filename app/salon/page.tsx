@@ -12,21 +12,32 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  const today = new Date().toISOString().split('T')[0];
-  const selectedDate = searchParams.date || today;
+  const selectedDateStr = searchParams.date || new Date().toISOString().split('T')[0];
+  const selectedDate = new Date(selectedDateStr);
 
-  // 1. BEREKEN DE DAGEN VAN DEZE WEEK
-  const current = new Date(selectedDate);
-  const dayOfWeek = current.getDay(); 
-  // Maandag = 1. Als zondag (0), trekken we 6 dagen af.
-  const diffToMonday = current.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  // 1. BEREKEN DE WEEK RANGE (Maandag t/m Zondag)
+  // Fix: Zorg dat we altijd terugrekenen naar de Maandag van DEZE week
+  const day = selectedDate.getDay(); // 0 = zondag, 1 = maandag
+  const diff = selectedDate.getDate() - day + (day === 0 ? -6 : 1); 
   
-  const monday = new Date(current.setDate(diffToMonday));
-  const sunday = new Date(current.setDate(monday.getDate() + 6));
-
+  const monday = new Date(selectedDate);
+  monday.setDate(diff);
   const mondayStr = monday.toISOString().split('T')[0];
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
   const sundayStr = sunday.toISOString().split('T')[0];
 
+  // 2. QUERY AANPASSEN
+  // We zoeken nu: Is er een salon met een datum >= Maandag EN <= Zondag?
+  const { data: weeklySalons } = await supabase
+    .from('salons')
+    .select('*')
+    .eq('status', 'published')
+    .gte('day_date', mondayStr) 
+    .lte('day_date', sundayStr)
+    .order('day_date', { ascending: true })
+    .limit(3);
   // 2. LEVEL & ACCESS BEPALEN
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
