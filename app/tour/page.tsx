@@ -30,16 +30,27 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
-  // 3. TOURS OPHALEN
-  const { data: tours } = await supabase.from('tours').select('*').eq('status', 'published').limit(10);
+  // 3. TOURS OPHALEN VIA PLANNING (Strict Mode)
+  let dailyTours: any[] = [];
+  
+  // Haal planning op voor deze datum
+  const { data: schedule } = await supabase
+      .from('dayprogram_schedule')
+      .select('tour_ids')
+      .eq('day_date', selectedDate)
+      .single();
 
-  // Selecteer 3 items voor de dag
-  let dailyTours = tours || [];
-  if (dailyTours.length > 3) {
-      const dayNum = new Date(selectedDate).getDate(); 
-      const start = dayNum % (dailyTours.length - 2);
-      dailyTours = dailyTours.slice(start, start + 3);
-  }
+  if (schedule?.tour_ids && schedule.tour_ids.length > 0) {
+      const { data } = await supabase
+          .from('tours')
+          .select('*')
+          .in('id', schedule.tour_ids)
+          .eq('status', 'published');
+      
+      if (data) dailyTours = data;
+  } 
+  // OPMERKING: Als er GEEN planning is, blijft dailyTours leeg. 
+  // We vallen NIET meer terug op willekeurige items.
 
   // Sorteer: Gratis item op plek 1
   if (dailyTours.length > 0) {
@@ -51,9 +62,9 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
   }
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6 pb-20">
       
-      {/* NIEUWE GECENTREERDE HEADER */}
+      {/* HEADER */}
       <div className="max-w-4xl mx-auto text-center flex flex-col items-center mb-16">
           <div className="flex items-center gap-2 text-museum-gold text-xs font-bold tracking-widest uppercase mb-4 animate-in fade-in slide-in-from-bottom-4">
               <Headphones size={16} /> Dagelijkse Audiotours
@@ -72,7 +83,7 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
           </div>
       </div>
 
-      <div className="max-w-7xl mx-auto pb-20 relative z-20">
+      <div className="max-w-7xl mx-auto relative z-20">
         {dailyTours.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {dailyTours.map((tour, index) => {
@@ -90,26 +101,25 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><Headphones size={48} className="opacity-20"/></div>
                                 )}
                                 
-                                {/* Play Icoon Overlay */}
                                 {!isLocked && (
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
                                         <PlayCircle size={48} className="text-museum-gold drop-shadow-md" />
                                     </div>
                                 )}
 
-{/* Label - CONSISTENTE STIJL (Groen = Gratis, Zwart = Premium) */}
-<div className="absolute top-4 left-4 z-10">
-    {isContentPremium ? (
-        <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
-            {isLocked ? <Lock size={10} /> : <Crown size={10} />}
-            <span>{texts.tour_label_premium || "Premium"}</span>
-        </span>
-    ) : (
-        <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
-            {texts.tour_label_free || "Gratis"}
-        </span>
-    )}
-</div>
+                                {/* Label */}
+                                <div className="absolute top-4 left-4 z-10">
+                                    {isContentPremium ? (
+                                        <span className="flex items-center gap-1.5 bg-black/90 backdrop-blur-md text-museum-gold text-[10px] font-bold px-2.5 py-1 rounded border border-museum-gold/30 uppercase tracking-wider shadow-lg">
+                                            {isLocked ? <Lock size={10} /> : <Crown size={10} />}
+                                            <span>{texts.tour_label_premium || "Premium"}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-400/30 uppercase tracking-wider shadow-lg">
+                                            {texts.tour_label_free || "Gratis"}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="p-8 flex-1 flex flex-col">
@@ -127,7 +137,9 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
                 })}
             </div>
         ) : (
-            <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10 text-gray-400">Geen tours gevonden.</div>
+            <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10 text-gray-400">
+                Geen tours ingepland voor deze datum.
+            </div>
         )}
       </div>
     </div>
