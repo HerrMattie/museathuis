@@ -20,39 +20,24 @@ const FREQUENCIES = ["Wekelijks", "Maandelijks", "Enkele keren per jaar", "Zelde
 const ART_LEVELS = ["Beginner (Ik wil leren)", "Liefhebber (Ik weet wat ik mooi vind)", "Kenner (Ik bezoek gericht)", "Expert (Professioneel/Studie)"];
 const PERIODS = ["Oude Meesters", "Renaissance", "Barok", "Impressionisme", "Moderne Kunst", "Hedendaags", "Fotografie", "Design"];
 
-// --- HULPFUNCTIE: SCHOONMAKEN VAN DATA ---
-// Dit lost het probleem op met "[""""]" en rare strings uit je CSV
+// --- HULPFUNCTIE: DATA SCHOONMAKEN ---
+// Dit voorkomt crashes bij vervuilde data zoals "[""""]"
 const cleanArray = (input: any): string[] => {
     if (!input) return [];
-    
     let arr = input;
-    
-    // Als het een string is die lijkt op een array (bijv uit CSV import), parse hem
     if (typeof input === 'string') {
-        try {
-            // Probeer JSON parse (vangt "[""""]" af)
-            arr = JSON.parse(input);
-        } catch {
-            // Als het een komma-gescheiden string is
-            arr = input.split(',');
-        }
+        try { arr = JSON.parse(input); } catch { arr = input.split(','); }
     }
-
     if (!Array.isArray(arr)) return [];
-
-    // Filter lege strings, nulls, en de specifieke fout uit je CSV
-    return arr
-        .map(item => typeof item === 'string' ? item.trim() : item)
-        .filter(item => item && item !== "" && item !== '""');
+    return arr.map(item => typeof item === 'string' ? item.trim() : item).filter(item => item && item !== "" && item !== '""');
 };
-
 
 // --- HET COMPONENT ---
 export default function SettingsForm({ user, initialData }: { user: any, initialData: any }) {
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
 
-  // 1. Initialiseer waarden (met fallback naar lege strings)
+  // 1. Initialiseer waarden
   const [fullName, setFullName] = useState(initialData?.full_name || initialData?.display_name || '');
   const [selectedAvatar, setSelectedAvatar] = useState(initialData?.avatar_url || '/avatars/rembrandt.png');
   
@@ -65,68 +50,48 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const [company, setCompany] = useState(initialData?.visit_company || '');
   const [artLevel, setArtLevel] = useState(initialData?.art_interest_level || '');
   
-  // GEBRUIK HULPFUNCTIE: Dit voorkomt crashes bij [""] data
   const [favPeriods, setFavPeriods] = useState<string[]>(cleanArray(initialData?.favorite_periods));
   
-  // Check museumkaart op basis van meerdere mogelijke velden in je CSV
   const [hasMuseumCard, setHasMuseumCard] = useState<boolean>(
       initialData?.has_museum_card === true || 
       initialData?.museum_cards === true ||
-      (Array.isArray(initialData?.memberships) && initialData.memberships.includes("Museumkaart")) ||
       false
   );
 
-  // Helper voor Multi-select tags
   const togglePeriod = (period: string) => {
-      if (favPeriods.includes(period)) {
-          setFavPeriods(favPeriods.filter(p => p !== period));
-      } else {
-          setFavPeriods([...favPeriods, period]);
-      }
+      if (favPeriods.includes(period)) setFavPeriods(favPeriods.filter(p => p !== period));
+      else setFavPeriods([...favPeriods, period]);
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-        // We bouwen het object op voor de UPSERT
-        const profileData = {
-            user_id: user.id, // Verplicht voor de upsert
-            
-            full_name: fullName,
-            display_name: fullName, 
-            avatar_url: selectedAvatar,
-            
-            province,
-            age_group: ageGroup,
-            education_level: education,
-            work_field: workField,
-            
-            museum_visit_frequency: frequency,
-            visit_company: company,
-            art_interest_level: artLevel,
-            
-            // We slaan nu een schone array op
-            favorite_periods: favPeriods, 
-            
-            // We updaten beide kolommen voor de zekerheid (legacy support)
-            museum_cards: hasMuseumCard,
-            has_museum_card: hasMuseumCard, 
-            
-            updated_at: new Date().toISOString(),
-            has_completed_onboarding: true
-        };
-
         const { error } = await supabase
             .from('user_profiles')
-            .upsert(profileData, { onConflict: 'user_id' });
+            .upsert({
+                user_id: user.id, // <--- ESSENTIEEL VOOR OPSLAAN
+                
+                full_name: fullName,
+                display_name: fullName, 
+                avatar_url: selectedAvatar,
+                
+                province, age_group: ageGroup, education_level: education, work_field: workField,
+                museum_visit_frequency: frequency, visit_company: company, art_interest_level: artLevel,
+                favorite_periods: favPeriods, 
+                
+                museum_cards: hasMuseumCard, 
+                has_museum_card: hasMuseumCard, 
+                
+                updated_at: new Date().toISOString(),
+                has_completed_onboarding: true
+            }, { onConflict: 'user_id' });
 
         if (error) throw error;
-        
         alert("Profiel succesvol bijgewerkt!");
         
     } catch (err: any) {
         console.error("Save Error:", err);
-        alert(`Fout bij opslaan: ${err.message || JSON.stringify(err)}`);
+        alert(`Fout bij opslaan: ${err.message}`);
     } finally {
         setLoading(false);
     }
@@ -135,51 +100,33 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   return (
     <div className="space-y-8 pb-20 max-w-5xl mx-auto">
         
-        {/* SECTIE 1: PROFIEL & AVATAR */}
+        {/* PROFIEL & AVATAR */}
         <div className="bg-midnight-900 border border-white/10 rounded-2xl p-6 md:p-8">
-            <h3 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2">
-                <User className="text-museum-gold"/> Jouw Kunstenaars Profiel
-            </h3>
-            
+            <h3 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2"><User className="text-museum-gold"/> Jouw Profiel</h3>
             <div className="flex flex-col md:flex-row gap-8 items-start">
                 <div className="flex-1">
                     <label className="block text-xs font-bold uppercase text-gray-400 mb-3">Kies je Avatar</label>
                     <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
                         {AVATARS.map((av) => (
-                            <button key={av.id} onClick={() => setSelectedAvatar(av.src)}
-                                className={`relative rounded-full aspect-square overflow-hidden border-2 transition-all ${selectedAvatar === av.src ? 'border-museum-gold scale-110 shadow-[0_0_15px_rgba(212,175,55,0.5)]' : 'border-white/10 hover:border-white/50'}`}>
+                            <button key={av.id} onClick={() => setSelectedAvatar(av.src)} className={`relative rounded-full aspect-square overflow-hidden border-2 transition-all ${selectedAvatar === av.src ? 'border-museum-gold scale-110' : 'border-white/10'}`}>
                                 <img src={av.src} alt={av.id} className="w-full h-full object-cover" />
                             </button>
                         ))}
                     </div>
                 </div>
-
-                <div className="w-full md:w-1/3 space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Weergavenaam</label>
-                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} 
-                            className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none"/>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Leeftijdsgroep</label>
-                        <select value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} 
-                            className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none">
-                            <option value="">Selecteer...</option>
-                            {["18-24", "25-39", "40-59", "60-74", "75+"].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                    </div>
+                <div className="w-full md:w-1/3">
+                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Weergavenaam</label>
+                    <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none"/>
                 </div>
             </div>
         </div>
 
-        {/* SECTIE 2: ACHTERGROND */}
+        {/* ACHTERGROND */}
         <div className="bg-midnight-900 border border-white/10 rounded-2xl p-6 md:p-8">
-            <h3 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2">
-                <GraduationCap className="text-museum-gold"/> Achtergrond
-            </h3>
+            <h3 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2"><GraduationCap className="text-museum-gold"/> Achtergrond</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                    <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Opleidingsniveau</label>
+                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Opleidingsniveau</label>
                     <select value={education} onChange={(e) => setEducation(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none">
                         <option value="">Selecteer...</option>
                         {EDUCATION_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
@@ -202,12 +149,9 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             </div>
         </div>
 
-        {/* SECTIE 3: CULTUREEL DNA */}
+        {/* CULTUREEL DNA */}
         <div className="bg-midnight-900 border border-white/10 rounded-2xl p-6 md:p-8">
-            <h3 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2">
-                <Paintbrush className="text-museum-gold"/> Cultureel DNA
-            </h3>
-            
+            <h3 className="text-xl font-serif font-bold text-white mb-6 flex items-center gap-2"><Paintbrush className="text-museum-gold"/> Cultureel DNA</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <div>
                     <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Kennisniveau Kunst</label>
@@ -229,21 +173,17 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
                 <label className="block text-xs font-bold uppercase text-gray-400 mb-3">Favoriete Periodes & Stijlen</label>
                 <div className="flex flex-wrap gap-2">
                     {PERIODS.map(p => (
-                        <button key={p} onClick={() => togglePeriod(p)}
-                            className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${favPeriods.includes(p) ? 'bg-museum-gold text-black border-museum-gold' : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/30'}`}>
+                        <button key={p} onClick={() => togglePeriod(p)} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${favPeriods.includes(p) ? 'bg-museum-gold text-black border-museum-gold' : 'bg-white/5 text-gray-400 border-white/10'}`}>
                             {p}
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-white/10 transition-colors" onClick={() => setHasMuseumCard(!hasMuseumCard)}>
+            <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between border border-white/5 cursor-pointer" onClick={() => setHasMuseumCard(!hasMuseumCard)}>
                 <div className="flex items-center gap-3">
                     <CreditCard className={hasMuseumCard ? "text-museum-gold" : "text-gray-500"} />
-                    <div>
-                        <h3 className="font-bold text-white text-sm">Ik heb een Museumkaart</h3>
-                        <p className="text-xs text-gray-400">Of vergelijkbare pas (ICOM, Rembrandt, etc)</p>
-                    </div>
+                    <div><h3 className="font-bold text-white text-sm">Ik heb een Museumkaart</h3></div>
                 </div>
                 <div className={`w-12 h-6 rounded-full p-0.5 transition-colors ${hasMuseumCard ? 'bg-museum-gold' : 'bg-gray-600'}`}>
                     <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${hasMuseumCard ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -251,14 +191,12 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             </div>
         </div>
         
-        {/* OPSLAAN KNOP */}
         <div className="sticky bottom-6 z-10">
             <button onClick={handleSave} disabled={loading} className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-xl">
                 {loading ? <Loader2 className="animate-spin" /> : <Save size={20} />}
-                Profiel & Voorkeuren Opslaan
+                Opslaan
             </button>
         </div>
-
     </div>
   );
 }
