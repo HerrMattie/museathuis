@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { Layers, ArrowRight, Lock, Crown } from 'lucide-react';
-import PageHeader from '@/components/ui/PageHeader';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
 import { getHistoryAccess } from '@/lib/accessControl';
@@ -35,7 +34,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
     
   let weeklySalons = salons || [];
     
-  // Wekelijkse Selectie Logica
+  // Wekelijkse Selectie Logica (Modulo based)
   if (weeklySalons.length > 3) {
       const date = new Date(selectedDate);
       const onejan = new Date(date.getFullYear(), 0, 1);
@@ -46,32 +45,23 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   }
 
   return (
-    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6">
-      
+    <div className="min-h-screen bg-midnight-950 text-white pt-24 px-6 pb-20">
        <div className="max-w-6xl mx-auto text-center flex flex-col items-center mb-16">
-          
-          {/* 1. PREMIUM HEADER (Consistent met andere pagina's) */}
           <div className="flex items-center gap-2 text-museum-gold text-xs font-bold tracking-widest uppercase mb-4 animate-in fade-in slide-in-from-bottom-4">
               <Crown size={16} /> Premium Only
           </div>
-
-          {/* 2. TITEL & SUBTITEL */}
           <h1 className="text-5xl md:text-7xl font-serif font-bold text-white mb-4">
             {texts.salon_title || "De Salon"}
           </h1>
-          
           <p className="text-gray-400 text-lg md:text-xl max-w-2xl mb-8">
             {texts.salon_subtitle || "Wekelijkse exclusieve collecties voor rust en inspiratie."}
           </p>
-
-          {/* 3. DATUM NAVIGATIE */}
           <div className="flex items-center justify-center gap-4">
              <DateNavigator basePath="/salon" currentDate={selectedDate} maxBack={access.weeks} mode="week" />
           </div>
-
        </div>
 
-      <div className="max-w-7xl mx-auto pb-20 relative z-20">
+      <div className="max-w-7xl mx-auto relative z-20">
         {weeklySalons.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {weeklySalons.map((salon) => {
@@ -86,10 +76,9 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><Layers size={48} className="opacity-20"/></div>
                                 )}
                                 
-                                {/* Lock Badge - Alleen tonen als locked is */}
                                 {isLocked && (
                                    <div className="absolute top-4 left-4 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white border border-white/10 shadow-lg bg-black/80 flex items-center gap-1">
-                                       <Lock size={10}/> Lidmaatschap
+                                      <Lock size={10}/> Lidmaatschap
                                    </div>
                                 )}
                             </div>
