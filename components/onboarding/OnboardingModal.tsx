@@ -49,11 +49,13 @@ export default function OnboardingModal({ user, onComplete }: OnboardingModalPro
             }
 
             // Confetti effect!
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
             
-            // Sluit modal
-            onComplete();
-            setLoading(false);
+            // Wacht heel even zodat de gebruiker het ziet
+            setTimeout(() => {
+                 onComplete();
+                 setLoading(false);
+            }, 500);
         }
     };
 
@@ -64,22 +66,32 @@ export default function OnboardingModal({ user, onComplete }: OnboardingModalPro
                 {/* ACHTERGROND SFEER */}
                 <div className={`absolute inset-0 bg-gradient-to-b ${slides[step].bg} transition-colors duration-700`}></div>
 
-                {/* SLUIT KNOP (Optioneel, als mensen haast hebben) */}
+                {/* SLUIT KNOP */}
                 <button onClick={handleNext} className="absolute top-4 right-4 text-white/50 hover:text-white z-20">
                     <X size={24}/>
                 </button>
 
                 {/* CONTENT */}
                 <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8 text-center mt-8">
-                    <div className="mb-8 p-6 bg-white/5 rounded-full border border-white/10 shadow-[0_0_30px_rgba(234,179,8,0.2)] animate-in zoom-in duration-500 key={step}">
+                    {/* Icoon met key prop voor animatie herstart */}
+                    <div 
+                        key={`icon-${step}`} 
+                        className="mb-8 p-6 bg-white/5 rounded-full border border-white/10 shadow-[0_0_30px_rgba(234,179,8,0.2)] animate-in zoom-in duration-500"
+                    >
                         {slides[step].icon}
                     </div>
                     
-                    <h2 className="text-3xl font-serif font-bold text-white mb-4 animate-in slide-in-from-bottom-4 duration-500 key={step}-title">
+                    <h2 
+                        key={`title-${step}`}
+                        className="text-3xl font-serif font-bold text-white mb-4 animate-in slide-in-from-bottom-4 duration-500"
+                    >
                         {slides[step].title}
                     </h2>
                     
-                    <p className="text-gray-300 leading-relaxed animate-in slide-in-from-bottom-8 duration-500 key={step}-text">
+                    <p 
+                        key={`text-${step}`}
+                        className="text-gray-300 leading-relaxed animate-in slide-in-from-bottom-8 duration-500"
+                    >
                         {slides[step].text}
                     </p>
                 </div>
