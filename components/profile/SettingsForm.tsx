@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { Save, Loader2, User, GraduationCap, Paintbrush, CreditCard } from 'lucide-react';
 
-// --- OPTIES VOOR DROPDOWNS ---
+// --- OPTIES CONSTANTEN ---
 const AVATARS = [
     { id: 'rembrandt', src: '/avatars/rembrandt.png' },
     { id: 'vangogh', src: '/avatars/vangogh.png' },
@@ -20,32 +20,61 @@ const FREQUENCIES = ["Wekelijks", "Maandelijks", "Enkele keren per jaar", "Zelde
 const ART_LEVELS = ["Beginner (Ik wil leren)", "Liefhebber (Ik weet wat ik mooi vind)", "Kenner (Ik bezoek gericht)", "Expert (Professioneel/Studie)"];
 const PERIODS = ["Oude Meesters", "Renaissance", "Barok", "Impressionisme", "Moderne Kunst", "Hedendaags", "Fotografie", "Design"];
 
+// --- HULPFUNCTIE: SCHOONMAKEN VAN DATA ---
+// Dit lost het probleem op met "[""""]" en rare strings uit je CSV
+const cleanArray = (input: any): string[] => {
+    if (!input) return [];
+    
+    let arr = input;
+    
+    // Als het een string is die lijkt op een array (bijv uit CSV import), parse hem
+    if (typeof input === 'string') {
+        try {
+            // Probeer JSON parse (vangt "[""""]" af)
+            arr = JSON.parse(input);
+        } catch {
+            // Als het een komma-gescheiden string is
+            arr = input.split(',');
+        }
+    }
+
+    if (!Array.isArray(arr)) return [];
+
+    // Filter lege strings, nulls, en de specifieke fout uit je CSV
+    return arr
+        .map(item => typeof item === 'string' ? item.trim() : item)
+        .filter(item => item && item !== "" && item !== '""');
+};
+
+
+// --- HET COMPONENT ---
 export default function SettingsForm({ user, initialData }: { user: any, initialData: any }) {
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
 
-  // --- 1. IDENTITEIT ---
+  // 1. Initialiseer waarden (met fallback naar lege strings)
   const [fullName, setFullName] = useState(initialData?.full_name || initialData?.display_name || '');
   const [selectedAvatar, setSelectedAvatar] = useState(initialData?.avatar_url || '/avatars/rembrandt.png');
-
-  // --- 2. DEMOGRAFIE ---
+  
   const [province, setProvince] = useState(initialData?.province || '');
   const [ageGroup, setAgeGroup] = useState(initialData?.age_group || '');
   const [education, setEducation] = useState(initialData?.education_level || '');
   const [workField, setWorkField] = useState(initialData?.work_field || '');
-
-  // --- 3. GEDRAG ---
+  
   const [frequency, setFrequency] = useState(initialData?.museum_visit_frequency || '');
   const [company, setCompany] = useState(initialData?.visit_company || '');
   const [artLevel, setArtLevel] = useState(initialData?.art_interest_level || '');
   
-  // --- 4. INTERESSES ---
-  const [favPeriods, setFavPeriods] = useState<string[]>(
-      Array.isArray(initialData?.favorite_periods) ? initialData.favorite_periods : []
-  );
+  // GEBRUIK HULPFUNCTIE: Dit voorkomt crashes bij [""] data
+  const [favPeriods, setFavPeriods] = useState<string[]>(cleanArray(initialData?.favorite_periods));
   
-  // --- 5. LIDMAATSCHAPPEN ---
-  const [hasMuseumCard, setHasMuseumCard] = useState<boolean>(initialData?.museum_cards === true);
+  // Check museumkaart op basis van meerdere mogelijke velden in je CSV
+  const [hasMuseumCard, setHasMuseumCard] = useState<boolean>(
+      initialData?.has_museum_card === true || 
+      initialData?.museum_cards === true ||
+      (Array.isArray(initialData?.memberships) && initialData.memberships.includes("Museumkaart")) ||
+      false
+  );
 
   // Helper voor Multi-select tags
   const togglePeriod = (period: string) => {
@@ -59,44 +88,45 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const handleSave = async () => {
     setLoading(true);
     try {
+        // We bouwen het object op voor de UPSERT
+        const profileData = {
+            user_id: user.id, // Verplicht voor de upsert
+            
+            full_name: fullName,
+            display_name: fullName, 
+            avatar_url: selectedAvatar,
+            
+            province,
+            age_group: ageGroup,
+            education_level: education,
+            work_field: workField,
+            
+            museum_visit_frequency: frequency,
+            visit_company: company,
+            art_interest_level: artLevel,
+            
+            // We slaan nu een schone array op
+            favorite_periods: favPeriods, 
+            
+            // We updaten beide kolommen voor de zekerheid (legacy support)
+            museum_cards: hasMuseumCard,
+            has_museum_card: hasMuseumCard, 
+            
+            updated_at: new Date().toISOString(),
+            has_completed_onboarding: true
+        };
+
         const { error } = await supabase
             .from('user_profiles')
-            .upsert({
-                user_id: user.id, // ESSENTIEEL VOOR UPSERT
-                
-                // Identiteit
-                full_name: fullName,
-                display_name: fullName,
-                avatar_url: selectedAvatar,
-                
-                // Demografie
-                province: province,
-                age_group: ageGroup,
-                education_level: education,
-                work_field: workField,
-                
-                // Gedrag
-                museum_visit_frequency: frequency,
-                visit_company: company,
-                art_interest_level: artLevel,
-                
-                // Interesses
-                favorite_periods: favPeriods,
-                
-                // Lidmaatschappen
-                museum_cards: hasMuseumCard,
-                
-                // Tech
-                updated_at: new Date().toISOString(),
-                has_completed_onboarding: true
-            }, { onConflict: 'user_id' });
+            .upsert(profileData, { onConflict: 'user_id' });
 
         if (error) throw error;
-        alert("Profiel succesvol en volledig bijgewerkt!");
+        
+        alert("Profiel succesvol bijgewerkt!");
         
     } catch (err: any) {
-        console.error(err);
-        alert(`Fout bij opslaan: ${err.message}`);
+        console.error("Save Error:", err);
+        alert(`Fout bij opslaan: ${err.message || JSON.stringify(err)}`);
     } finally {
         setLoading(false);
     }
