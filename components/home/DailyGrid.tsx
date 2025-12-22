@@ -1,17 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { Headphones, Eye, Gamepad2, Crown, ArrowRight, Lock } from 'lucide-react';
+import { Headphones, Eye, Gamepad2, ArrowRight } from 'lucide-react';
 
-// Hier definiëren we wat de component mag verwachten
 interface DailyGridProps {
-    schedule: any; // Dit is het object uit 'dayprogram_schedule'
-    randomArtworks: string[]; // De array met plaatjes voor de achtergrond
+    schedule: any;
+    randomArtworks: string[];
 }
 
 export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) {
     
-    // Veiligheid: als er geen schedule is (bijv. database leeg of cron niet gedraaid)
     if (!schedule) {
         return (
             <div className="text-center py-12 text-gray-500">
@@ -20,33 +18,34 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
         );
     }
 
-    // We halen de data uit het nieuwe schedule object
-    // De tabel bevat arrays met ID's: tour_ids, focus_ids, game_ids, salon_ids
-    const hasTours = schedule.tour_ids && schedule.tour_ids.length > 0;
-    const hasFocus = schedule.focus_ids && schedule.focus_ids.length > 0;
-    const hasGames = schedule.game_ids && schedule.game_ids.length > 0;
-    
-    // Salon is altijd premium
-    const hasSalon = schedule.salon_ids && schedule.salon_ids.length > 0;
-
-    // Helper om een random plaatje te pakken (met fallback)
+    // Agressieve optimalisatie voor Unsplash afbeeldingen
     const getBg = (index: number) => {
-        return randomArtworks?.[index] || "https://images.unsplash.com/photo-1578320339910-410a3048c105";
+        let url = randomArtworks?.[index];
+        if (!url) return "https://images.unsplash.com/photo-1578320339910-410a3048c105?w=600&q=70&auto=format";
+
+        if (url.includes('images.unsplash.com')) {
+            // Verwijder oude params en forceer klein formaat
+            const baseUrl = url.split('?')[0];
+            return `${baseUrl}?w=600&q=70&auto=format&fit=crop`;
+        }
+        return url;
     };
 
     return (
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            {/* 1. TOUR KAART */}
-            <Link href="/tour" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
-                {/* Achtergrond Plaatje */}
-                <div 
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                    style={{ backgroundImage: `url(${getBg(0)})` }}
+            {/* 1. TOUR */}
+            <Link href="/tour" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2 block">
+                <img 
+                    src={getBg(0)} 
+                    alt="Tour"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    loading="eager" // Direct laden (belangrijk voor LCP)
+                    decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
                 
-                <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="absolute bottom-0 left-0 right-0 p-6 relative z-10">
                     <div className="bg-museum-gold w-10 h-10 rounded-full flex items-center justify-center mb-4 text-black">
                         <Headphones size={20} />
                     </div>
@@ -60,21 +59,24 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
                 </div>
             </Link>
 
-            {/* 2. FOCUS KAART */}
-            <Link href="/focus" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
-                <div 
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                    style={{ backgroundImage: `url(${getBg(1)})` }}
+            {/* 2. FOCUS */}
+            <Link href="/focus" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2 block">
+                <img 
+                    src={getBg(1)} 
+                    alt="Focus"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    loading="lazy"
+                    decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
                 
-                <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="absolute bottom-0 left-0 right-0 p-6 relative z-10">
                     <div className="bg-white/20 backdrop-blur-md w-10 h-10 rounded-full flex items-center justify-center mb-4 text-white">
                         <Eye size={20} />
                     </div>
                     <h3 className="text-2xl font-serif font-bold text-white mb-2">In Focus</h3>
                     <p className="text-sm text-gray-300 mb-4">
-                        Verdiepende artikelen en analyses van de werken van vandaag.
+                        Verdiepende artikelen en analyses.
                     </p>
                     <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
                         Lees Artikel <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
@@ -82,28 +84,30 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
                 </div>
             </Link>
 
-            {/* 3. GAME KAART */}
-            <Link href="/game" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2">
-                <div 
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                    style={{ backgroundImage: `url(${getBg(2)})` }}
+            {/* 3. GAME */}
+            <Link href="/game" className="group relative h-96 rounded-3xl overflow-hidden border border-white/10 shadow-2xl transition-transform hover:-translate-y-2 block">
+                <img 
+                    src={getBg(2)} 
+                    alt="Game"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    loading="lazy"
+                    decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
                 
-                <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="absolute bottom-0 left-0 right-0 p-6 relative z-10">
                     <div className="bg-white/20 backdrop-blur-md w-10 h-10 rounded-full flex items-center justify-center mb-4 text-white">
                         <Gamepad2 size={20} />
                     </div>
                     <h3 className="text-2xl font-serif font-bold text-white mb-2">De Uitdaging</h3>
                     <p className="text-sm text-gray-300 mb-4">
-                        Test je kennis en train je oog met de dagelijkse quiz.
+                        Test je kennis met de dagelijkse quiz.
                     </p>
                     <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white">
                         Speel Nu <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform"/>
                     </span>
                 </div>
             </Link>
-
         </div>
     );
 }
