@@ -13,7 +13,7 @@ const navItems = [
   { label: 'Tour', href: '/tour', icon: Compass },
   { label: 'Game', href: '/game', icon: Gamepad2 },
   { label: 'Focus', href: '/focus', icon: BookOpen },
-  { label: 'Salon', href: '/salon', icon: Coffee },
+  { label: 'Galerij', href: '/salon', icon: Coffee },
   { label: 'Best Of', href: '/best-of', icon: Star },
 ];
 
