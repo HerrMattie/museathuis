@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
-// We gebruiken je 'cn' utility om de classes netjes samen te voegen
-import { cn } from '@/lib/utils'; 
+import { cn } from '@/lib/utils';
+// NIEUW: Importeer de badge checker
+import { checkFeedbackBadges } from '@/lib/gamification/checkBadges';
 
 interface FeedbackProps {
     entityId: string;
     entityType: 'tour' | 'focus' | 'game' | 'salon';
-    className?: string; // 👈 HIER ZAT HET PROBLEEM: Deze regel ontbrak!
+    className?: string;
 }
 
 export default function FeedbackButtons({ entityId, entityType, className }: FeedbackProps) {
@@ -24,7 +25,7 @@ export default function FeedbackButtons({ entityId, entityType, className }: Fee
     // UI Update
     setStatus(vote === 'up' ? 'liked' : 'disliked');
     
-    // Verstuur naar Supabase
+    // 1. Verstuur naar Supabase
     const { error } = await supabase.from('user_feedback').insert({
         entity_id: entityId,
         entity_type: entityType,
@@ -33,6 +34,19 @@ export default function FeedbackButtons({ entityId, entityType, className }: Fee
 
     if (error) {
         console.error("Feedback error:", error);
+    } else {
+        // 2. GAMIFICATION: Check badges!
+        // We halen de user op omdat we die nodig hebben voor de badge functie
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+            // We vertalen up/down naar een cijfer voor de badge logica
+            // Up = 5 sterren (Fanboy), Down = 1 ster (Kritische Noot)
+            const rating = vote === 'up' ? 5 : 1;
+            
+            // Trigger de check (vuurt Recensent, Fanboy, Kritische Noot, Feedback Koning)
+            checkFeedbackBadges(supabase, user.id, rating);
+        }
     }
     
     setIsLoading(false);
@@ -56,7 +70,6 @@ export default function FeedbackButtons({ entityId, entityType, className }: Fee
   }
 
   return (
-    // 👇 HIER WORDT DE className NU TOEGEPAST
     <div className={cn("flex gap-4", className)}>
       <button 
         onClick={() => sendFeedback('up')} 
