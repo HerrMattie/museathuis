@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Check, X, Heart, Crown, ArrowRight, Loader2, Gift } from 'lucide-react';
+import { Check, X, Heart, Crown, Loader2, Gift } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function PricingPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [donationAmount, setDonationAmount] = useState(20); // Startbedrag
+  const [donationAmount, setDonationAmount] = useState(20);
   const supabase = createClient();
   const router = useRouter();
 
-  const MIN_DONATION_FOR_GIFT = 15; // Minimaal bedrag voor 3 maanden premium
+  const MIN_DONATION_FOR_GIFT = 20;
 
   useEffect(() => {
     const getUser = async () => {
@@ -22,8 +22,6 @@ export default function PricingPage() {
     getUser();
   }, []);
 
-  // --- MOCK BETALING FUNCTIE ---
-  // In het echt koppel je hier Mollie of Stripe
   const handleUpgrade = async (type: 'subscription' | 'donation') => {
     if (!user) {
         router.push('/login');
@@ -36,8 +34,6 @@ export default function PricingPage() {
         let successMessage = "";
 
         if (type === 'subscription') {
-            // Abonnement: Premium tot "oneindig" (of maandelijkse check)
-            // Voor nu zetten we het op 1 maand vooruit in de DB
             const nextMonth = new Date();
             nextMonth.setMonth(nextMonth.getMonth() + 1);
             updateData.premium_until = nextMonth.toISOString();
@@ -45,11 +41,9 @@ export default function PricingPage() {
             successMessage = "Welkom als Mecenas! Uw abonnement is gestart.";
         } 
         else if (type === 'donation') {
-            // Donatie: 3 Maanden Cadeau
             const threeMonths = new Date();
             threeMonths.setMonth(threeMonths.getMonth() + 3);
             updateData.premium_until = threeMonths.toISOString();
-            // We overschrijven de rol niet per se, of noemen ze 'Weldoener'
             successMessage = `Dankuwel voor uw donatie van €${donationAmount}! U heeft 3 maanden Premium ontvangen.`;
         }
 
@@ -97,11 +91,11 @@ export default function PricingPage() {
             <p className="text-gray-400 mb-8 text-sm">Voor wie wil bijhouden wat hij mooi vindt en mee wil doen.</p>
             
             <ul className="space-y-4 mb-8 flex-1">
-                <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Dagelijkse tours, games en focus</li>
+                <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Dagelijkse kunstwerken</li>
                 <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Favorieten opslaan</li>
-                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen toegang tot de premium tours, games en focus</li>
-                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen toegang tot de Galerij</li
-                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen toegang tot de populairste content</li>
+                <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Meedoen met Games (beperkt)</li>
+                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen Audiotours</li>
+                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen Verdiepende Artikelen</li>
             </ul>
 
             <button onClick={() => router.push('/login')} className="w-full py-3 rounded-xl border border-white/20 hover:bg-white/10 font-bold transition-all">
@@ -119,7 +113,7 @@ export default function PricingPage() {
                 <span className="font-bold uppercase tracking-wider text-xs">Mecenas</span>
             </div>
             <h3 className="text-2xl font-bold mb-2 text-white">Maandelijks</h3>
-            <div className="text-4xl font-bold mb-6 text-museum-gold">€6,95 <span className="text-sm font-normal text-gray-400 text-white">/maand</span></div>
+            <div className="text-4xl font-bold mb-6 text-museum-gold">€6,95 <span className="text-sm font-normal text-white">/maand</span></div>
             <p className="text-gray-400 mb-8 text-sm">Onbeperkt toegang tot alle verdieping, tours en functionaliteiten.</p>
             
             <ul className="space-y-4 mb-8 flex-1">
