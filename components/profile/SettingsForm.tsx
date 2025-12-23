@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Save, Loader2, User, GraduationCap, Paintbrush, CreditCard, Laptop, Heart } from 'lucide-react';
+import { Save, Loader2, User, Paintbrush, CreditCard, Laptop, Heart } from 'lucide-react';
 
 const PERIODS = ["Oude Meesters", "Renaissance", "Barok", "Impressionisme", "Moderne Kunst", "Hedendaags", "Fotografie", "Design"];
 
@@ -12,11 +12,9 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const [activeTab, setActiveTab] = useState('persoonlijk');
 
   // --- HULPFUNCTIE OM DATA TE PARSEN ---
-  // Zorgt dat we altijd een array hebben, wat er ook uit de DB komt
   const parseArray = (data: any) => {
-      if (!data) return []; // Geen null, maar lege array
+      if (!data) return []; 
       if (Array.isArray(data)) return data;
-      // Als het toch een string is (door oude import), probeer te fixen
       if (typeof data === 'string') {
           try {
              const parsed = JSON.parse(data);
@@ -30,20 +28,22 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
 
   // --- STATES ---
   const [fullName, setFullName] = useState(initialData?.full_name || '');
-  const [selectedAvatar, setSelectedAvatar] = useState(initialData?.avatar_url || '/avatars/rembrandt.png');
   const [ageGroup, setAgeGroup] = useState(initialData?.age_group || '');
   const [province, setProvince] = useState(initialData?.province || '');
   const [education, setEducation] = useState(initialData?.education_level || '');
   const [workField, setWorkField] = useState(initialData?.work_field || '');
-  const [artLevel, setArtLevel] = useState(initialData?.art_interest_level || '');
   const [frequency, setFrequency] = useState(initialData?.museum_visit_frequency || '');
   const [company, setCompany] = useState(initialData?.visit_company || '');
+  const [selectedAvatar, setSelectedAvatar] = useState(initialData?.avatar_url || '/avatars/rembrandt.png');
   
-  // Array States (Met de veilige parse functie)
+  // Arrays
   const [favPeriods, setFavPeriods] = useState<string[]>(parseArray(initialData?.favorite_periods));
   
+  // Museumkaart Check (Kijkt naar boolean OF naar de memberships array)
   const [hasMuseumCard, setHasMuseumCard] = useState<boolean>(
-      initialData?.has_museum_card === true || initialData?.museum_cards === true
+      initialData?.has_museum_card === true || 
+      initialData?.museum_cards === true ||
+      (Array.isArray(initialData?.memberships) && initialData.memberships.includes('Museumkaart'))
   );
 
   const togglePeriod = (period: string) => {
@@ -53,8 +53,10 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const handleSave = async () => {
     setLoading(true);
     try {
-        // DATA OBJECT VOORBEREIDEN
-        // We zorgen dat arrays ECHT arrays zijn
+        // HIER ZIT DE OPLOSSING:
+        // We genereren de memberships array op basis van de boolean
+        const membershipsArray = hasMuseumCard ? ['Museumkaart'] : [];
+
         const updates = {
             user_id: user.id,
             full_name: fullName,
@@ -64,12 +66,17 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             province: province,
             education_level: education,
             work_field: workField,
-            art_interest_level: artLevel,
             museum_visit_frequency: frequency,
             visit_company: company,
-            favorite_periods: favPeriods, // Dit is nu gegarandeerd string[]
-            museum_cards: hasMuseumCard,
-            has_museum_card: hasMuseumCard,
+            
+            favorite_periods: favPeriods, // Array
+            
+            // OPLOSSING VOOR JOUW FOUTMELDING:
+            memberships: membershipsArray, // Dit stuurt nu netjes ["Museumkaart"] of []
+            
+            museum_cards: hasMuseumCard,    // Boolean update
+            has_museum_card: hasMuseumCard, // Legacy boolean update
+            
             updated_at: new Date().toISOString(),
             has_completed_onboarding: true
         };
