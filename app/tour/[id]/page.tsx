@@ -5,19 +5,20 @@ import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { ArrowLeft, Headphones, Clock, Play } from 'lucide-react';
 import AudioPlayer from '@/components/ui/AudioPlayer';
-import LikeButton from '@/components/LikeButton';           
+// 👇 1. IMPORT
+import FavoriteButton from '@/components/artwork/FavoriteButton';
 import FeedbackButtons from '@/components/FeedbackButtons';
 import { trackActivity } from '@/lib/tracking';
-
-// --- GAMIFICATION IMPORTS ---
 import { checkArtworkBadges } from '@/lib/gamification/checkBadges';
 
 export default function TourDetailPage({ params }: { params: { id: string } }) {
   const [tour, setTour] = useState<any>(null);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
   const [activeAudio, setActiveAudio] = useState<{src: string, title: string} | null>(null);
+
+  // We houden lokaal bij welke stops gefavoriet zijn (voor de UI)
+  const [favoritesMap, setFavoritesMap] = useState<Record<string, boolean>>({});
 
   const supabase = createClient();
 
@@ -35,6 +36,22 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
         if (error) console.error(error);
         setTour(data);
         setLoading(false);
+
+        // Check favorieten voor alle stops in één keer
+        if (u?.user && data?.stops_data?.stops) {
+            const stopIds = data.stops_data.stops.map((s: any) => s.id).filter(Boolean);
+            if (stopIds.length > 0) {
+                const { data: favs } = await supabase
+                    .from('favorites')
+                    .select('artwork_id')
+                    .eq('user_id', u.user.id)
+                    .in('artwork_id', stopIds);
+                
+                const map: Record<string, boolean> = {};
+                favs?.forEach((f: any) => map[f.artwork_id] = true);
+                setFavoritesMap(map);
+            }
+        }
     };
     fetchData();
   }, [params.id, supabase]);
@@ -42,34 +59,17 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
   if (loading) return <div className="min-h-screen bg-midnight-950 text-white pt-32 text-center">Laden...</div>;
   if (!tour) return <div className="min-h-screen bg-midnight-950 text-white pt-32 text-center">Tour niet gevonden.</div>;
 
-  const allStops = tour.stops_data?.stops || [];
-  const tourStops = allStops.slice(0, 8);
+  const tourStops = tour.stops_data?.stops || [];
 
-  // 2. SLIMME AUDIO PLAYER LOGICA
   const playAudio = (src: string, title: string, stopContext?: any) => {
       setActiveAudio({ src, title });
-
-      if (user) {
-          if (stopContext) {
-              // A. Gebruiker klikt op een specifiek SCHILDERIJ in de lijst
-              // Dit telt als 'view_artwork' voor statistieken
-              trackActivity(supabase, user.id, 'view_artwork', tour.id, {
-                  artist: stopContext.artist, 
-                  title: stopContext.title,
-                  tags: stopContext.tags || []
-              });
-
-              // B. GAMIFICATION: Check Badges! (Eerste blik, Museumkaart, Rembrandt, etc.)
-              checkArtworkBadges(supabase, user.id, stopContext.artist, stopContext.tags || []);
-
-          } else {
-              // C. Gebruiker klikt op START TOUR (Intro)
-              // Dit telt voor 'Lunchpauze', 'Vrijmibo', etc. (dit wordt al in useGamification in de header gedaan, 
-              // maar we tracken hier de activiteit voor admin stats)
-              trackActivity(supabase, user.id, 'start_tour', tour.id, {
-                  tour_title: tour.title
-              });
-          }
+      if (user && stopContext) {
+          trackActivity(supabase, user.id, 'view_artwork', tour.id, {
+              artist: stopContext.artist, 
+              title: stopContext.title,
+              tags: stopContext.tags || []
+          });
+          checkArtworkBadges(supabase, user.id, stopContext.artist, stopContext.tags || []);
       }
   };
 
@@ -79,20 +79,10 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
       {/* HEADER */}
       <div className="relative bg-slate-900 border-b border-white/5">
         <div className="max-w-4xl mx-auto px-6 py-16 md:py-24">
-              
              <div className="flex justify-between items-start mb-8">
                  <Link href="/tour" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-museum-gold hover:text-white transition-colors">
                     <ArrowLeft size={14}/> Terug naar Overzicht
                  </Link>
-                 
-                 {user && (
-                     <LikeButton 
-                        itemId={tour.id} 
-                        itemType="tour" 
-                        userId={user.id} 
-                        className="bg-white/10 hover:bg-white/20 rounded-full p-2"
-                     />
-                 )}
              </div>
 
              <h1 className="text-4xl md:text-6xl font-serif font-bold text-white mb-6 leading-tight">
@@ -105,7 +95,6 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
                 </p>
              </div>
 
-             {/* INTRO AUDIO KNOP (Geen stop context) */}
              <div className="flex items-center gap-4">
                  <button 
                     onClick={() => playAudio(tour.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", `Intro: ${tour.title}`)}
@@ -116,7 +105,6 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
                     </div>
                     <span>Start Inleiding</span>
                  </button>
-
                  <div className="flex items-center gap-2 text-sm text-gray-500 font-bold uppercase tracking-wider pl-4">
                     <Clock size={16}/> 25 min
                  </div>
@@ -127,7 +115,7 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
       {/* DE STOPS */}
       <div className="max-w-4xl mx-auto px-6 py-12">
           <h2 className="text-2xl font-bold text-white mb-12 flex items-center gap-3">
-             <span className="bg-museum-gold text-black w-8 h-8 rounded-full flex items-center justify-center text-sm">8</span>
+             <span className="bg-museum-gold text-black w-8 h-8 rounded-full flex items-center justify-center text-sm">{tourStops.length}</span>
              Geselecteerde Meesterwerken
           </h2>
 
@@ -140,11 +128,20 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
                     )}
 
                     {/* Afbeelding Stop */}
-                    <div className="w-full md:w-1/3 shrink-0">
+                    <div className="w-full md:w-1/3 shrink-0 relative">
                         <div className="relative aspect-square bg-black rounded-xl overflow-hidden shadow-2xl border border-white/10">
                             <span className="absolute top-0 left-0 bg-museum-gold text-black font-bold px-3 py-1 rounded-br-lg z-10 text-sm">
                                 Stop {index + 1}
                             </span>
+                            
+                            {/* 👇 2. HIER ZIT DE MAGIC: DE FAVORIETEN KNOP OP HET SCHILDERIJ */}
+                            <div className="absolute top-2 right-2 z-20">
+                                <FavoriteButton 
+                                    artwork={stop} 
+                                    initialIsFavorited={favoritesMap[stop.id]} 
+                                />
+                            </div>
+
                             {stop.image_url ? (
                                <img src={stop.image_url} alt={stop.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                             ) : (
@@ -161,7 +158,6 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
                             <p>{stop.description}</p>
                         </div>
                         
-                        {/* Audio Knop voor DEZE stop (Met stop context -> telt als view_artwork & checkt badges!) */}
                         <div 
                             onClick={() => playAudio(stop.audio_url || tour.audio_url, stop.title, stop)}
                             className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group/audio"
@@ -179,13 +175,9 @@ export default function TourDetailPage({ params }: { params: { id: string } }) {
              ))}
           </div>
 
-          {/* FEEDBACK SECTIE */}
           <div className="mt-24 pt-12 border-t border-white/10 flex flex-col items-center text-center">
               <h3 className="text-xl font-serif font-bold mb-4">Hoe was deze tour?</h3>
-              <FeedbackButtons 
-                  entityId={tour.id} 
-                  entityType="tour" 
-              />
+              <FeedbackButtons entityId={tour.id} entityType="tour" />
           </div>
       </div>
 
