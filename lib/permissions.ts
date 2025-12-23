@@ -1,3 +1,5 @@
+// lib/permissions.ts
+
 export const PERMISSIONS = {
     // Level 2: Maximaal aantal favorieten
     getMaxFavorites: (level: number, isPremium: boolean) => {
@@ -9,9 +11,9 @@ export const PERMISSIONS = {
 
     // Level 12: Hoe ver mag je terugkijken?
     getHistoryDays: (level: number, isPremium: boolean) => {
-        if (isPremium) return 365;
-        if (level >= 12) return 7;
-        if (level >= 4) return 3;
+        if (isPremium) return 365; // Onbeperkt
+        if (level >= 12) return 7; // Historicus
+        if (level >= 4) return 3;  // Kijker
         return 0; // Alleen vandaag
     },
 
