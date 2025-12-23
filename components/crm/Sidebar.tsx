@@ -22,23 +22,23 @@ const menuItems = [
     { type: 'divider' },
     
     { icon: Calendar, label: 'Weekplanning', href: '/crm/schedule' },
-    { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' },
     { icon: Calendar, label: 'AI Regisseur', href: '/crm/planning' },
     
     { type: 'divider' },
     
     { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' },
-    
+    { icon: Type, label: 'Artworks', href: '/crm/artworks' },
+   
     { type: 'divider' },
     
     { icon: Headphones, label: 'Tours', href: '/crm/tours' },
     { icon: Gamepad2, label: 'Games', href: '/crm/games' },
     { icon: FileText, label: 'Focus', href: '/crm/focus' },
     { icon: Layers, label: 'Galerij', href: '/crm/salons' },
-    { icon: Award, label: 'Badge Manager', href: '/crm/badges' },
-    
+
     { type: 'divider' },
-    
+    { icon: Award, label: 'Badge Manager', href: '/crm/badges' },
+    { icon: Award, label: 'Gebruikers', href: '/crm//users' },
     { icon: Settings, label: 'Instellingen', href: '/crm/settings' },
 ];
 
