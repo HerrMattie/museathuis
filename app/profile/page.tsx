@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, Palette, CalendarClock, User, Crown } from 'lucide-react';
+import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, Palette, CalendarClock, User, Crown, ChevronRight } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
@@ -36,7 +36,7 @@ export default async function ProfilePage() {
 
   const joinDate = new Date(profile?.created_at).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
 
-  // Favoriete Stijl bepalen (eerste uit de lijst of fallback)
+  // Favoriete Stijl bepalen
   let favoriteStyle = "Nog onbekend";
   if (profile?.favorite_periods && Array.isArray(profile.favorite_periods) && profile.favorite_periods.length > 0) {
       favoriteStyle = profile.favorite_periods[0];
@@ -106,28 +106,39 @@ export default async function ProfilePage() {
             </div>
         </div>
 
-        {/* PERSOONLIJKE GEGEVENS & STATUS - AANGEPAST */}
+        {/* PERSOONLIJKE GEGEVENS & STATUS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             
-            {/* Box 1: PREMIUM STATUS */}
-            <div className={`p-4 rounded-xl border relative overflow-hidden ${isPremium ? 'bg-museum-gold/10 border-museum-gold/30' : 'bg-white/5 border-white/5'}`}>
-                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
-                    {isPremium ? <Crown size={14} className="text-museum-gold"/> : <User size={14}/>} 
-                    Status
+            {/* Box 1: PREMIUM STATUS (AANGEPAST) */}
+            <div className={`p-4 rounded-xl border relative overflow-hidden flex flex-col justify-between ${isPremium ? 'bg-museum-gold/10 border-museum-gold/30' : 'bg-white/5 border-white/5'}`}>
+                <div>
+                    <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
+                        {isPremium ? <Crown size={14} className="text-museum-gold"/> : <User size={14}/>} 
+                        Status
+                    </div>
+                    <div className={`font-bold truncate ${isPremium ? 'text-museum-gold' : 'text-white'}`}>
+                        {isPremium ? 'Mecenas' : 'Liefhebber'}
+                    </div>
                 </div>
-                <div className={`font-bold truncate ${isPremium ? 'text-museum-gold' : 'text-white'}`}>
-                    {isPremium ? 'Mecenas' : 'Liefhebber'}
-                </div>
-                <div className="text-[10px] mt-1 truncate">
+                
+                {/* De Interactie: Datum + Knop */}
+                <div className="text-[10px] mt-2 pt-2 border-t border-white/5">
                     {isPremium ? (
-                        <span className="text-gray-400">Tot {premiumDate}</span>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-gray-400 block">Tot {premiumDate}</span>
+                            <Link href="/pricing" className="text-museum-gold font-bold hover:underline flex items-center gap-1">
+                                Beheer <ChevronRight size={10}/>
+                            </Link>
+                        </div>
                     ) : (
-                        <Link href="/pricing" className="text-museum-gold hover:underline">Word Mecenas &rarr;</Link>
+                        <Link href="/pricing" className="text-museum-gold hover:underline flex items-center gap-1">
+                            Word Mecenas <ChevronRight size={10}/>
+                        </Link>
                     )}
                 </div>
             </div>
 
-            {/* Box 2: FAVORIETE STIJL (Nieuw) */}
+            {/* Box 2: FAVORIETE STIJL */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
                     <Palette size={14}/> Favoriete Stijl
@@ -141,7 +152,7 @@ export default async function ProfilePage() {
                 <div className="text-white font-bold">{badgeCount} Behaald</div>
             </div>
 
-            {/* Box 4: LID SINDS (Nieuw) */}
+            {/* Box 4: LID SINDS */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><CalendarClock size={14}/> Lid Sinds</div>
                 <div className="text-white font-bold truncate">{joinDate}</div>
@@ -150,7 +161,6 @@ export default async function ProfilePage() {
 
         {/* DASHBOARD GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
             <Link href="/favorites" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-rose-900/20 text-rose-500 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-colors">
