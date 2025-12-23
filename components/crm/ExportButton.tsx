@@ -1,103 +1,115 @@
 'use client';
 
 import { useState } from 'react';
+import { Download, FileJson, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabaseClient';
-import { Download, Loader2, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 export default function ExportButton() {
     const [loading, setLoading] = useState(false);
     const supabase = createClient();
 
-    const handleExport = async () => {
-        if(!confirm("Wil je de volledige database downloaden als Excel bestand?")) return;
-        
+    const handleExport = async (format: 'json' | 'csv') => {
         setLoading(true);
-        const timestamp = new Date().toISOString().split('T')[0];
-
         try {
-            // 1. HAAL GEBRUIKERS DATA OP (Rijk Profiel)
-            const { data: users, error: userError } = await supabase
-                .from('user_profiles')
-                .select('*');
-
-            if (userError) throw userError;
-
-            // 2. HAAL CONTENT PRESTATIES OP (Simpele tellingen uit logs)
-            // We halen alle logs op om ze lokaal te tellen (voor grote datasets doe je dit liever via RPC, maar dit werkt prima tot ~10k users)
-            const { data: logs } = await supabase
+            // 1. Fetch all relevant activity logs (you might want to limit this range in production)
+            const { data: logs, error } = await supabase
                 .from('user_activity_logs')
-                .select('action_type, metadata, created_at');
+                .select('user_id, action_type, created_at, meta_data, user_profiles(full_name, age_group, province)')
+                .order('created_at', { ascending: false });
 
-            // 3. DATA FORMATTEREN VOOR EXCEL
-            
-            // --- SHEET 1: GEBRUIKERS ---
-            // We vlakken de arrays (zoals interesses) af naar strings
-            const usersSheet = users.map((u: any) => ({
-                UserID: u.user_id,
-                Naam: u.full_name || 'Anoniem',
-                Email: u.email, // Let op: Alleen als je email in user_profiles opslaat, anders uit auth halen (lastiger)
-                Level: Math.floor((u.xp || 0) / 100) + 1, // Geschat level
-                XP: u.xp || 0,
-                Premium: u.is_premium ? 'JA' : 'NEE',
-                Regio: u.province || 'Onbekend',
-                Leeftijdsgroep: u.age_group,
-                Interesses: Array.isArray(u.interests) ? u.interests.join(', ') : '',
-                MuseumKaarten: Array.isArray(u.museum_cards) ? u.museum_cards.join(', ') : '',
-                LaatstGezien: u.updated_at ? new Date(u.updated_at).toLocaleDateString() : '',
-                LidSinds: new Date(u.created_at).toLocaleDateString(),
-            }));
+            if (error) throw error;
 
-            // --- SHEET 2: CONTENT ANALYSE ---
-            // Tel hoe vaak content bekeken is
-            const contentStats: any = {};
-            logs?.forEach((log: any) => {
-                if (log.action_type === 'view_tour' || log.action_type === 'play_game' || log.action_type === 'read_focus') {
-                    // Probeer de titel of ID uit metadata te halen
-                    const key = log.metadata?.title || log.metadata?.id || 'Onbekend Item';
-                    const type = log.action_type;
-                    
-                    if (!contentStats[key]) contentStats[key] = { Type: type, Views: 0, LastView: '' };
-                    contentStats[key].Views++;
-                    contentStats[key].LastView = log.created_at;
-                }
+            if (!logs || logs.length === 0) {
+                alert("Geen data om te exporteren.");
+                setLoading(false);
+                return;
+            }
+
+            // 2. Process Data for Analysis (The "Intelligence" Layer)
+            const processedData = logs.map(log => {
+                let details = '';
+                let duration = 0;
+                let score = 0;
+                
+                // Parse metadata safely
+                let meta: any = {};
+                try {
+                    meta = typeof log.meta_data === 'string' ? JSON.parse(log.meta_data) : log.meta_data;
+                } catch (e) { console.error("Meta parse error", e); }
+
+                // Extract specific valuable metrics
+                if (log.action_type === 'time_spent') duration = meta?.duration || 0;
+                if (log.action_type === 'complete_game') score = meta?.score || 0;
+                
+                // Readable context
+                if (meta?.path) details = `Path: ${meta.path}`;
+                if (meta?.tour_title) details = `Tour: ${meta.tour_title}`;
+                if (meta?.title) details = `Article: ${meta.title}`;
+
+                return {
+                    Timestamp: new Date(log.created_at).toISOString(),
+                    User: log.user_profiles?.full_name || 'Anonymous',
+                    Demographics: `${log.user_profiles?.age_group || 'Unknown'} - ${log.user_profiles?.province || 'Unknown'}`,
+                    Action: log.action_type,
+                    Details: details,
+                    Duration_Seconds: duration,
+                    Game_Score: score,
+                    Raw_Meta: JSON.stringify(meta)
+                };
             });
 
-            const contentSheet = Object.keys(contentStats).map(key => ({
-                Titel: key,
-                Type: contentStats[key].Type,
-                AantalKeerBekeken: contentStats[key].Views,
-                LaatsteInteractie: new Date(contentStats[key].LastView).toLocaleDateString()
-            }));
+            // 3. Generate File
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(processedData, null, 2)], { type: 'application/json' });
+                downloadFile(blob, `museathuis_analytics_${new Date().toISOString().split('T')[0]}.json`);
+            } else {
+                // Convert to CSV
+                const headers = Object.keys(processedData[0]).join(',');
+                const rows = processedData.map(row => 
+                    Object.values(row).map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')
+                ).join('\n');
+                
+                const csvContent = `${headers}\n${rows}`;
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                downloadFile(blob, `museathuis_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+            }
 
-            // 4. MAAK HET EXCEL BESTAND
-            const wb = XLSX.utils.book_new();
-            
-            // Voeg sheets toe
-            const ws1 = XLSX.utils.json_to_sheet(usersSheet);
-            XLSX.utils.book_append_sheet(wb, ws1, "Gebruikersprofielen");
-
-            const ws2 = XLSX.utils.json_to_sheet(contentSheet);
-            XLSX.utils.book_append_sheet(wb, ws2, "Content Prestaties");
-
-            // Download triggeren
-            XLSX.writeFile(wb, `MuseaThuis_Export_${timestamp}.xlsx`);
-
-        } catch (e: any) {
-            alert("Export mislukt: " + e.message);
+        } catch (error: any) {
+            console.error('Export failed:', error);
+            alert('Export mislukt: ' + error.message);
         } finally {
             setLoading(false);
         }
     };
 
+    const downloadFile = (blob: Blob, filename: string) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
-        <button 
-            onClick={handleExport} 
-            disabled={loading}
-            className="flex items-center gap-2 bg-green-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-800 transition-colors shadow-sm text-sm"
-        >
-            {loading ? <Loader2 className="animate-spin" size={16}/> : <FileSpreadsheet size={16}/>}
-            Excel Database Genereren
-        </button>
+        <div className="flex gap-2">
+            <button 
+                onClick={() => handleExport('csv')} 
+                disabled={loading}
+                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors disabled:opacity-50"
+            >
+                {loading ? <Loader2 size={16} className="animate-spin"/> : <FileSpreadsheet size={16}/>}
+                CSV Export
+            </button>
+            <button 
+                onClick={() => handleExport('json')} 
+                disabled={loading}
+                className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-700 transition-colors disabled:opacity-50"
+            >
+                {loading ? <Loader2 size={16} className="animate-spin"/> : <FileJson size={16}/>}
+                JSON Analysis
+            </button>
+        </div>
     );
 }
