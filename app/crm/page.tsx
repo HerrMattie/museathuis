@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
-import { Users, Crown, Activity, Image as ImageIcon, Gamepad2, Headphones, ArrowRight, Clock, TrendingUp, Newspaper, Coffee } from 'lucide-react';
+import { Users, Crown, Activity, Image as ImageIcon, Gamepad2, Headphones, ArrowRight, Clock, TrendingUp, Newspaper, Coffee, Eye, MousePointer } from 'lucide-react';
 import ExportButton from '@/components/crm/ExportButton';
 
 export default function CrmDashboardPage() {
+    // Statussen
     const [stats, setStats] = useState({
         totalUsers: 0,
         premiumUsers: 0,
@@ -14,9 +15,13 @@ export default function CrmDashboardPage() {
         totalArtworks: 0,
         totalGames: 0,
         totalTours: 0,
-        totalFocus: 0, // Nieuw
-        totalSalons: 0 // Nieuw
+        totalFocus: 0, 
+        totalSalons: 0 
     });
+    
+    // Nieuwe Analyse States
+    const [topPages, setTopPages] = useState<any[]>([]);
+    const [avgDuration, setAvgDuration] = useState(0);
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     
@@ -29,30 +34,29 @@ export default function CrmDashboardPage() {
     const fetchDashboardData = async () => {
         const today = new Date().toISOString().split('T')[0];
 
-        // 1. Parallel Data Ophalen (Nu inclusief Focus en Salons!)
+        // 1. DATA OPHALEN
         const [
-            users, 
-            premium, 
-            artworks, 
-            games, 
-            tours, 
-            focus, // Nieuw
-            salons, // Nieuw
-            activity
+            users, premium, artworks, games, tours, focus, salons, activity, analyticsData
         ] = await Promise.all([
             supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
             supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
             supabase.from('artworks').select('*', { count: 'exact', head: true }),
             supabase.from('games').select('*', { count: 'exact', head: true }),
             supabase.from('tours').select('*', { count: 'exact', head: true }),
-            supabase.from('focus_items').select('*', { count: 'exact', head: true }), // Nieuw
-            supabase.from('salons').select('*', { count: 'exact', head: true }), // Nieuw
+            supabase.from('focus_items').select('*', { count: 'exact', head: true }),
+            supabase.from('salons').select('*', { count: 'exact', head: true }),
             
-            // Recente acties
+            // Recente acties voor de feed
             supabase.from('user_activity_logs')
-                .select('action_type, created_at, metadata, user_profiles(full_name)')
+                .select('action_type, created_at, meta_data, user_profiles(full_name)')
                 .order('created_at', { ascending: false })
-                .limit(10)
+                .limit(10),
+
+            // RUWE DATA VOOR ANALYSE (Laatste 1000 logs)
+            supabase.from('user_activity_logs')
+                .select('action_type, meta_data')
+                .order('created_at', { ascending: false })
+                .limit(1000)
         ]);
 
         // 2. Unieke bezoekers vandaag
@@ -61,6 +65,40 @@ export default function CrmDashboardPage() {
             .select('user_id', { count: 'exact', head: true })
             .gte('created_at', `${today}T00:00:00`);
 
+        // 3. ANALYSE BEREKENEN (In de browser)
+        const logs = analyticsData.data || [];
+        
+        // A. Populaire Pagina's
+        const pageCounts: Record<string, number> = {};
+        let totalDuration = 0;
+        let durationCount = 0;
+
+        logs.forEach(log => {
+            let meta: any = {};
+            try { meta = typeof log.meta_data === 'string' ? JSON.parse(log.meta_data) : log.meta_data; } catch {}
+
+            // Tel pagina bezoeken
+            if (log.action_type === 'page_view' && meta.path) {
+                const cleanPath = meta.path.split('/')[1] || 'Home'; // Pak eerste deel van URL (bijv. 'tour', 'game')
+                pageCounts[cleanPath] = (pageCounts[cleanPath] || 0) + 1;
+            }
+
+            // Bereken gemiddelde tijd
+            if (log.action_type === 'time_spent' && meta.duration) {
+                totalDuration += meta.duration;
+                durationCount++;
+            }
+        });
+
+        // Sorteer pagina's op populariteit
+        const sortedPages = Object.entries(pageCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5) // Top 5
+            .map(([name, count]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), count }));
+
+        setTopPages(sortedPages);
+        setAvgDuration(durationCount > 0 ? Math.round(totalDuration / durationCount) : 0);
+
         setStats({
             totalUsers: users.count || 0,
             premiumUsers: premium.count || 0,
@@ -68,8 +106,8 @@ export default function CrmDashboardPage() {
             totalArtworks: artworks.count || 0,
             totalGames: games.count || 0,
             totalTours: tours.count || 0,
-            totalFocus: focus.count || 0, // Nieuw
-            totalSalons: salons.count || 0 // Nieuw
+            totalFocus: focus.count || 0,
+            totalSalons: salons.count || 0 
         });
 
         setRecentActivity(activity.data || []);
@@ -77,7 +115,8 @@ export default function CrmDashboardPage() {
     };
 
     const formatAction = (type: string, meta: any) => {
-        switch(type) {
+        // ... (De format functie die we al hadden) ...
+         switch(type) {
             case 'login': return 'is ingelogd';
             case 'complete_game': return `behaalde ${meta?.score} punten in een Game`;
             case 'view_tour': return 'startte een Audiotour';
@@ -99,68 +138,74 @@ export default function CrmDashboardPage() {
                     <h1 className="text-3xl font-bold text-slate-800 mb-2">Dashboard</h1>
                     <p className="text-slate-500">Welkom terug, Directeur. Hier is het overzicht.</p>
                 </div>
-                
                 <ExportButton /> 
             </header>
 
-            {/* --- STATS GRID --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                
-                {/* Users */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Gebruikers</p>
-                        <h3 className="text-3xl font-black text-slate-800">{stats.totalUsers}</h3>
-                        <p className="text-xs text-green-600 font-bold flex items-center gap-1 mt-2">
-                            <Crown size={12}/> {stats.premiumUsers} Premium leden
-                        </p>
-                    </div>
-                    <div className="p-4 bg-blue-50 text-blue-600 rounded-full">
-                        <Users size={24}/>
-                    </div>
+            {/* --- TOP ROW: KPI's --- */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Gebruikers</p>
+                    <h3 className="text-3xl font-black text-slate-800">{stats.totalUsers}</h3>
+                    <p className="text-xs text-green-600 font-bold mt-2"><Crown size={12} className="inline mr-1"/>{stats.premiumUsers} Premium</p>
                 </div>
-
-                {/* Activity */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Acties Vandaag</p>
-                        <h3 className="text-3xl font-black text-slate-800">{stats.activeToday}</h3>
-                        <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-2">
-                            <TrendingUp size={12}/> Interacties
-                        </p>
-                    </div>
-                    <div className="p-4 bg-green-50 text-green-600 rounded-full">
-                        <Activity size={24}/>
-                    </div>
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Actief Vandaag</p>
+                    <h3 className="text-3xl font-black text-slate-800">{stats.activeToday}</h3>
+                    <p className="text-xs text-slate-400 mt-2">Unieke sessies</p>
                 </div>
-
-                {/* Content */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Collectie Grootte</p>
-                        <h3 className="text-3xl font-black text-slate-800">{stats.totalArtworks}</h3>
-                        <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-2">
-                            Kunstwerken in database
-                        </p>
-                    </div>
-                    <div className="p-4 bg-purple-50 text-purple-600 rounded-full">
-                        <ImageIcon size={24}/>
-                    </div>
+                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Gem. Sessieduur</p>
+                    <h3 className="text-3xl font-black text-slate-800">{avgDuration}s</h3>
+                    <p className="text-xs text-slate-400 mt-2">Per pagina weergave</p>
+                </div>
+                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Content Items</p>
+                    <h3 className="text-3xl font-black text-slate-800">{stats.totalArtworks + stats.totalGames + stats.totalTours}</h3>
+                    <p className="text-xs text-slate-400 mt-2">Totaal in database</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
-                {/* --- LIVE FEED (Links) --- */}
+                {/* --- ANALYSE: WAAR KIJKEN ZE NAAR? (Nieuw!) --- */}
+                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <Eye size={20} className="text-blue-500"/>
+                        Populairste Onderdelen
+                    </h3>
+                    <div className="space-y-4">
+                        {topPages.map((page, i) => (
+                            <div key={i} className="flex items-center gap-4">
+                                <span className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded-full text-xs font-bold text-slate-500">{i + 1}</span>
+                                <div className="flex-1">
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="font-medium text-slate-700">{page.name}</span>
+                                        <span className="text-slate-400">{page.count} views</span>
+                                    </div>
+                                    {/* Progress Bar */}
+                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-blue-500 rounded-full" 
+                                            style={{ width: `${(page.count / topPages[0].count) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {topPages.length === 0 && <p className="text-sm text-slate-400">Nog niet genoeg data voor analyse.</p>}
+                    </div>
+                </div>
+
+                {/* --- LIVE FEED (Midden) --- */}
                 <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-800">Recente Activiteit</h3>
+                        <h3 className="font-bold text-slate-800">Live Activiteit</h3>
                         <span className="relative flex h-3 w-3">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                         </span>
                     </div>
-                    <div className="divide-y divide-slate-50">
+                    <div className="divide-y divide-slate-50 max-h-[400px] overflow-y-auto">
                         {recentActivity.map((log: any, i) => (
                             <div key={i} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
                                 <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs">
@@ -176,76 +221,21 @@ export default function CrmDashboardPage() {
                                 </div>
                             </div>
                         ))}
-                        {recentActivity.length === 0 && (
-                            <div className="p-8 text-center text-slate-400 text-sm">Nog geen activiteit vandaag.</div>
-                        )}
                     </div>
                 </div>
+            </div>
 
-                {/* --- SNELKOPPELINGEN (Rechts) --- */}
-                <div className="space-y-6">
-                    
-                    {/* Content Overzicht */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                        <h3 className="font-bold text-slate-800 mb-4">Content Status</h3>
-                        <div className="space-y-4">
-                            {/* Audiotours */}
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Headphones size={16}/></div>
-                                    <span className="text-sm font-medium text-slate-600">Audiotours</span>
-                                </div>
-                                <span className="font-bold text-slate-800">{stats.totalTours}</span>
-                            </div>
-                            
-                            {/* Games */}
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><Gamepad2 size={16}/></div>
-                                    <span className="text-sm font-medium text-slate-600">Games</span>
-                                </div>
-                                <span className="font-bold text-slate-800">{stats.totalGames}</span>
-                            </div>
-
-                            {/* Focus Items (Toegevoegd) */}
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Newspaper size={16}/></div>
-                                    <span className="text-sm font-medium text-slate-600">Focus Artikelen</span>
-                                </div>
-                                <span className="font-bold text-slate-800">{stats.totalFocus}</span>
-                            </div>
-
-                            {/* Salons (Toegevoegd) */}
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Coffee size={16}/></div>
-                                    <span className="text-sm font-medium text-slate-600">Salons</span>
-                                </div>
-                                <span className="font-bold text-slate-800">{stats.totalSalons}</span>
-                            </div>
-                        </div>
-                        
-                        <div className="mt-6 pt-4 border-t border-slate-100">
-                            <Link href="/crm/import" className="block w-full py-2 bg-slate-900 text-white text-center rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors">
-                                + Nieuwe Content Importeren
-                            </Link>
-                        </div>
-                    </div>
-
-                    {/* Weekplanning Link */}
-                    {/* LET OP: Ik heb de link aangepast naar /crm/schedule omdat je daar aan werkte in de vorige stap */}
-                    <Link href="/crm/schedule" className="block bg-museum-gold rounded-xl p-6 shadow-lg shadow-yellow-900/10 hover:shadow-xl transition-all group">
-                        <h3 className="font-bold text-black mb-1 group-hover:underline">Weekplanning</h3>
-                        <p className="text-sm text-yellow-900/80 mb-4">Beheer het dagprogramma.</p>
-                        <div className="flex justify-end">
-                            <div className="w-8 h-8 bg-black/10 rounded-full flex items-center justify-center text-black">
-                                <ArrowRight size={16}/>
-                            </div>
-                        </div>
-                    </Link>
-
-                </div>
+            {/* --- FOOTER LINKS --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                 <Link href="/crm/import" className="bg-slate-900 text-white p-4 rounded-xl text-center font-bold hover:bg-slate-800 transition-colors">
+                    + Nieuwe Content
+                 </Link>
+                 <Link href="/crm/schedule" className="bg-museum-gold text-black p-4 rounded-xl text-center font-bold hover:bg-yellow-500 transition-colors">
+                    Weekplanning Beheren
+                 </Link>
+                 <button onClick={() => alert("Coming soon: Mailchimp koppeling")} className="bg-white border border-slate-200 text-slate-600 p-4 rounded-xl text-center font-bold hover:bg-slate-50 transition-colors">
+                    Nieuwsbrief Versturen
+                 </button>
             </div>
         </div>
     );
