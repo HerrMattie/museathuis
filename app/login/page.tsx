@@ -72,7 +72,7 @@ export default function LoginPage() {
                 Ontdek het geheim achter de <span className="text-museum-gold italic">Mona Lisa</span>.
             </h2>
             <p className="text-gray-300 text-lg mb-8 leading-relaxed">
-                Sluit u aan bij 1.200+ kunstliefhebbers. Krijg dagelijks toegang tot audiotours, verdiepende verhalen en exclusieve content.
+                Sluit u aan bij kunstliefhebbers. Krijg dagelijks toegang tot audiotours, verdiepende verhalen en exclusieve content.
             </p>
             
             <div className="space-y-4">
