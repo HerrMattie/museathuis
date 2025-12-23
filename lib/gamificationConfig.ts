@@ -49,28 +49,12 @@ export const LEVELS = [
         icon: PenTool
     },
     { 
-        level: 6, 
-        min_xp: 1250, 
-        title: "Voorproever", 
-        reward: "Content: Toegang tot 'Wist je datjes'",
-        description: "Je leest de kleine lettertjes.",
-        icon: Coffee
-    },
-    { 
         level: 7, 
         min_xp: 1650, 
         title: "Doorzetter", 
         reward: "Badge: 'Eerste Week Voltooid'",
         description: "Je weet de weg inmiddels.",
         icon: Zap
-    },
-    { 
-        level: 8, 
-        min_xp: 2100, 
-        title: "Verdieper", 
-        reward: "Compacte lijstweergave in collecties",
-        description: "Je houdt van overzicht.",
-        icon: BookOpen
     },
     { 
         level: 9, 
@@ -92,14 +76,6 @@ export const LEVELS = [
     },
 
     // --- TIER 2: DE VERDIEPING (Level 11-19) ---
-    { 
-        level: 11, 
-        min_xp: 3900, 
-        title: "Themajager", 
-        reward: "Functie: Filteren op kleur",
-        description: "Je ziet patronen die anderen missen.",
-        icon: Filter
-    },
     { 
         level: 12, 
         min_xp: 4700, 
