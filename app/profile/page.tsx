@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, MapPin, User, Ticket } from 'lucide-react';
+import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, MapPin, User, Ticket, Crown } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
@@ -18,21 +18,26 @@ export default async function ProfilePage() {
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
   const { count: badgeCount } = await supabase.from('user_badges').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
 
-  // 2. Bereken Level (Gebruik opgeslagen XP als die er is, anders 0)
+  // 2. Bereken Level
   const xp = profile?.xp || 0;
   const { level, title: levelTitle, nextLevelXp } = getLevel(xp);
   
   // Progress bar percentage (max 100%)
   const progress = Math.min((xp / nextLevelXp) * 100, 100);
 
-  // Check Admin
+  // Check Admin & Premium
   const isAdmin = profile?.role === 'admin';
+  const isPremium = profile?.is_premium ?? false;
+  
+  // Datum formatteren voor weergave
+  const premiumDate = profile?.premium_until 
+    ? new Date(profile.premium_until).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
 
   // Helper voor Museumkaart weergave
   let museumCardText = "Geen";
   if (profile?.has_museum_card) {
       museumCardText = "Ja";
-      // Probeer de JSON string te parsen als die in de CSV staat als ["Museumkaart"]
       try {
           if (profile.museum_cards && typeof profile.museum_cards === 'string') {
              const parsed = JSON.parse(profile.museum_cards);
@@ -41,7 +46,6 @@ export default async function ProfilePage() {
              museumCardText = profile.museum_cards.join(', ');
           }
       } catch (e) {
-          // Fallback
           museumCardText = "Museumkaart";
       }
   }
@@ -57,7 +61,7 @@ export default async function ProfilePage() {
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
                 
                 {/* Avatar */}
-                <div className="w-24 h-24 rounded-full bg-museum-gold text-black flex items-center justify-center text-3xl font-black border-4 border-black shadow-lg shrink-0 overflow-hidden">
+                <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black border-4 shadow-lg shrink-0 overflow-hidden ${isPremium ? 'border-museum-gold bg-museum-gold text-black' : 'border-white/20 bg-white/10 text-white'}`}>
                     {profile?.avatar_url ? (
                         <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
@@ -68,9 +72,12 @@ export default async function ProfilePage() {
                 {/* Info */}
                 <div className="flex-1 text-center md:text-left w-full">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
-                        <h1 className="text-3xl font-serif font-bold text-white">
-                            {profile?.full_name || "Kunstliefhebber"}
-                        </h1>
+                        <div className="flex items-center justify-center md:justify-start gap-2">
+                            <h1 className="text-3xl font-serif font-bold text-white">
+                                {profile?.full_name || "Kunstliefhebber"}
+                            </h1>
+                            {isPremium && <Crown size={24} className="text-museum-gold fill-museum-gold" />}
+                        </div>
                         
                         {isAdmin && (
                             <Link href="/crm" className="inline-flex items-center gap-1 px-3 py-1 bg-rose-600/20 text-rose-500 border border-rose-600/50 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-colors mx-auto md:mx-0">
@@ -99,7 +106,7 @@ export default async function ProfilePage() {
                 </div>
 
                 {/* Streak */}
-                <div className="flex flex-col items-center bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+                <div className="flex flex-col items-center bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm min-w-[100px]">
                     <Flame className={profile?.current_streak > 0 ? "text-orange-500 fill-orange-500" : "text-gray-600"} size={32} />
                     <span className="text-2xl font-bold mt-2">{profile?.current_streak || 0}</span>
                     <span className="text-[10px] text-gray-500 uppercase font-bold">Dagen Streak</span>
@@ -107,20 +114,41 @@ export default async function ProfilePage() {
             </div>
         </div>
 
-        {/* PERSOONLIJKE GEGEVENS (NIEUW) */}
+        {/* PERSOONLIJKE GEGEVENS & STATUS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {/* Box 1: Provincie */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><MapPin size={14}/> Provincie</div>
-                <div className="text-white font-bold">{profile?.province || 'Onbekend'}</div>
+                <div className="text-white font-bold truncate">{profile?.province || 'Onbekend'}</div>
             </div>
+
+            {/* Box 2: PREMIUM STATUS (Vervangt Leeftijd) */}
+            <div className={`p-4 rounded-xl border relative overflow-hidden ${isPremium ? 'bg-museum-gold/10 border-museum-gold/30' : 'bg-white/5 border-white/5'}`}>
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
+                    {isPremium ? <Crown size={14} className="text-museum-gold"/> : <User size={14}/>} 
+                    Status
+                </div>
+                <div className={`font-bold ${isPremium ? 'text-museum-gold' : 'text-white'}`}>
+                    {isPremium ? 'Mecenas' : 'Liefhebber'}
+                </div>
+                
+                {/* Subtekst: Datum of Upgrade Link */}
+                <div className="text-[10px] mt-1">
+                    {isPremium ? (
+                        <span className="text-gray-400">Tot {premiumDate}</span>
+                    ) : (
+                        <Link href="/pricing" className="text-museum-gold hover:underline">Word Mecenas &rarr;</Link>
+                    )}
+                </div>
+            </div>
+
+            {/* Box 3: Museumkaart */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><User size={14}/> Leeftijd</div>
-                <div className="text-white font-bold">{profile?.age_group || 'Onbekend'}</div>
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Ticket size={14}/> Museumkaart</div>
+                <div className="text-white font-bold truncate" title={museumCardText}>{museumCardText}</div>
             </div>
-            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Ticket size={14}/> Lidmaatschap</div>
-                <div className="text-white font-bold">{museumCardText}</div>
-            </div>
+
+            {/* Box 4: Badges */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Award size={14}/> Badges</div>
                 <div className="text-white font-bold">{badgeCount} Behaald</div>
@@ -159,7 +187,7 @@ export default async function ProfilePage() {
                     </div>
                 </div>
                 <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">Instellingen</h3>
-                <p className="text-sm text-gray-500 mt-1">Wijzig uw naam en foto.</p>
+                <p className="text-sm text-gray-500 mt-1">Wijzig uw naam, foto en wachtwoord.</p>
             </Link>
         </div>
 
