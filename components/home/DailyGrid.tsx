@@ -85,7 +85,7 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
                 
                 <div className="absolute bottom-0 left-0 right-0 p-6 relative z-10">
-                    <div className="bg-white/20 backdrop-blur-md w-10 h-10 rounded-full flex items-center justify-center mb-4 text-white">
+                     <div className="bg-museum-gold w-10 h-10 rounded-full flex items-center justify-center mb-4 text-black">
                         <Eye size={20} />
                     </div>
                     <h3 className="text-2xl font-serif font-bold text-white mb-2">In Focus</h3>
@@ -110,7 +110,7 @@ export default function DailyGrid({ schedule, randomArtworks }: DailyGridProps) 
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-950 via-midnight-950/60 to-transparent"></div>
                 
                 <div className="absolute bottom-0 left-0 right-0 p-6 relative z-10">
-                    <div className="bg-white/20 backdrop-blur-md w-10 h-10 rounded-full flex items-center justify-center mb-4 text-white">
+                    <div className="bg-museum-gold w-10 h-10 rounded-full flex items-center justify-center mb-4 text-black">
                         <Gamepad2 size={20} />
                     </div>
                     <h3 className="text-2xl font-serif font-bold text-white mb-2">De Uitdaging</h3>
