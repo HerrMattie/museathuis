@@ -7,7 +7,9 @@ import {
   Menu, X, User, 
   Home, Compass, Gamepad2, BookOpen, Coffee, Star 
 } from 'lucide-react';
-import ThemeToggle from './ThemeToggle'; // <--- Zorg dat je dit bestand hebt aangemaakt
+import ThemeToggle from './ThemeToggle';
+// 1. IMPORT DE NIEUWE MANAGER HOOK
+import { useGamification } from '@/hooks/useGamification';
 
 const navItems = [
   { label: 'Tour', href: '/tour', icon: Compass },
@@ -21,6 +23,10 @@ export default function Header() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // 2. ACTIVEER DE GAMIFICATION MANAGER
+  // Dit ene regeltje regelt nu automatisch al je datum/tijd/streak badges!
+  useGamification();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -143,8 +149,6 @@ export default function Header() {
             })}
             
             <hr className="border-white/10 my-4" />
-            
-            {/* Mobiele Theme Toggle kan hier eventueel ook bij */}
             
             <Link 
               href="/profile" 
