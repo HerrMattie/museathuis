@@ -3,23 +3,32 @@
 @tailwind utilities;
 
 :root {
+  /* DARK MODE (DEFAULT) */
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 2, 6, 23; /* Midnight-950 */
-  --background-end-rgb: 0, 0, 0;
+  --background-hex: #020617; /* midnight-950 */
+  --card-bg: rgba(255, 255, 255, 0.05);
+}
+
+/* DE "DAGLICHT" MODUS (Wordt geactiveerd door ThemeToggle) */
+.light-mode {
+  --foreground-rgb: 15, 23, 42; /* slate-900 */
+  --background-hex: #f8fafc; /* slate-50 */
+  --card-bg: #ffffff;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: #020617; /* Harde dark mode kleur, geen gekke gradients */
+  background-color: var(--background-hex);
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Scrollbar styling (optioneel, wel mooi) */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #020617;
+  background: var(--background-hex);
 }
 ::-webkit-scrollbar-thumb {
   background: #334155;
