@@ -79,19 +79,32 @@ export default function ProfilePage() {
       return "border-white/10"; // Basis
   };
 
-  // --- LOGICA VOOR GRAFIEK ---
-  const avgXP = averages?.xp || 100;
-  const avgStreak = averages?.streak || 1;
-  const normXP = avgXP > 0 ? (xp / avgXP) * 50 : 50; 
-  const normStreak = avgStreak > 0 ? (profile.current_streak / avgStreak) * 50 : 50;
-  const normCol = stats.favCount > 5 ? 80 : (stats.favCount * 10);
+// --- "SPOTIFY WRAPPED" DATA LOGICA ---
+  const avgXP = averages?.xp || 500; // Iets hogere fallback
+  const avgStreak = averages?.streak || 5;
+  
+  // We berekenen de score op een schaal van 0-100
+  // Ervaring: Mix van level voortgang en totaal XP vs gemiddelde
+  const xpScore = Math.min((xp / (avgXP * 1.5)) * 100, 100); 
+  
+  // Collectie: 10 items is "vol" voor de grafiek in het begin (schaalt mee)
+  const colScore = Math.min((stats.favCount / 20) * 100, 100); 
+  
+  // Loyaliteit: Streak van 30 dagen is de max score
+  const streakScore = Math.min((profile.current_streak / 30) * 100, 100);
+  
+  // Kennis: Level 50 is de max score (dus level * 2)
+  const levelScore = Math.min(level * 2, 100);
+
+  // Badges: 10 badges is de max score
+  const badgeScore = Math.min((stats.badgeCount / 10) * 100, 100);
 
   const radarData = [
-    { subject: 'Ervaring', A: Math.min(normXP, 100), fullMark: 100 },
-    { subject: 'Collectie', A: Math.min(normCol, 100), fullMark: 100 },
-    { subject: 'Loyaliteit', A: Math.min(normStreak, 100), fullMark: 100 },
-    { subject: 'Kennis', A: Math.min(level * 5, 100), fullMark: 100 },
-    { subject: 'Badges', A: Math.min(stats.badgeCount * 10, 100), fullMark: 100 },
+    { subject: 'Ervaring', A: xpScore, fullMark: 100 },
+    { subject: 'Collectie', A: colScore, fullMark: 100 },
+    { subject: 'Loyaliteit', A: streakScore, fullMark: 100 },
+    { subject: 'Kennis', A: levelScore, fullMark: 100 },
+    { subject: 'Badges', A: badgeScore, fullMark: 100 },
   ];
 
   // Persona bepalen
