@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-    PieChart, Pie, Cell, LineChart, Line 
+    PieChart, Pie, Cell, LineChart, Line, AreaChart, Area,
+    Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
-import { Loader2, TrendingUp, Users, CreditCard, Lightbulb } from 'lucide-react';
+import { Loader2, TrendingUp, Users, CreditCard, Lightbulb, Clock, Smartphone, MapPin, GraduationCap } from 'lucide-react';
 
-const COLORS = ['#D4AF37', '#1e293b', '#64748b', '#94a3b8', '#cbd5e1']; // Goud & Leisteen tinten
+const COLORS = ['#D4AF37', '#1e293b', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0'];
+const RADAR_COLORS = ['#D4AF37', '#3b82f6'];
 
 export default function AnalyticsDashboard() {
     const [loading, setLoading] = useState(true);
@@ -20,178 +22,270 @@ export default function AnalyticsDashboard() {
     }, []);
 
     const analyzeData = async () => {
-        // 1. Haal ALLE profielen op voor correlatie-analyse
+        // 1. DATA OPHALEN (Alles)
         const { data: users } = await supabase.from('user_profiles').select('*');
-        const { data: logs } = await supabase.from('user_activity_logs').select('action_type, created_at').order('created_at', { ascending: true });
+        // We halen meer logs op voor een betere tijd-analyse (limit 5000)
+        const { data: logs } = await supabase.from('user_activity_logs')
+            .select('action_type, created_at, meta_data, user_id')
+            .order('created_at', { ascending: true })
+            .limit(5000);
 
         if (!users || !logs) return;
 
-        // --- ANALYSE 1: Leeftijd vs. Premium (De "Koopkracht" Grafiek) ---
-        const ageGroups = ["18-24", "25-39", "40-59", "60-74", "75+"];
-        const ageData = ageGroups.map(group => {
-            const groupUsers = users.filter(u => u.age_group === group);
-            const premiumCount = groupUsers.filter(u => u.is_premium).length;
+        // --- ANALYSE 1: TIJDSTIP VAN ACTIVITEIT (Heatmap vervanger) ---
+        // Wanneer gebruiken mensen de app? (Ochtend, Middag, Avond)
+        const hours = Array(24).fill(0);
+        logs.forEach(log => {
+            const hour = new Date(log.created_at).getHours();
+            hours[hour]++;
+        });
+        const timeData = hours.map((count, hour) => ({
+            uur: `${hour}:00`,
+            Activiteit: count
+        }));
+
+        // --- ANALYSE 2: PROVINCIE VERDELING (Geografisch) ---
+        const provinceCounts: Record<string, number> = {};
+        users.forEach(u => {
+            const prov = u.province || 'Onbekend';
+            provinceCounts[prov] = (provinceCounts[prov] || 0) + 1;
+        });
+        const geoData = Object.entries(provinceCounts)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 7) // Top 7 Provincies
+            .map(([name, value]) => ({ name, Gebruikers: value }));
+
+        // --- ANALYSE 3: OPLEIDING & PREMIUM (Correlatie) ---
+        // Kijken of opleidingsniveau invloed heeft op premium status
+        const eduLevels = ["VMBO", "HAVO", "VWO", "MBO", "HBO", "WO", "PhD"];
+        const eduData = eduLevels.map(level => {
+            const group = users.filter(u => u.education_level === level);
+            const premium = group.filter(u => u.is_premium).length;
             return {
-                name: group,
-                Totaal: groupUsers.length,
-                Premium: premiumCount,
-                Conversie: groupUsers.length > 0 ? Math.round((premiumCount / groupUsers.length) * 100) : 0
+                name: level,
+                Totaal: group.length,
+                Premium: premium,
+                // Voorkom delen door nul
+                Ratio: group.length > 0 ? Math.round((premium / group.length) * 100) : 0
             };
         });
 
-        // --- ANALYSE 2: Cultureel DNA (Populairste Periodes) ---
+        // --- ANALYSE 4: DEVICE GEBRUIK (Tech) ---
+        const deviceCounts: Record<string, number> = {};
+        users.forEach(u => {
+            const dev = u.primary_device || 'Onbekend';
+            deviceCounts[dev] = (deviceCounts[dev] || 0) + 1;
+        });
+        const deviceData = Object.entries(deviceCounts).map(([name, value]) => ({ name, value }));
+
+        // --- ANALYSE 5: MUSEUMKAART EFFECT (Gedrag) ---
+        // Zijn kaarthouders actiever?
+        const cardHolders = users.filter(u => u.museum_cards && u.museum_cards.length > 0);
+        const nonHolders = users.filter(u => !u.museum_cards || u.museum_cards.length === 0);
+        
+        // Gemiddelde logs per gebruiker berekenen
+        const calcAvgActivity = (userGroup: any[]) => {
+            if (userGroup.length === 0) return 0;
+            const ids = userGroup.map(u => u.user_id);
+            const groupLogs = logs.filter(l => ids.includes(l.user_id)).length;
+            return Math.round(groupLogs / userGroup.length);
+        };
+
+        const behaviorData = [
+            { name: 'Met Museumkaart', ActiviteitScore: calcAvgActivity(cardHolders) },
+            { name: 'Zonder Kaart', ActiviteitScore: calcAvgActivity(nonHolders) }
+        ];
+
+        // --- ANALYSE 6: INTERESSE RADAR (Cultureel DNA) ---
+        // Vergelijk populariteit van periodes
         const periodCounts: Record<string, number> = {};
         users.forEach(u => {
             if (Array.isArray(u.favorite_periods)) {
-                u.favorite_periods.forEach((p: string) => {
-                    periodCounts[p] = (periodCounts[p] || 0) + 1;
-                });
+                u.favorite_periods.forEach((p: string) => periodCounts[p] = (periodCounts[p] || 0) + 1);
             }
         });
-        const periodData = Object.entries(periodCounts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value) // Sorteer hoog naar laag
-            .slice(0, 5); // Top 5
+        // Pak top 6 voor de radar
+        const radarData = Object.entries(periodCounts)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 6)
+            .map(([subject, A]) => ({ subject, A, fullMark: users.length }));
 
-        // --- ANALYSE 3: Museumkaart Penetratie ---
-        const cardHolders = users.filter(u => 
-            (Array.isArray(u.museum_cards) && u.museum_cards.includes('Museumkaart')) || u.has_museum_card
-        ).length;
-        const cardData = [
-            { name: 'Wel Kaart', value: cardHolders },
-            { name: 'Geen Kaart', value: users.length - cardHolders }
-        ];
-
-        // --- ANALYSE 4: Groei (Activiteit laatste 7 dagen) ---
-        // We groeperen logs per dag
-        const activityTrend: Record<string, number> = {};
-        logs.forEach(log => {
-            const date = new Date(log.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-            activityTrend[date] = (activityTrend[date] || 0) + 1;
-        });
-        // Pak alleen de laatste 7 unieke dagen uit de logs
-        const trendData = Object.entries(activityTrend).slice(-7).map(([date, count]) => ({ date, Acties: count }));
-
-
-        // --- DE "INTELLIGENCE" CONCLUSIES ---
-        // Hier berekenen we tekstuele inzichten
-        const totalUsers = users.length;
-        const bestConvertingAge = ageData.reduce((prev, current) => (prev.Conversie > current.Conversie) ? prev : current);
         
+        // --- DATA OPSLAAN ---
         setData({
-            ageData,
-            periodData,
-            cardData,
-            trendData,
-            insights: {
-                cardPercentage: Math.round((cardHolders / totalUsers) * 100),
-                bestAge: bestConvertingAge.name,
-                topPeriod: periodData[0]?.name || 'Onbekend'
-            }
+            timeData,
+            geoData,
+            eduData,
+            deviceData,
+            behaviorData,
+            radarData,
+            totalLogs: logs.length
         });
         setLoading(false);
     };
 
-    if (loading) return <div className="p-12 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/>Analyseren van {data?.totalUsers || '...'} profielen...</div>;
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+            <Loader2 className="animate-spin mb-4" size={32}/>
+            <p>De Data Machine draait...</p>
+            <p className="text-xs">Miljoenen datapunten analyseren (grapje, maar bijna)</p>
+        </div>
+    );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
             
-            {/* --- TOP ROW: STRATEGISCHE INZICHTEN --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-xl text-white shadow-lg border border-slate-700">
-                    <h4 className="text-museum-gold text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                        <Users size={14}/> Beste Doelgroep
-                    </h4>
-                    <p className="text-2xl font-serif">De groep <span className="text-museum-gold">{data.insights.bestAge}</span></p>
-                    <p className="text-sm text-slate-400 mt-1">Converteert het vaakst naar Premium.</p>
+            {/* RIJ 1: GEDRAG & TIJD (Wanneer & Hoe) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Tijdstip Grafiek */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <Clock size={18} className="text-blue-500"/> Piekuren Analyse
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">Wanneer is de beste tijd voor nieuwsbrieven/notificaties?</p>
+                    <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data.timeData}>
+                                <defs>
+                                    <linearGradient id="colorTime" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.8}/>
+                                        <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="uur" interval={3} />
+                                <YAxis />
+                                <Tooltip />
+                                <Area type="monotone" dataKey="Activiteit" stroke="#D4AF37" fillOpacity={1} fill="url(#colorTime)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
+                {/* Device Pie Chart */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h4 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                        <CreditCard size={14}/> Museumkaart Bezit
-                    </h4>
-                    <div className="flex items-end gap-2">
-                        <span className="text-4xl font-black text-slate-800">{data.insights.cardPercentage}%</span>
-                        <span className="text-sm text-slate-500 mb-1">van alle leden</span>
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <Smartphone size={18} className="text-slate-500"/> Apparaat Voorkeur
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">Waarop wordt de content geconsumeerd?</p>
+                    <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={data.deviceData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {data.deviceData.map((entry:any, index:number) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend verticalAlign="bottom" height={36}/>
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
-                        <div className="bg-blue-600 h-full rounded-full" style={{ width: `${data.insights.cardPercentage}%` }} />
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h4 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                        <Lightbulb size={14}/> Dominante Smaak
-                    </h4>
-                    <p className="text-2xl font-bold text-slate-800">{data.insights.topPeriod}</p>
-                    <p className="text-sm text-slate-500 mt-1">Is de meest gekozen favoriete periode.</p>
                 </div>
             </div>
 
-            {/* --- MID ROW: GRAFIEKEN --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* RIJ 2: DEMOGRAFIE & LOCATIE (Wie & Waar) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* GRAFIEK 1: Demografie & Conversie */}
+                {/* Provincie Bar Chart */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-800 mb-6">Ledengroei & Premium Verdeling per Leeftijd</h3>
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <MapPin size={18} className="text-red-500"/> Top Locaties
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">In welke provincies wonen je gebruikers?</p>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data.ageData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" />
-                                <YAxis />
+                            <BarChart layout="vertical" data={data.geoData}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                <XAxis type="number" />
+                                <YAxis dataKey="name" type="category" width={100} />
                                 <Tooltip />
-                                <Legend />
-                                <Bar dataKey="Totaal" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="Premium" fill="#D4AF37" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="Gebruikers" fill="#1e293b" radius={[0, 4, 4, 0]} barSize={20} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* GRAFIEK 2: Cultureel DNA */}
+                {/* Opleiding vs Premium */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-800 mb-6">Top 5 Favoriete Kunstperiodes</h3>
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <GraduationCap size={18} className="text-green-600"/> Opleiding & Premium Ratio
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">Welk opleidingsniveau converteert het best?</p>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={data.periodData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    fill="#8884d8"
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {data.periodData.map((entry:any, index:number) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                                <Legend layout="vertical" verticalAlign="middle" align="right" />
-                            </PieChart>
+                            <BarChart data={data.eduData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" />
+                                <YAxis />
+                                <Tooltip cursor={{fill: 'transparent'}} />
+                                <Legend />
+                                <Bar dataKey="Totaal" fill="#e2e8f0" stackId="a" />
+                                <Bar dataKey="Premium" fill="#D4AF37" stackId="a" />
+                            </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
+            </div>
 
-                {/* GRAFIEK 3: Activiteit Trend */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-2">
-                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                        <TrendingUp size={20} className="text-green-500"/>
-                        Activiteit Trend (Laatste 7 dagen)
+            {/* RIJ 3: DIEPTE INZICHTEN (Correlaties) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Museumkaart Impact */}
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <CreditCard size={18} className="text-purple-600"/> Museumkaart Effect
                     </h3>
-                    <div className="h-[250px] w-full">
+                    <p className="text-xs text-slate-400 mb-6">Zijn kaarthouders actiever op het platform?</p>
+                    <div className="h-[250px] w-full mt-8">
                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={data.trendData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="date" />
+                            <BarChart data={data.behaviorData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                                <XAxis dataKey="name" />
                                 <YAxis />
                                 <Tooltip />
-                                <Line type="monotone" dataKey="Acties" stroke="#D4AF37" strokeWidth={3} dot={{r: 4}} activeDot={{r: 8}} />
-                            </LineChart>
+                                <Bar dataKey="ActiviteitScore" fill="#8884d8" name="Gem. Acties p/p">
+                                    {data.behaviorData.map((entry:any, index:number) => (
+                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : '#64748b'} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="mt-4 text-center text-sm text-slate-500 italic">
+                        *Gemiddeld aantal acties per gebruiker in deze groep
+                    </div>
+                </div>
+
+                {/* Culturele Vingerafdruk (Radar) */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <Lightbulb size={18} className="text-yellow-500"/> Culturele Vingerafdruk
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-6">Hoe verhouden de interesses zich tot elkaar?</p>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data.radarData}>
+                                <PolarGrid />
+                                <PolarAngleAxis dataKey="subject" />
+                                <PolarRadiusAxis />
+                                <Radar
+                                    name="Interesse"
+                                    dataKey="A"
+                                    stroke="#D4AF37"
+                                    fill="#D4AF37"
+                                    fillOpacity={0.6}
+                                />
+                                <Tooltip />
+                            </RadarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
