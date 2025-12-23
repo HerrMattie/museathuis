@@ -16,7 +16,20 @@ export const BADGE_IDS = {
   KONINGSDAG: 'f21272fc-0f04-4024-9ec1-94392601066f',      // 27 Apr
   GRIEZELIG: '925f79d4-8918-4d48-baff-1afb94cfb70f',       // 31 Okt (Halloween)
   BLAUWE_MAANDAG: '36265e41-3062-4fbc-9180-b64312a5fcbc',  // 3e maandag Jan
+// --- INTERACTIE: FEEDBACK & SOCIAAL ---
+  INFLUENCER: '37cd1dc9-40b7-4e62-9588-0d8240eaf876',      // Delen
+  RECENSENT: '39f7ea19-2336-4c1c-897a-eca4907d08ed',       // 1e review
+  FANBOY: '76f5ca4f-add9-4b8e-8225-a20e195412f7',          // 5 sterren
+  KRITISCHE_NOOT: 'c6dfdb0d-e6fb-4350-959b-05240972f804',  // 1 ster
+  FEEDBACK_KONING: 'cd45d6e3-c0bd-4304-901d-5e6d407b84aa', // 10 reviews
+  
+  // --- PAGINA BEZOEKEN ---
+  VERDWAALD: '76695777-03e0-4e7d-a374-5e51e92b372d',       // 404 pagina
+  SUPPORTER: 'eea3b3c7-8ff3-416d-b23c-9ce637403cb8',       // Over Ons pagina
 
+  // --- PROFIEL ---
+  PROFIEL_PLAATJE: '79aa47d2-a653-4ddf-b0ac-c4a11eec6707', // Avatar upload
+  INSTELLINGEN_GURU: 'f4318be6-4bbf-4c07-ac1c-3dcac5685199', // Settings wijzigen
   // --- CONTENT: ARTIKELEN (FOCUS) ---
   BOEKENWURM: '62e076d8-8a05-4cb8-919b-1032ef375c80',     // 3 artikelen
   BIBLIOTHECARIS: '1ee27677-9122-480f-954b-d5e428cdf5f1', // 20 artikelen
