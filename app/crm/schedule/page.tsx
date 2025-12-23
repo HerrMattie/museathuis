@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Calendar, RefreshCw, AlertTriangle, CheckCircle, History, ArrowRight } from 'lucide-react';
+import { Calendar, RefreshCw, AlertTriangle, CheckCircle, History, Coffee, Repeat } from 'lucide-react';
 import { format, addDays, subDays, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -12,14 +12,14 @@ export default async function CrmSchedulePage() {
   const today = new Date().toISOString().split('T')[0];
   const lastWeekStart = format(subDays(new Date(), 7), 'yyyy-MM-dd');
 
-  // 1. Haal rooster op (inclusief salon_ids)
+  // 1. Haal rooster op
   const { data: schedule } = await supabase
     .from('dayprogram_schedule')
     .select('*')
     .gte('day_date', lastWeekStart)
     .order('day_date', { ascending: true });
 
-  // 2. Verzamel alle ID's om titels op te halen
+  // 2. Verzamel alle ID's
   const allIds = new Set<string>();
   schedule?.forEach(s => {
       s.tour_ids?.forEach((id: string) => allIds.add(id));
@@ -33,7 +33,10 @@ export default async function CrmSchedulePage() {
   const { data: tours } = await supabase.from('tours').select('id, title').in('id', idArray);
   const { data: games } = await supabase.from('games').select('id, title').in('id', idArray);
   const { data: focusItems } = await supabase.from('focus_items').select('id, title').in('id', idArray);
-  const { data: salons } = await supabase.from('salons').select('id, title').in('id', idArray);
+  
+  // Let op: Salons kunnen in 'salons' of 'focus_items' staan, afhankelijk van je DB structuur. 
+  // Ik zoek ze hier in focus_items omdat we dat eerder bespraken, pas aan indien nodig.
+  const { data: salons } = await supabase.from('focus_items').select('id, title').in('id', idArray);
 
   // Helper functie om titels bij ID's te vinden
   const getTitles = (ids: any, source: any) => {
@@ -46,25 +49,46 @@ export default async function CrmSchedulePage() {
   const upcomingDates = Array.from({ length: 7 }).map((_, i) => format(addDays(parseISO(today), i), 'yyyy-MM-dd'));
   const archiveDates = Array.from({ length: 7 }).map((_, i) => format(subDays(parseISO(today), i + 1), 'yyyy-MM-dd')).reverse();
 
-  // De kaart renderer
+  // --- DE RENDERING ---
   const renderDayCard = (dateStr: string, isArchive: boolean) => {
       const dateObj = parseISO(dateStr);
       const dayData = schedule?.find(s => s.day_date === dateStr);
       
+      // 1. STANDAARD DATA
       const dayTours = getTitles(dayData?.tour_ids || [], tours || []);
       const dayGames = getTitles(dayData?.game_ids || [], games || []);
       const dayFocus = getTitles(dayData?.focus_ids || [], focusItems || []);
-      const daySalons = getTitles(dayData?.salon_ids || [], salons || []);
+
+      // 2. SALON LOGICA (Maandag Fallback) 🧠
+      let rawSalonIds = dayData?.salon_ids || [];
+      let isInheritedSalon = false;
+
+      if (rawSalonIds.length === 0) {
+          // Geen salon vandaag? Zoek de maandag van deze week
+          const currentObj = new Date(dateStr);
+          const day = currentObj.getDay(); // 0=Zon, 1=Maa
+          const diff = currentObj.getDate() - day + (day === 0 ? -6 : 1);
+          const mondayDateStr = new Date(currentObj.setDate(diff)).toISOString().split('T')[0];
+          
+          // Zoek het rooster van die maandag
+          const mondayData = schedule?.find(s => s.day_date === mondayDateStr);
+          if (mondayData?.salon_ids && mondayData.salon_ids.length > 0) {
+              rawSalonIds = mondayData.salon_ids;
+              isInheritedSalon = true; // Markeer dat dit een 'week thema' is
+          }
+      }
+      
+      const daySalons = getTitles(rawSalonIds, salons || []);
 
       // LOGICA: Hebben we inhoud?
-      const hasSomething = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0 || daySalons.length > 0);
+      const hasSomething = dayData && (dayTours.length > 0 || dayGames.length > 0 || dayFocus.length > 0 || rawSalonIds.length > 0);
       
-      // LOGICA: Is de dag 'Gereed'? (Minimaal 3 van de kern-content)
-      // Salons tellen mee als "bonus" of vervanging
+      // LOGICA: Is de dag 'Gereed'? (Minimaal 3 van de kern-content + 1 Salon)
       const isFullyReady = dayData && 
                            dayTours.length >= 3 && 
                            dayGames.length >= 3 && 
-                           (dayFocus.length >= 3 || daySalons.length >= 1); // <--- AANGEPAST: 1 Salon is genoeg voor 'Gereed'
+                           dayFocus.length >= 3 &&
+                           daySalons.length >= 1;
 
       return (
         <div key={dateStr} className={`bg-white rounded-xl shadow-sm border overflow-hidden mb-4 ${isFullyReady ? 'border-green-200' : 'border-orange-200 bg-orange-50/10'} ${isArchive ? 'opacity-75 grayscale-[0.5]' : ''}`}>
@@ -86,7 +110,7 @@ export default async function CrmSchedulePage() {
                 </Link>
             </div>
             
-            {(hasSomething) && (
+            {(hasSomething || isInheritedSalon) && (
                 <div className="p-4 text-xs text-slate-600 grid grid-cols-4 gap-2">
                     <div>
                         <strong className="block text-slate-400 mb-1 uppercase tracking-wider text-[10px]">Tours</strong>
@@ -102,7 +126,14 @@ export default async function CrmSchedulePage() {
                     </div>
                     <div>
                         <strong className="block text-slate-400 mb-1 uppercase tracking-wider text-[10px]">Salons</strong>
-                        {daySalons.length > 0 ? <span className="text-slate-800 font-bold text-museum-gold">{daySalons.length}</span> : <span className="text-slate-400">-</span>}
+                        {daySalons.length > 0 ? (
+                            <span className={`font-bold flex items-center gap-1 ${isInheritedSalon ? 'text-blue-500' : 'text-museum-gold-dark'}`}>
+                                {daySalons.length}
+                                {isInheritedSalon && <Repeat size={10} title="Week thema (van maandag)" />}
+                            </span>
+                        ) : (
+                            <span className="text-slate-400">-</span>
+                        )}
                     </div>
                 </div>
             )}
