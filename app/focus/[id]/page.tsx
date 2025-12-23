@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient'; // Zorg dat dit de client import is
+import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { Clock, Share2, Lock, Play } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 import AudioPlayer from '@/components/ui/AudioPlayer';
-import LikeButton from '@/components/LikeButton'; 
+import LikeButton from '@/components/LikeButton';
 import FeedbackButtons from '@/components/FeedbackButtons';
-import { trackActivity } from '@/lib/tracking'; // <--- Importeer de tracker
+import { trackActivity } from '@/lib/tracking';
+
+// --- GAMIFICATION IMPORTS ---
+import { checkArticleBadges, checkTimeBadge } from '@/lib/gamification/checkBadges';
 
 export default function FocusDetailPage({ params }: { params: { id: string } }) {
     const [article, setArticle] = useState<any>(null);
@@ -37,17 +40,20 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
             setArticle(data);
             setLoading(false);
 
-            // 3. TRACKING: 'read_focus'
-            // We berekenen het aantal woorden om badges als 'Diepgraver' te kunnen geven
+            // 3. TRACKING & BADGES
             if (u?.user && data) {
                 const textContent = data.content_markdown || data.description || "";
                 const wordCount = textContent.split(/\s+/).length;
 
+                // A. Track de activiteit (voor statistieken)
                 trackActivity(supabase, u.user.id, 'read_focus', data.id, {
                     title: data.title,
                     word_count: wordCount,
                     reading_time: data.reading_time
                 });
+
+                // B. GAMIFICATION: Check of we badges verdienen (Boekenwurm, Diepgraver, etc.)
+                checkArticleBadges(supabase, u.user.id, wordCount);
             }
         };
         
@@ -58,9 +64,14 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
              const { data: u } = await supabase.auth.getUser();
              if (u?.user) {
                  console.log("⏱️ 10 minuten voorbij: Verf Droogt trigger!");
+                 
+                 // A. Track tijd
                  trackActivity(supabase, u.user.id, 'time_spent', params.id, {
-                     duration: 600 // We sturen 600 seconden mee als bewijs
+                     duration: 600
                  });
+
+                 // B. GAMIFICATION: Check 'Verf Droogt' badge
+                 checkTimeBadge(supabase, u.user.id, 10);
              }
         }, 600000); 
         
@@ -147,7 +158,7 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                 )}
             </div>
 
-            {/* AUDIO PLAYER (Verschijnt alleen als showAudio true is) */}
+            {/* AUDIO PLAYER */}
             {showAudio && !isLocked && (
                 <AudioPlayer 
                     src={article.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} 
