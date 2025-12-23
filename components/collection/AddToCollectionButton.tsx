@@ -25,7 +25,6 @@ export default function AddToCollectionButton({ artworkId }: Props) {
     if (isOpen) {
       fetchCollections();
     } else {
-      // Reset feedback wanneer de modal sluit
       setFeedback({});
     }
   }, [isOpen]);
@@ -56,7 +55,7 @@ export default function AddToCollectionButton({ artworkId }: Props) {
   const handleAddToCollection = async (collectionId: string) => {
     setFeedback(prev => ({ ...prev, [collectionId]: 'Bezig...' }));
 
-    // FIX: Gebruik upsert met ignoreDuplicates in plaats van insert().onConflict()
+    // Upsert voorkomt dubbele items en errors
     const { error } = await supabase
       .from('user_collection_items')
       .upsert(
@@ -72,7 +71,6 @@ export default function AddToCollectionButton({ artworkId }: Props) {
       .select();
       
     if (error) { 
-      // Upsert negeert duplicates, dus elke andere error is een echte fout
       setFeedback(prev => ({ ...prev, [collectionId]: 'Fout' }));
       console.error(error);
     } else {
@@ -85,12 +83,9 @@ export default function AddToCollectionButton({ artworkId }: Props) {
       setFeedback({});
   }
   
-  // We checken de sessie even snel inline (voor de UI weergave), 
-  // maar de echte check gebeurt in fetchCollections
-  
   return (
     <>
-      {/* DE KNOP */}
+      {/* DE KNOP OP DE DETAILPAGINA */}
       <button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-white/20 transition-colors border border-white/20"
@@ -115,9 +110,9 @@ export default function AddToCollectionButton({ artworkId }: Props) {
               <div className="space-y-3">
                 {collections.length === 0 && (
                     <div className="text-center p-6 bg-white/5 rounded-lg border border-white/10">
-                         <p className="text-gray-400 mb-3">Nog geen collecties gevonden.</p>
+                         <p className="text-gray-400 mb-3">Nog geen Salons gevonden.</p>
                          <Link href="/profile?tab=collections" className="text-sm font-bold text-museum-gold hover:text-museum-lime transition-colors underline">
-                           Maak je eerste Salon (Level 15)
+                           Maak je eerste Salon (Level 18)
                          </Link>
                     </div>
                 )}
