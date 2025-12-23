@@ -7,6 +7,8 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import LockedInput from '@/components/profile/LockedInput';
 import { getLevel } from '@/lib/levelSystem';
+// NIEUW: Importeer de badge checker
+import { checkProfileBadges } from '@/lib/gamification/checkBadges';
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -17,10 +19,10 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     full_name: '',
     province: '',
-    bio: '',         // Unlock Lvl 5
-    website: '',     // Unlock Lvl 10
-    top_artists: '', // Unlock Lvl 14
-    header_url: ''   // Unlock Lvl 25
+    bio: '',         
+    website: '',     
+    top_artists: '', 
+    header_url: ''   
   });
 
   const supabase = createClient();
@@ -55,12 +57,19 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+        // 1. Opslaan in database
         const { error } = await supabase
             .from('user_profiles')
             .update(formData)
             .eq('user_id', user.id);
 
         if (error) throw error;
+
+        // 2. GAMIFICATION: Check badges
+        // We checken 'settings' (Instellingen Guru). 
+        // Als je later ook een avatar upload hebt, roep je hier 'avatar' aan.
+        await checkProfileBadges(supabase, user.id, 'settings');
+
         alert('Profiel succesvol bijgewerkt!');
         router.push('/profile');
         router.refresh();
@@ -86,7 +95,7 @@ export default function SettingsPage() {
 
         <div className="bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-xl">
             
-            {/* BASIS VELDEN (Altijd beschikbaar) */}
+            {/* BASIS VELDEN */}
             <div className="mb-6">
                 <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Naam</label>
                 <input 
@@ -123,7 +132,7 @@ export default function SettingsPage() {
 
             <hr className="border-white/10 my-8"/>
 
-            {/* UNLOCKED VELDEN (Gamification) */}
+            {/* UNLOCKED VELDEN */}
             
             <LockedInput level={level} requiredLevel={5} label="Biografie">
                 <textarea 
