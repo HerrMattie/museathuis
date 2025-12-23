@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient'; 
 import { Plus, List, CheckCircle, X, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { PERMISSIONS } from '@/lib/permissions';
+import { getLevel } from '@/lib/levelSystem';
 
 type Collection = {
   id: string;
@@ -19,6 +21,9 @@ export default function AddToCollectionButton({ artworkId }: Props) {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ [key: string]: string }>({}); 
+  const [userLevel, setUserLevel] = useState(1);
+  const [isPremium, setIsPremium] = useState(false);
+  
   const supabase = createClient();
 
   useEffect(() => {
@@ -37,6 +42,14 @@ export default function AddToCollectionButton({ artworkId }: Props) {
         setLoading(false);
         return;
     }
+    
+    // Haal level op voor permissie check
+    const { data: profile } = await supabase.from('user_profiles').select('xp, is_premium').eq('user_id', user.id).single();
+    if (profile) {
+        const { level } = getLevel(profile.xp || 0);
+        setUserLevel(level);
+        setIsPremium(profile.is_premium || false);
+    }
 
     const { data, error } = await supabase
       .from('user_collections')
@@ -53,6 +66,13 @@ export default function AddToCollectionButton({ artworkId }: Props) {
   };
 
   const handleAddToCollection = async (collectionId: string) => {
+    // Check permissie: Mag deze gebruiker favorieten opslaan?
+    // Level 2 (Kenniszoeker) vereist voor opslaan
+    if (userLevel < 2) {
+         alert("Je moet minimaal Level 2 (Kenniszoeker) zijn om werken op te slaan!");
+         return;
+    }
+    
     setFeedback(prev => ({ ...prev, [collectionId]: 'Bezig...' }));
 
     // Upsert voorkomt dubbele items en errors
