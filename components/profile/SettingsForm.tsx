@@ -11,7 +11,7 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('persoonlijk');
 
-  // --- HULPFUNCTIE OM DATA TE PARSEN ---
+  // Helper om arrays veilig te laden
   const parseArray = (data: any) => {
       if (!data) return []; 
       if (Array.isArray(data)) return data;
@@ -36,14 +36,12 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const [company, setCompany] = useState(initialData?.visit_company || '');
   const [selectedAvatar, setSelectedAvatar] = useState(initialData?.avatar_url || '/avatars/rembrandt.png');
   
-  // Arrays
   const [favPeriods, setFavPeriods] = useState<string[]>(parseArray(initialData?.favorite_periods));
   
-  // Museumkaart Check (Kijkt naar boolean OF naar de memberships array)
+  // Checkt of er 'true' staat OF dat er een kaart in de lijst zit
   const [hasMuseumCard, setHasMuseumCard] = useState<boolean>(
       initialData?.has_museum_card === true || 
-      initialData?.museum_cards === true ||
-      (Array.isArray(initialData?.memberships) && initialData.memberships.includes('Museumkaart'))
+      (Array.isArray(initialData?.museum_cards) && initialData.museum_cards.length > 0)
   );
 
   const togglePeriod = (period: string) => {
@@ -53,9 +51,9 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const handleSave = async () => {
     setLoading(true);
     try {
-        // HIER ZIT DE OPLOSSING:
-        // We genereren de memberships array op basis van de boolean
-        const membershipsArray = hasMuseumCard ? ['Museumkaart'] : [];
+        // --- DE OPLOSSING ---
+        // We zetten de boolean om naar de Array die de database verwacht
+        const cardsArray = hasMuseumCard ? ['Museumkaart'] : [];
 
         const updates = {
             user_id: user.id,
@@ -69,13 +67,12 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             museum_visit_frequency: frequency,
             visit_company: company,
             
-            favorite_periods: favPeriods, // Array
+            favorite_periods: favPeriods,
             
-            // OPLOSSING VOOR JOUW FOUTMELDING:
-            memberships: membershipsArray, // Dit stuurt nu netjes ["Museumkaart"] of []
-            
-            museum_cards: hasMuseumCard,    // Boolean update
-            has_museum_card: hasMuseumCard, // Legacy boolean update
+            // HIER GING HET MIS: Nu sturen we de juiste types!
+            museum_cards: cardsArray,      // Stuur een ARRAY (bijv. ['Museumkaart'])
+            memberships: cardsArray,       // Stuur ook hier een ARRAY
+            has_museum_card: hasMuseumCard, // Dit mag wel een BOOLEAN zijn
             
             updated_at: new Date().toISOString(),
             has_completed_onboarding: true
@@ -98,7 +95,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
 
   return (
     <div className="max-w-5xl mx-auto pb-20">
-      {/* TABS */}
       <div className="flex overflow-x-auto bg-midnight-900/50 p-1 rounded-t-2xl border-x border-t border-white/10">
         {[
           { id: 'persoonlijk', label: 'Persoonlijk', icon: <User size={16}/> },
@@ -115,7 +111,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
 
       <div className="bg-midnight-900 border-x border-b border-white/10 rounded-b-2xl p-8 shadow-2xl">
         
-        {/* TAB 1: PERSOONLIJK */}
         {activeTab === 'persoonlijk' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
              <div>
@@ -146,7 +141,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
           </div>
         )}
 
-        {/* TAB 2: CULTUUR */}
         {activeTab === 'cultuur' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
              <div className="bg-white/5 rounded-xl p-6 flex items-center justify-between border border-white/10 cursor-pointer" onClick={() => setHasMuseumCard(!hasMuseumCard)}>
@@ -184,7 +178,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
           </div>
         )}
 
-        {/* TAB 3: INTERESSES */}
         {activeTab === 'interesses' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                  <label className="block text-xs font-bold text-gray-400 uppercase mb-4">Favoriete Periodes</label>
@@ -199,14 +192,12 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             </div>
         )}
 
-        {/* TAB 4: TECH (Placeholder) */}
         {activeTab === 'tech' && (
             <div className="text-center text-gray-500 py-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <p>Instellingen voor apparaten en notificaties komen binnenkort.</p>
             </div>
         )}
 
-        {/* OPSLAAN KNOP */}
         <div className="mt-12 flex justify-end border-t border-white/10 pt-6">
             <button onClick={handleSave} disabled={loading} className="bg-museum-gold text-black px-10 py-4 rounded-full font-black uppercase tracking-widest flex items-center gap-2 hover:bg-yellow-500 transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] disabled:opacity-50">
                 {loading ? <Loader2 className="animate-spin" /> : <Save size={18}/>}
