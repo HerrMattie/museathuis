@@ -1,139 +1,129 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Crown, ArrowRight, Gamepad2, Headphones, Crosshair } from 'lucide-react';
-
-export const revalidate = 0;
+import { Crown, Lock, Star, TrendingUp, Heart, Trophy, ArrowRight } from 'lucide-react';
 
 export default async function BestOfPage() {
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. PREMIUM CHECK
-  if (!user) {
-      redirect('/pricing');
+  // Haal premium status op (standaard false als niet ingelogd)
+  let isPremium = false;
+  if (user) {
+      const { data: profile } = await supabase.from('user_profiles').select('is_premium').eq('user_id', user.id).single();
+      isPremium = profile?.is_premium || false;
   }
 
-  // 2. DATUM LOGICA
-  const today = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(today.getDate() - 30);
-  
-  const todayStr = today.toISOString().split('T')[0];
-  const startStr = thirtyDaysAgo.toISOString();
-
-  // 3. DATA OPHALEN
-  const [tours, games, focus] = await Promise.all([
-      supabase.from('tours')
-        .select('*')
-        .eq('status', 'published')
-        .gte('created_at', startStr)
-        .lt('created_at', todayStr)
-        .limit(5),
-      
-      supabase.from('games')
-        .select('*')
-        .eq('status', 'published')
-        .gte('created_at', startStr)
-        .lt('created_at', todayStr)
-        .limit(5),
-
-      supabase.from('focus_items')
-        .select('*')
-        .gte('created_at', startStr)
-        .lt('created_at', todayStr)
-        .limit(5)
-  ]);
-
-  // Helper
-  const BestOfCard = ({ item, type, icon: Icon, color }: any) => (
-    <Link href={`/${type}/${item.id}`} className="group flex items-center gap-4 p-4 bg-midnight-900 border border-white/10 rounded-xl hover:border-museum-gold/50 hover:bg-white/5 transition-all">
-        <div className={`w-16 h-16 rounded-lg flex items-center justify-center shrink-0 ${color} bg-opacity-20 text-white font-bold border border-white/10`}>
-            {item.image_url || item.hero_image_url ? (
-                <img src={item.image_url || item.hero_image_url} className="w-full h-full object-cover rounded-lg"/>
-            ) : (
-                <Icon size={24} className="opacity-50"/>
-            )}
-        </div>
-        <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-white truncate group-hover:text-museum-gold transition-colors">{item.title}</h4>
-            <p className="text-xs text-gray-500 line-clamp-1">{item.intro || item.short_description || "Bekijk dit item"}</p>
-        </div>
-        <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-gray-500 group-hover:text-museum-gold group-hover:bg-white/10 transition-colors">
-            <ArrowRight size={14}/>
-        </div>
-    </Link>
-  );
+  // Fictieve data voor de demo (hier zou je echte database queries doen)
+  // Bijvoorbeeld: supabase.from('artworks').select('*').order('likes', { ascending: false }).limit(5)
+  const collections = [
+      {
+          title: "Meest Geliefd Deze Week",
+          icon: Heart,
+          description: "De werken waar onze community geen genoeg van krijgt.",
+          items: ["De Nachtwacht", "Meisje met de Parel", "Sterrennacht", "De Schreeuw", "Zonnebloemen"]
+      },
+      {
+          title: "Trending in Modern",
+          icon: TrendingUp,
+          description: "Deze abstracte werken stijgen snel in populariteit.",
+          items: ["Compositie II", "Victory Boogie Woogie", "Guernica", "The Kiss", "Broadway Boogie Woogie"]
+      },
+      {
+          title: "Curator's Keuze",
+          icon: Star,
+          description: "De persoonlijke favorieten van onze experts.",
+          items: ["De Tuin der Lusten", "De Toren van Babel", "Jagers in de Sneeuw", "De Boerenbruiloft", "Kinderspelen"]
+      }
+  ];
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
-      
-        {/* NIEUWE GECENTREERDE HEADER (Zoals Salon) */}
-        <div className="max-w-4xl mx-auto text-center flex flex-col items-center mb-16">
-            <div className="flex items-center gap-2 text-museum-gold text-xs font-bold tracking-widest uppercase mb-4 animate-in fade-in slide-in-from-bottom-4">
-                <Crown size={16}/> Premium Only
+      <div className="max-w-5xl mx-auto">
+        
+        {/* HEADER (Voor iedereen zichtbaar) */}
+        <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 bg-museum-gold/10 border border-museum-gold/20 text-museum-gold px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest mb-4">
+                <Trophy size={16} /> The Hall of Fame
             </div>
-            <h1 className="text-5xl md:text-7xl font-serif font-bold text-white mb-6">Best of the Month</h1>
-            <p className="text-gray-400 text-lg md:text-xl max-w-2xl leading-relaxed">
-                De populairste content van de afgelopen 30 dagen, speciaal geselecteerd voor onze leden.
+            <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Het Beste van MuseaThuis</h1>
+            <p className="text-gray-400 max-w-xl mx-auto text-lg">
+                Ontdek de absolute topstukken, samengesteld op basis van data, populariteit en expertise.
+                {!isPremium && <span className="block mt-2 text-museum-gold">Word Mecenas om de volledige lijsten te onthullen.</span>}
             </p>
         </div>
 
-        {/* CONTENT GRID */}
-        <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            
-                {/* 1. TOURS */}
-                <div>
-                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-                        <Headphones className="text-purple-400"/> Top 5 Audiotours
-                    </h2>
-                    <div className="space-y-4">
-                        {tours.data?.map((item, i) => (
-                            <div key={item.id} className="relative">
-                                <span className="absolute -left-4 top-1/2 -translate-y-1/2 -translate-x-full text-4xl font-black text-white/5">{i + 1}</span>
-                                <BestOfCard item={item} type="tour" icon={Headphones} color="bg-purple-500" />
+        {/* DE LIJSTEN */}
+        <div className="grid gap-12">
+            {collections.map((col, idx) => (
+                <div key={idx} className="relative group">
+                    
+                    {/* Titel Sectie (Altijd zichtbaar) */}
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-museum-gold border border-white/10">
+                            <col.icon size={20} />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-serif font-bold">{col.title}</h2>
+                            <p className="text-sm text-gray-500">{col.description}</p>
+                        </div>
+                    </div>
+
+                    {/* DE CONTENT CONTAINER */}
+                    <div className="relative overflow-hidden rounded-2xl bg-midnight-900 border border-white/10">
+                        
+                        {/* DE LIJST ZELF (Geblurred als niet premium) */}
+                        <div className={`p-6 grid grid-cols-1 md:grid-cols-5 gap-4 ${!isPremium ? 'filter blur-md opacity-50 select-none pointer-events-none' : ''}`}>
+                            {col.items.map((item, i) => (
+                                <div key={i} className="aspect-[4/5] bg-black/40 rounded-xl border border-white/5 p-4 flex flex-col justify-end relative overflow-hidden group/item hover:border-museum-gold/50 transition-colors">
+                                    {/* Nummering */}
+                                    <div className="absolute top-0 left-0 bg-white/10 px-3 py-1 rounded-br-xl text-xl font-black text-white/20">#{i + 1}</div>
+                                    <div className="font-bold text-white truncate">{item}</div>
+                                    <div className="text-xs text-gray-500">Bekijk werk</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* HET SLOTJE (Alleen zichtbaar als niet premium) */}
+                        {!isPremium && (
+                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-midnight-950/40 backdrop-blur-[2px]">
+                                <div className="bg-midnight-900/90 border border-museum-gold/30 p-8 rounded-2xl shadow-2xl text-center max-w-md mx-4 transform transition-all hover:scale-105">
+                                    <div className="w-16 h-16 bg-museum-gold/10 rounded-full flex items-center justify-center mx-auto mb-4 text-museum-gold animate-pulse">
+                                        <Lock size={32} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-2">Exclusief voor Mecenassen</h3>
+                                    <p className="text-gray-400 mb-6 text-sm">
+                                        Deze samengestelde toplijsten zijn alleen beschikbaar voor onze premium leden.
+                                    </p>
+                                    <Link 
+                                        href="/pricing" 
+                                        className="inline-flex items-center gap-2 bg-museum-gold text-black px-6 py-3 rounded-full font-bold hover:bg-white transition-colors"
+                                    >
+                                        <Crown size={18} />
+                                        Ontgrendel Top 5
+                                    </Link>
+                                </div>
                             </div>
-                        ))}
-                        {(!tours.data || tours.data.length === 0) && <p className="text-gray-600 text-sm italic">Geen tours gevonden deze maand.</p>}
+                        )}
                     </div>
                 </div>
-
-                {/* 2. GAMES */}
-                <div>
-                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-                        <Gamepad2 className="text-emerald-400"/> Top 5 Games
-                    </h2>
-                    <div className="space-y-4">
-                        {games.data?.map((item, i) => (
-                            <div key={item.id} className="relative">
-                                <span className="absolute -left-4 top-1/2 -translate-y-1/2 -translate-x-full text-4xl font-black text-white/5">{i + 1}</span>
-                                <BestOfCard item={item} type="game" icon={Gamepad2} color="bg-emerald-500" />
-                            </div>
-                        ))}
-                        {(!games.data || games.data.length === 0) && <p className="text-gray-600 text-sm italic">Geen games gevonden deze maand.</p>}
-                    </div>
-                </div>
-
-                {/* 3. FOCUS */}
-                <div>
-                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-                        <Crosshair className="text-blue-400"/> Top 5 Artikelen
-                    </h2>
-                    <div className="space-y-4">
-                        {focus.data?.map((item, i) => (
-                            <div key={item.id} className="relative">
-                                <span className="absolute -left-4 top-1/2 -translate-y-1/2 -translate-x-full text-4xl font-black text-white/5">{i + 1}</span>
-                                <BestOfCard item={item} type="focus" icon={Crosshair} color="bg-blue-500" />
-                            </div>
-                        ))}
-                        {(!focus.data || focus.data.length === 0) && <p className="text-gray-600 text-sm italic">Geen artikelen gevonden deze maand.</p>}
-                    </div>
-                </div>
-
-            </div>
+            ))}
         </div>
+
+        {/* Call to Action Footer (Alleen voor gratis gebruikers) */}
+        {!isPremium && (
+            <div className="mt-24 text-center p-12 bg-gradient-to-b from-transparent to-museum-gold/5 rounded-3xl border border-white/5">
+                <h2 className="text-3xl font-serif font-bold mb-4">Mis nooit meer het beste van het beste</h2>
+                <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
+                    Van verborgen parels tot publieksfavorieten. Met Premium krijg je onbeperkt toegang tot alle gecureerde lijsten en data-inzichten.
+                </p>
+                <Link href="/pricing" className="inline-flex items-center gap-2 text-museum-gold hover:text-white font-bold text-lg group transition-colors">
+                    Bekijk lidmaatschappen <ArrowRight className="group-hover:translate-x-1 transition-transform"/>
+                </Link>
+            </div>
+        )}
+
+      </div>
     </div>
   );
 }
