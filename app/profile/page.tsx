@@ -10,7 +10,7 @@ import {
     Images, BarChart3, Share2, TrendingUp, Lock 
 } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, RadarChart as RechartRadar } from 'recharts';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PolarRadiusAxis } from 'recharts';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
@@ -28,7 +28,6 @@ export default function ProfilePage() {
       if (!user) { router.push('/login'); return; }
       setUser(user);
 
-      // 1. Haal eigen data op
       const { data: userProfile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
       const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
       const { count: badgeCount } = await supabase.from('user_badges').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
@@ -36,7 +35,7 @@ export default function ProfilePage() {
       setProfile(userProfile);
       setStats({ favCount: favCount || 0, badgeCount: badgeCount || 0 });
 
-      // 2. Haal "Global Averages" op voor de grafiek
+      // Haal gemiddelden op (fallback waarden als er weinig users zijn)
       const { data: allProfiles } = await supabase.from('user_profiles').select('xp, current_streak').limit(50);
       
       if (allProfiles && allProfiles.length > 0) {
@@ -63,51 +62,33 @@ export default function ProfilePage() {
   const isPremium = profile?.is_premium ?? false;
   const isAdmin = profile?.role === 'admin';
 
-  // Datums
   const joinDate = new Date(profile?.created_at).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
-  
-  // Favoriete stijl
   const favoriteStyle = (profile?.favorite_periods && profile.favorite_periods[0]) || "Nog onbekend";
 
-  // --- LOGICA VOOR AVATAR RANDEN (Op basis van Tier) ---
+  // --- AVATAR RAND LOGICA ---
   const getBorderClass = (lvl: number, premium: boolean) => {
-      if (lvl >= 40) return "border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.6)]"; // Diamond (Lvl 40+)
-      if (lvl >= 30 || premium) return "border-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.4)]"; // Platina/Premium
-      if (lvl >= 20) return "border-museum-gold shadow-[0_0_10px_rgba(212,175,55,0.4)]"; // Goud (Lvl 20+)
-      if (lvl >= 15) return "border-slate-300"; // Zilver (Lvl 15+)
-      if (lvl >= 5) return "border-orange-700"; // Brons (Lvl 5+)
-      return "border-white/10"; // Basis
+      if (lvl >= 40) return "border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.6)] animate-pulse";
+      if (lvl >= 30 || premium) return "border-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.4)]";
+      if (lvl >= 20) return "border-museum-gold shadow-[0_0_10px_rgba(212,175,55,0.4)]";
+      if (lvl >= 15) return "border-slate-300";
+      if (lvl >= 5) return "border-orange-700";
+      return "border-white/10";
   };
 
-// --- "SPOTIFY WRAPPED" DATA LOGICA ---
-  const avgXP = averages?.xp || 500; // Iets hogere fallback
-  const avgStreak = averages?.streak || 5;
+  // --- GRAFIEK LOGICA (AANGEPAST VOOR SPREIDING) ---
+  const avgXP = averages?.xp || 500;
   
-  // We berekenen de score op een schaal van 0-100
-  // Ervaring: Mix van level voortgang en totaal XP vs gemiddelde
-  const xpScore = Math.min((xp / (avgXP * 1.5)) * 100, 100); 
+  // We gebruiken nu vaste doelen zodat een beginner klein begint (0-100 schaal)
+  // Max Level = 50. Max Badge = 20. Max Streak = 30 dagen. Max Collectie = 50 items.
   
-  // Collectie: 10 items is "vol" voor de grafiek in het begin (schaalt mee)
-  const colScore = Math.min((stats.favCount / 20) * 100, 100); 
-  
-  // Loyaliteit: Streak van 30 dagen is de max score
-  const streakScore = Math.min((profile.current_streak / 30) * 100, 100);
-  
-  // Kennis: Level 50 is de max score (dus level * 2)
-  const levelScore = Math.min(level * 2, 100);
-
-  // Badges: 10 badges is de max score
-  const badgeScore = Math.min((stats.badgeCount / 10) * 100, 100);
-
   const radarData = [
-    { subject: 'Ervaring', A: xpScore, fullMark: 100 },
-    { subject: 'Collectie', A: colScore, fullMark: 100 },
-    { subject: 'Loyaliteit', A: streakScore, fullMark: 100 },
-    { subject: 'Kennis', A: levelScore, fullMark: 100 },
-    { subject: 'Badges', A: badgeScore, fullMark: 100 },
+    { subject: 'Ervaring', A: Math.min((xp / 10000) * 100, 100), fullMark: 100 }, // 10.000 XP is "vol"
+    { subject: 'Collectie', A: Math.min((stats.favCount / 50) * 100, 100), fullMark: 100 }, // 50 items is "vol"
+    { subject: 'Loyaliteit', A: Math.min((profile.current_streak / 30) * 100, 100), fullMark: 100 }, // 30 dagen is "vol"
+    { subject: 'Kennis', A: Math.min((level / 50) * 100, 100), fullMark: 100 }, // Level 50 is "vol"
+    { subject: 'Badges', A: Math.min((stats.badgeCount / 10) * 100, 100), fullMark: 100 }, // 10 badges is "vol"
   ];
 
-  // Persona bepalen
   let persona = "De Ontdekker";
   let personaDesc = "Je bent net begonnen aan je reis.";
   if (xp > avgXP * 1.5) { persona = "De Kunstkenner"; personaDesc = "Je weet meer dan 80% van de gebruikers!"; }
@@ -123,7 +104,6 @@ export default function ProfilePage() {
             <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
             
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                {/* Avatar met Dynamische Rand */}
                 <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black border-4 shadow-lg shrink-0 overflow-hidden ${getBorderClass(level, isPremium)} bg-midnight-900`}>
                     {profile?.avatar_url ? (
                         <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -132,7 +112,6 @@ export default function ProfilePage() {
                     )}
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 text-center md:text-left w-full">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
                         <div className="flex items-center justify-center md:justify-start gap-2">
@@ -153,7 +132,6 @@ export default function ProfilePage() {
                         <span className="text-museum-gold/80 text-sm font-serif italic">{levelTitle}</span>
                     </div>
 
-                    {/* XP Bar */}
                     <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden relative">
                         <div className="absolute top-0 left-0 h-full bg-museum-gold transition-all duration-1000" style={{ width: `${progress}%` }}></div>
                     </div>
@@ -163,7 +141,6 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
-                {/* Streak */}
                 <div className="flex flex-col items-center bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm min-w-[100px]">
                     <Flame className={profile?.current_streak > 0 ? "text-orange-500 fill-orange-500" : "text-gray-600"} size={32} />
                     <span className="text-2xl font-bold mt-2">{profile?.current_streak || 0}</span>
@@ -173,6 +150,7 @@ export default function ProfilePage() {
         </div>
 
         {/* --- KUNST DNA (LEVEL 16 UNLOCK) --- */}
+        {/* We laten hem nu even ZIEN voor test, maar normaal met: level >= 16 ? (...) : (...) */}
         {level >= 16 ? (
             <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden">
                 <div className="flex flex-col md:flex-row gap-8 items-center">
@@ -185,11 +163,10 @@ export default function ProfilePage() {
                             <p className="text-purple-200">{personaDesc}</p>
                         </div>
                         
-                        {/* Vergelijking balkje */}
                         <div className="bg-black/20 rounded-xl p-4">
                              <div className="flex justify-between text-xs text-gray-400 mb-1">
                                 <span>Ervaring vs Gemiddeld</span>
-                                <span className={xp > avgXP ? "text-green-400" : "text-red-400"}>{xp > avgXP ? "Boven" : "Onder"}</span>
+                                <span className={xp > avgXP ? "text-green-400" : "text-gray-400"}>{xp > avgXP ? "Boven" : "Onder"}</span>
                             </div>
                             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                                 <div className="h-full bg-purple-400" style={{ width: `${Math.min((xp / (avgXP * 1.5)) * 100, 100)}%` }} />
@@ -206,6 +183,10 @@ export default function ProfilePage() {
                             <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                                 <PolarGrid stroke="#ffffff20" />
                                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#a5b4fc', fontSize: 10 }} />
+                                
+                                {/* DE FIX: Forceer de as van 0 tot 100, ook bij lage scores */}
+                                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                                
                                 <Radar name="Jij" dataKey="A" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.6} />
                             </RadarChart>
                         </ResponsiveContainer>
@@ -213,8 +194,7 @@ export default function ProfilePage() {
                 </div>
             </div>
         ) : (
-            // LOCKED STATE VOOR DNA
-            <div className="bg-white/5 border border-white/5 rounded-3xl p-6 mb-8 text-center opacity-50 relative overflow-hidden">
+             <div className="bg-white/5 border border-white/5 rounded-3xl p-6 mb-8 text-center opacity-50 relative overflow-hidden">
                 <div className="mx-auto w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-2 text-gray-400">
                     <Lock size={20}/>
                 </div>
@@ -223,9 +203,8 @@ export default function ProfilePage() {
             </div>
         )}
 
-        {/* --- STATUS BOXEN --- */}
+        {/* STATUS BOXEN */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {/* Status */}
             <div className={`p-4 rounded-xl border relative overflow-hidden flex flex-col justify-between ${isPremium ? 'bg-museum-gold/10 border-museum-gold/30' : 'bg-white/5 border-white/5'}`}>
                 <div>
                     <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
@@ -242,7 +221,6 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* Favoriete Stijl */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
                     <Palette size={14}/> Favoriete Stijl
@@ -250,7 +228,6 @@ export default function ProfilePage() {
                 <div className="text-white font-bold truncate">{favoriteStyle}</div>
             </div>
 
-            {/* Collectie Link */}
             <Link href="/favorites" className="bg-white/5 p-4 rounded-xl border border-white/5 hover:bg-white/10 transition-colors group">
                 <div className="flex items-center gap-2 text-gray-500 group-hover:text-rose-400 text-xs uppercase font-bold mb-1 transition-colors">
                     <Images size={14}/> Mijn Collectie
@@ -258,14 +235,13 @@ export default function ProfilePage() {
                 <div className="text-white font-bold">{stats.favCount} Werken</div>
             </Link>
 
-            {/* Lid Sinds */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><CalendarClock size={14}/> Lid Sinds</div>
                 <div className="text-white font-bold truncate">{joinDate}</div>
             </div>
         </div>
 
-        {/* --- DASHBOARD GRID --- */}
+        {/* DASHBOARD GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Link href="/profile/levels" className="group bg-midnight-900 border border-white/10 p-6 rounded-2xl hover:border-museum-gold/50 transition-all hover:-translate-y-1">
                 <div className="flex justify-between items-start mb-4">
