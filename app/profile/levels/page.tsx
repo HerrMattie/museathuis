@@ -18,6 +18,15 @@ export default async function LevelsPage() {
   // Gebruik de centrale rekenmachine
   const { level: currentLevel, nextLevelXp, progress, title: currentTitle, nextReward } = getLevel(xp);
 
+  // --- NIEUWE FILTER LOGICA ---
+  // We tonen: 
+  // 1. Het level waar je NU bent (zodat je 'Jij' ziet)
+  // 2. De komende 5 levels (om naartoe te werken)
+  // We sorteren voor de zekerheid op level oplopend.
+  const visibleLevels = LEVELS
+    .sort((a, b) => a.level - b.level)
+    .filter(l => l.level >= currentLevel && l.level <= currentLevel + 5);
+
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-3xl mx-auto">
@@ -63,15 +72,15 @@ export default async function LevelsPage() {
             </div>
         </div>
 
-        {/* TIJDLIJN */}
+        {/* TIJDLIJN (Nu gefilterd!) */}
         <div className="relative space-y-4">
             <div className="absolute left-[27px] top-0 bottom-8 w-0.5 bg-gradient-to-b from-museum-gold via-white/10 to-transparent -z-10 hidden md:block"></div>
 
-            {LEVELS.map((lvl) => {
+            {visibleLevels.map((lvl) => {
                 const isUnlocked = currentLevel >= lvl.level;
                 const isCurrent = currentLevel === lvl.level;
-                // Omdat we gaten in de levels hebben, is 'isNext' het level dat direct groter is dan currentLevel
-                // We kunnen dit simpel checken: is dit level het eerste level dat NIET unlocked is?
+                
+                // We zoeken het 'volgende' level uit de globale lijst om de 'Volgende' badge correct te plaatsen
                 const isNext = !isUnlocked && LEVELS.find(l => l.level > currentLevel)?.level === lvl.level;
                 
                 const Icon = lvl.icon;
@@ -116,6 +125,13 @@ export default async function LevelsPage() {
                     </div>
                 );
             })}
+            
+            {/* Melding als er nog meer levels zijn */}
+            {visibleLevels[visibleLevels.length - 1].level < 50 && (
+                <div className="text-center text-gray-500 text-sm italic mt-8">
+                    ... en nog veel meer te ontdekken!
+                </div>
+            )}
         </div>
       </div>
     </div>
