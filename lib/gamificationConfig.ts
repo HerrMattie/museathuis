@@ -225,3 +225,15 @@ export const LEVELS = [
         icon: Gem
     }
 ];
+// --- HIER IS DE MISENDE EXPORT ---
+// Dit lost je build error op. Ik gebruik Dicebear API voor automatische avatars.
+export const AVATARS = [
+    { id: '1', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', requiredLevel: 1, name: 'De Bezoeker' },
+    { id: '2', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka', requiredLevel: 1, name: 'De Dromer' },
+    { id: '3', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Precious', requiredLevel: 5, name: 'De Assistent' },
+    { id: '4', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mittens', requiredLevel: 10, name: 'De Verkenner' },
+    { id: '5', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bubba', requiredLevel: 15, name: 'De Kenner' },
+    { id: '6', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Callie', requiredLevel: 25, name: 'De Curator' },
+    { id: '7', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Gizmo', requiredLevel: 40, name: 'De Grootmeester' },
+    { id: '8', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Simba', requiredLevel: 50, name: 'Het Orakel' },
+];
