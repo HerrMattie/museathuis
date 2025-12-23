@@ -34,7 +34,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   
   // 1. Persoonlijk
   const [fullName, setFullName] = useState(initialData?.full_name || initialData?.display_name || '');
-  const [role, setRole] = useState(initialData?.role || ''); // Bijv. titel/bio
   const [gender, setGender] = useState(initialData?.gender || '');
   const [ageGroup, setAgeGroup] = useState(initialData?.age_group || '');
   const [province, setProvince] = useState(initialData?.province || '');
@@ -67,8 +66,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   // 4. Tech & Gebruik
   const [primaryDevice, setPrimaryDevice] = useState(initialData?.primary_device || 'Mobiel');
   const [usesCasting, setUsesCasting] = useState<boolean>(initialData?.uses_casting === true);
-  const [minutesPerDay, setMinutesPerDay] = useState(initialData?.minutes_per_day || 15);
-  const [dataConsent, setDataConsent] = useState<boolean>(initialData?.data_consent === true);
 
 
   // --- HANDLERS ---
