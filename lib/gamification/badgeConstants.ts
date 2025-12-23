@@ -1,5 +1,3 @@
-// lib/gamification/badgeConstants.ts
-
 export const BADGE_IDS = {
   // --- TIJD & DATUM ---
   NACHTWACHT: '482d3de3-e1f5-4a0a-ae4d-2976dd2a4b9f',      // 00:00 - 04:00
@@ -16,25 +14,21 @@ export const BADGE_IDS = {
   KONINGSDAG: 'f21272fc-0f04-4024-9ec1-94392601066f',      // 27 Apr
   GRIEZELIG: '925f79d4-8918-4d48-baff-1afb94cfb70f',       // 31 Okt (Halloween)
   BLAUWE_MAANDAG: '36265e41-3062-4fbc-9180-b64312a5fcbc',  // 3e maandag Jan
-// --- INTERACTIE: FEEDBACK & SOCIAAL ---
-  INFLUENCER: '37cd1dc9-40b7-4e62-9588-0d8240eaf876',      // Delen
-  RECENSENT: '39f7ea19-2336-4c1c-897a-eca4907d08ed',       // 1e review
-  FANBOY: '76f5ca4f-add9-4b8e-8225-a20e195412f7',          // 5 sterren
-  KRITISCHE_NOOT: 'c6dfdb0d-e6fb-4350-959b-05240972f804',  // 1 ster
-  FEEDBACK_KONING: 'cd45d6e3-c0bd-4304-901d-5e6d407b84aa', // 10 reviews
-  
-  // --- PAGINA BEZOEKEN ---
-  VERDWAALD: '76695777-03e0-4e7d-a374-5e51e92b372d',       // 404 pagina
-  SUPPORTER: 'eea3b3c7-8ff3-416d-b23c-9ce637403cb8',       // Over Ons pagina
 
-  // --- PROFIEL ---
-  PROFIEL_PLAATJE: '79aa47d2-a653-4ddf-b0ac-c4a11eec6707', // Avatar upload
-  INSTELLINGEN_GURU: 'f4318be6-4bbf-4c07-ac1c-3dcac5685199', // Settings wijzigen
+  // --- STREAKS ---
+  DE_KOP_IS_ERAF: '61a92d96-932b-4183-988c-d64052b5abfa',  // 3 dagen
+  WEEK_WINNAAR: 'c80ebaa6-f20d-47c1-a9c1-aae016c89356',    // 7 dagen
+  TWEE_WEKEN_TROUW: '07191855-60d0-4cc6-9319-9a7fed5b4587',// 14 dagen
+  MAAND_MEESTER: '27d21841-1279-43c8-a299-17eb968e5d7c',   // 30 dagen
+  SEIZOENSKAART: '07ff5e03-3ac8-43e7-afcc-e4f8f7758068',   // 90 dagen
+  DE_100_CLUB: 'd3fd1a9c-2f06-42f5-bc9e-df6971a7d3b8',     // 100 dagen
+  JAARRING: 'fb949c6a-d783-423a-8886-5be25b41d760',        // 365 dagen
+
   // --- CONTENT: ARTIKELEN (FOCUS) ---
   BOEKENWURM: '62e076d8-8a05-4cb8-919b-1032ef375c80',     // 3 artikelen
   BIBLIOTHECARIS: '1ee27677-9122-480f-954b-d5e428cdf5f1', // 20 artikelen
   DIEPGRAVER: '137d6910-6633-4a11-84af-98ae1f0dc953',     // > 2000 woorden
-  SCANNER: 'e27c4224-6877-4b5c-90af-e6a2cce76286',        // < 5 seconden (Grapje)
+  SCANNER: 'e27c4224-6877-4b5c-90af-e6a2cce76286',        // < 5 seconden
   VERF_DROOGT: '18364089-4100-485c-85b5-759f825a55e8',    // > 10 minuten op pagina
 
   // --- CONTENT: KUNST KIJKEN (TOURS) ---
@@ -50,13 +44,9 @@ export const BADGE_IDS = {
   DIERENVRIEND: 'e4289477-7963-42d5-b90d-dc8c65a89bf7',     // 10x Dieren
   LANDSCHAPSARCHITECT: 'e6165de7-8936-4c80-b030-fb8d16c43997', // 10x Landschap
   MONOCHROOM: 'b312cf87-3cfe-4250-a3af-af9f31de13c2',       // 5x Zwart-wit
-};
-  // --- STREAKS ---
-  DE_KOP_IS_ERAF: '61a92d96-932b-4183-988c-d64052b5abfa',  // 3 dagen
-  WEEK_WINNAAR: 'c80ebaa6-f20d-47c1-a9c1-aae016c89356',    // 7 dagen
-  TWEE_WEKEN_TROUW: '07191855-60d0-4cc6-9319-9a7fed5b4587',// 14 dagen
-  MAAND_MEESTER: '27d21841-1279-43c8-a299-17eb968e5d7c',   // 30 dagen
-  SEIZOENSKAART: '07ff5e03-3ac8-43e7-afcc-e4f8f7758068',   // 90 dagen
-  DE_100_CLUB: 'd3fd1a9c-2f06-42f5-bc9e-df6971a7d3b8',     // 100 dagen
-  JAARRING: 'fb949c6a-d783-423a-8886-5be25b41d760',        // 365 dagen
-};
+
+  // --- INTERACTIE: FEEDBACK & SOCIAAL ---
+  INFLUENCER: '37cd1dc9-40b7-4e62-9588-0d8240eaf876',      // Delen
+  RECENSENT: '39f7ea19-2336-4c1c-897a-eca4907d08ed',       // 1e review
+  FANBOY: '76f5ca4f-add9-4b8e-8225-a20e195412f7',          // 5 sterren
+  KRITISCHE_NOOT: 'c6dfdb0d-e6fb-
