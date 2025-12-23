@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Save, Loader2, User, Paintbrush, CreditCard, Laptop, Heart, Globe, Clock, Shield } from 'lucide-react';
+import { Save, Loader2, User, Paintbrush, CreditCard, Laptop, Heart, Globe } from 'lucide-react';
 
 // --- OPTIES & LIJSTEN ---
 const PERIODS = ["Oude Meesters", "Renaissance", "Barok", "Impressionisme", "Moderne Kunst", "Hedendaags", "Fotografie", "Design"];
@@ -33,7 +33,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   // --- STATE MANAGMENT ---
   
   // 1. Persoonlijk
-  // LET OP: 'role' is hier verwijderd omdat je die niet meer wilde
   const [fullName, setFullName] = useState(initialData?.full_name || initialData?.display_name || '');
   const [gender, setGender] = useState(initialData?.gender || '');
   const [ageGroup, setAgeGroup] = useState(initialData?.age_group || '');
@@ -66,8 +65,8 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   // 4. Tech & Gebruik
   const [primaryDevice, setPrimaryDevice] = useState(initialData?.primary_device || 'Mobiel');
   const [usesCasting, setUsesCasting] = useState<boolean>(initialData?.uses_casting === true);
-  const [minutesPerDay, setMinutesPerDay] = useState(initialData?.minutes_per_day || 15);
-  const [dataConsent, setDataConsent] = useState<boolean>(initialData?.data_consent === true);
+  
+  // VERWIJDERD: minutesPerDay en dataConsent uit state
 
 
   // --- HANDLERS ---
@@ -88,7 +87,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             // Persoonlijk
             full_name: fullName,
             display_name: fullName,
-            // role: role,  <-- DEZE REGEL VEROORZAAKTE DE FOUT, NU VERWIJDERD
             gender: gender,
             age_group: ageGroup,
             province: province,
@@ -119,8 +117,8 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             // Tech
             primary_device: primaryDevice,
             uses_casting: usesCasting,
-            minutes_per_day: parseInt(minutesPerDay.toString()),
-            data_consent: dataConsent,
+            
+            // VERWIJDERD: minutes_per_day en data_consent uit de update payload
         };
 
         const { error } = await supabase
@@ -165,7 +163,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Naam</label>
                 <div className="grid grid-cols-1 gap-4">
                     <input type="text" placeholder="Je naam" value={fullName} onChange={(e) => setFullName(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none"/>
-                    {/* HIER STOND HET VELD VOOR ROLE, NU VERWIJDERD */}
                 </div>
              </div>
 
@@ -351,13 +348,6 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
                             {DEVICES.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                     </div>
-                    <div>
-                         <label className="block text-xs font-bold text-gray-400 uppercase mb-2"><Clock size={12} className="inline mr-1"/> Doel: Minuten per dag</label>
-                         <div className="flex items-center gap-4">
-                             <input type="range" min="5" max="120" step="5" value={minutesPerDay} onChange={(e) => setMinutesPerDay(parseInt(e.target.value))} className="flex-1 accent-museum-gold" />
-                             <span className="font-mono text-xl text-museum-gold">{minutesPerDay}m</span>
-                         </div>
-                    </div>
                 </div>
 
                 {/* Toggles */}
@@ -371,16 +361,7 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
                             <div className={`w-5 h-5 bg-white rounded-full transition-transform ${usesCasting ? 'translate-x-6' : 'translate-x-0'}`} />
                         </div>
                     </div>
-
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
-                        <div>
-                            <h4 className="font-bold text-sm text-white flex items-center gap-2"><Shield size={16}/> Data Consent</h4>
-                            <p className="text-xs text-gray-400">Ik sta toe dat data gebruikt wordt voor personalisatie</p>
-                        </div>
-                        <div onClick={() => setDataConsent(!dataConsent)} className={`w-12 h-6 rounded-full p-0.5 cursor-pointer transition-colors ${dataConsent ? 'bg-green-500' : 'bg-gray-700'}`}>
-                            <div className={`w-5 h-5 bg-white rounded-full transition-transform ${dataConsent ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </div>
-                    </div>
+                    {/* VERWIJDERD: Data consent block */}
                 </div>
 
                 <div className="text-xs text-gray-500 text-center pt-8">
