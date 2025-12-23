@@ -13,7 +13,7 @@ export default function ThemeToggle() {
   const supabase = createClient();
 
   useEffect(() => {
-    // 1. Check permissies (Level 18+)
+    // 1. Check permissies
     const checkAccess = async () => {
        const { data: { user } } = await supabase.auth.getUser();
        if (user) {
@@ -26,7 +26,7 @@ export default function ThemeToggle() {
     };
     checkAccess();
 
-    // 2. Check of de gebruiker al eerder light mode had gekozen
+    // 2. Check opgeslagen voorkeur
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'light') {
         setIsDark(false);
@@ -61,7 +61,6 @@ export default function ThemeToggle() {
                 ? 'bg-white/5 border-white/10 hover:bg-white/10 text-museum-gold' 
                 : 'bg-transparent border-transparent text-gray-600 cursor-not-allowed'
             }`}
-            title={canToggle ? "Wissel Dag/Nacht" : "Nog niet beschikbaar"}
         >
             {isDark ? <Moon size={20}/> : <Sun size={20}/>}
             
@@ -73,7 +72,7 @@ export default function ThemeToggle() {
         </button>
 
         {showTooltip && (
-            <div className="absolute right-0 top-12 w-48 bg-black/90 border border-white/20 text-white text-xs p-3 rounded-xl shadow-xl z-50">
+            <div className="absolute right-0 top-12 w-48 bg-black/90 border border-white/20 text-white text-xs p-3 rounded-xl shadow-xl z-50 pointer-events-none">
                 <p className="font-bold text-museum-gold mb-1">🔒 Functie Vergrendeld</p>
                 Bereik <strong>Level 18 (Estheet)</strong> om het licht aan te doen.
             </div>
