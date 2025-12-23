@@ -18,8 +18,9 @@ export default function AchievementPopup() {
   const [queue, setQueue] = useState<PopupItem[]>([]);
   const [activeItem, setActiveItem] = useState<PopupItem | null>(null);
   
-  // We gebruiken een ref om het huidige level bij te houden zonder re-renders
+  // Ref om het level bij te houden zonder re-renders
   const currentLevelRef = useRef<number>(1);
+  // Ref om te voorkomen dat we dezelfde event dubbel tonen
   const processedRef = useRef<Set<string>>(new Set());
   
   const supabase = createClient();
@@ -28,10 +29,12 @@ export default function AchievementPopup() {
     let userId = '';
 
     const init = async () => {
-      // 1. Haal User & Huidig Level op (zodat we een startpunt hebben)
+      // 1. Haal User & Start Level op
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
           userId = user.id;
+          
+          // Haal huidige XP op om start-level te weten
           const { data: profile } = await supabase
             .from('user_profiles')
             .select('xp')
@@ -40,25 +43,28 @@ export default function AchievementPopup() {
           
           if (profile) {
               const { level } = getLevel(profile.xp || 0);
-              currentLevelRef.current = level; // Sla startlevel op (bijv. 1)
+              currentLevelRef.current = level;
+              console.log(`🎯 [Popup Init] Start level is: ${level} (XP: ${profile.xp})`);
           }
       }
 
       // 2. Start de Luisteraar
       const channel = supabase.channel('achievements')
       
-        // A. BADGES (INSERT)
+        // A. BADGES (INSERT) - Dit werkte al
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'user_badges' },
           async (payload) => {
             if (payload.new.user_id !== userId) return;
 
+            console.log('🏅 [Realtime] Nieuwe Badge gedetecteerd:', payload.new);
+
             const eventId = `badge-${payload.new.id}`;
             if (processedRef.current.has(eventId)) return;
             processedRef.current.add(eventId);
 
-            // Haal badge info op
+            // Haal badge info op uit 'badges' tabel
             const { data: badge } = await supabase
               .from('badges')
               .select('name, icon_name')
@@ -71,32 +77,41 @@ export default function AchievementPopup() {
                 type: 'badge',
                 title: 'Nieuwe Badge!',
                 subtitle: badge.name,
-                icon: badge.icon_name // Zorg dat dit matcht met je DB kolom
+                icon: badge.icon_name
               });
             }
           }
         )
 
-        // B. LEVEL UP (UPDATE)
+        // B. LEVEL UP (UPDATE) - Dit was het probleem
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'user_profiles' },
           (payload) => {
             if (payload.new.user_id !== userId) return;
 
-            // Nieuwe XP uit de payload halen
+            console.log('📈 [Realtime] Profiel Update Ontvangen:', payload);
+
+            // Bereken levels op basis van XP in de payload
+            const oldXp = payload.old?.xp || 0; // Let op: payload.old is soms leeg in Supabase
             const newXp = payload.new.xp || 0;
+            
+            // Als payload.old leeg is, gebruiken we onze interne ref als fallback
+            const oldLevelInfo = getLevel(oldXp);
             const newLevelInfo = getLevel(newXp);
             
-            // Vergelijk met wat we AL WISTEN (currentLevelRef)
-            // Dit is veiliger dan payload.old gebruiken
+            console.log(`📊 Check: XP ging van ${oldXp} naar ${newXp}. Level check: ${currentLevelRef.current} -> ${newLevelInfo.level}`);
+
+            // Is het level hoger dan wat we wisten?
             if (newLevelInfo.level > currentLevelRef.current) {
                
+               console.log('🚀 LEVEL UP GEDETECTEERD!');
+
                const eventId = `level-${newLevelInfo.level}`;
                if (processedRef.current.has(eventId)) return;
                processedRef.current.add(eventId);
 
-               // Update onze ref zodat we niet nog eens triggeren voor dit level
+               // Update direct onze ref zodat we niet dubbel triggeren
                currentLevelRef.current = newLevelInfo.level;
 
                addToQueue({
@@ -108,7 +123,9 @@ export default function AchievementPopup() {
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+            console.log(`🔌 [Realtime] Status: ${status}`);
+        });
 
       return () => {
         supabase.removeChannel(channel);
@@ -118,7 +135,7 @@ export default function AchievementPopup() {
     init();
   }, [supabase]);
 
-  // --- WACHTRIJ LOGICA (Hetzelfde als voorheen) ---
+  // --- WACHTRIJ VERWERKER ---
   useEffect(() => {
     if (!activeItem && queue.length > 0) {
       const nextItem = queue[0];
