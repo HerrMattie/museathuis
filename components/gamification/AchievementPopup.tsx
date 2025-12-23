@@ -2,24 +2,24 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createClient } from '@/lib/supabaseClient';
-import { Award, X, Crown } from 'lucide-react';
+import { Award, X, Crown, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getLevel } from '@/lib/levelSystem';
 
 interface PopupItem {
-  id: string; 
+  id: string;
   type: 'badge' | 'level';
   title: string;
   subtitle: string;
+  icon?: any;
 }
 
 export default function AchievementPopup() {
   const [queue, setQueue] = useState<PopupItem[]>([]);
   const [activeItem, setActiveItem] = useState<PopupItem | null>(null);
   
-  // We onthouden het huidige level in het geheugen
+  // We houden het huidige level bij in een Ref (zodat het niet reset bij renders)
   const currentLevelRef = useRef<number>(1);
-  // We onthouden welke events we al gehad hebben om dubbele popups te voorkomen
   const processedRef = useRef<Set<string>>(new Set());
   
   const supabase = createClient();
@@ -28,37 +28,39 @@ export default function AchievementPopup() {
     let userId = '';
 
     const init = async () => {
-      // 1. Haal User & Start Level op (Nulmeting)
+      // 1. INIT: Haal gebruiker en huidig level op
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-          userId = user.id;
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('xp')
-            .eq('user_id', user.id)
-            .single();
-          
-          if (profile) {
-              const { level } = getLevel(profile.xp || 0);
-              currentLevelRef.current = level;
-          }
+      if (!user) return;
+      userId = user.id;
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('xp')
+        .eq('user_id', userId)
+        .single();
+      
+      if (profile) {
+          const { level } = getLevel(profile.xp || 0);
+          currentLevelRef.current = level;
+          console.log(`🎮 [Popup Init] Huidig Level: ${level} (XP: ${profile.xp})`);
       }
 
-      // 2. Start de Luisteraar
-      const channel = supabase.channel('achievements')
+      // 2. REALTIME LUISTEREN
+      const channel = supabase.channel('global-achievements')
       
-        // A. BADGES (Nieuwe rij in user_badges)
+        // --- A. BADGES (Werkt al goed) ---
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'user_badges' },
           async (payload) => {
             if (payload.new.user_id !== userId) return;
+            console.log('🏅 [Badge Event] Nieuwe badge ontvangen!');
 
             const eventId = `badge-${payload.new.id}`;
             if (processedRef.current.has(eventId)) return;
             processedRef.current.add(eventId);
 
-            // Haal de mooie naam en icoon op uit de badges tabel
+            // Haal badge details op
             const { data: badge } = await supabase
               .from('badges')
               .select('name')
@@ -70,45 +72,53 @@ export default function AchievementPopup() {
                 id: eventId,
                 type: 'badge',
                 title: 'Nieuwe Badge!',
-                subtitle: badge.name
+                subtitle: badge.name,
+                icon: Award
               });
             }
           }
         )
 
-        // B. LEVEL UP (Verandering in user_profiles)
+        // --- B. LEVELS (De fix) ---
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'user_profiles' },
           (payload) => {
+            // Check of het over MIJ gaat
             if (payload.new.user_id !== userId) return;
 
-            // TRUC: Kijk naar de nieuwe XP en bereken het level
-            const newXp = payload.new.xp || 0;
-            const newLevelInfo = getLevel(newXp);
+            // 1. Wat is de nieuwe XP?
+            const newXp = payload.new.xp;
             
-            // Vergelijk met wat we al wisten (currentLevelRef)
-            if (newLevelInfo.level > currentLevelRef.current) {
-               
-               const eventId = `level-${newLevelInfo.level}`;
-               
-               // Voorkom dubbele meldingen voor hetzelfde level
-               if (processedRef.current.has(eventId)) return;
-               processedRef.current.add(eventId);
+            // 2. Bereken het nieuwe level met je rekenmachine
+            const { level: newLevel, title: newTitle } = getLevel(newXp);
 
-               // Update direct onze 'kennis' zodat we klaar zijn voor het volgende level
-               currentLevelRef.current = newLevelInfo.level;
+            console.log(`📈 [XP Update] XP is nu ${newXp}. Berekend Level: ${newLevel}. Oude Ref Level: ${currentLevelRef.current}`);
 
-               addToQueue({
-                 id: eventId,
-                 type: 'level',
-                 title: 'Level Omhoog!',
-                 subtitle: `Je bent nu Level ${newLevelInfo.level}: ${newLevelInfo.title}`,
-               });
+            // 3. De VERGELIJKING: Is het nieuwe level HOGER dan wat we wisten?
+            if (newLevel > currentLevelRef.current) {
+                console.log('🚀 LEVEL UP GEDETECTEERD! Toevoegen aan wachtrij...');
+                
+                const eventId = `level-${newLevel}`;
+                if (processedRef.current.has(eventId)) return;
+                processedRef.current.add(eventId);
+
+                // Update direct onze ref, zodat we niet nog eens triggeren
+                currentLevelRef.current = newLevel;
+
+                addToQueue({
+                    id: eventId,
+                    type: 'level',
+                    title: 'Level Omhoog!',
+                    subtitle: `Level ${newLevel}: ${newTitle}`,
+                    icon: Crown
+                });
             }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+            console.log(`🔌 [Supabase Status] ${status}`);
+        });
 
       return () => {
         supabase.removeChannel(channel);
@@ -118,19 +128,17 @@ export default function AchievementPopup() {
     init();
   }, [supabase]);
 
-  // --- WACHTRIJ VERWERKER ---
+  // --- WACHTRIJ VERWERKING (Identiek voor beide) ---
   useEffect(() => {
-    // Als er geen popup is, maar wel iets in de wachtrij -> Toon de volgende
     if (!activeItem && queue.length > 0) {
       const nextItem = queue[0];
       setActiveItem(nextItem);
       fireConfetti();
       
-      // Sluit automatisch na 5 seconden
+      // Sluit na 5 seconden
       const timer = setTimeout(() => {
         closePopup();
       }, 5000);
-
       return () => clearTimeout(timer);
     }
   }, [activeItem, queue]);
@@ -141,7 +149,7 @@ export default function AchievementPopup() {
 
   const closePopup = () => {
     setActiveItem(null);
-    setQueue((prev) => prev.slice(1)); // Verwijder de eerste uit de rij
+    setQueue((prev) => prev.slice(1));
   };
 
   const fireConfetti = () => {
@@ -156,12 +164,14 @@ export default function AchievementPopup() {
 
   if (!activeItem) return null;
 
+  const Icon = activeItem.icon || Zap;
+
   return (
     <div className="fixed top-24 right-6 z-[100] animate-in slide-in-from-right-full duration-500 fade-in">
         <div className="relative bg-midnight-900/95 backdrop-blur-md border border-museum-gold rounded-xl p-4 shadow-[0_0_30px_-5px_rgba(234,179,8,0.3)] flex items-center gap-4 max-w-sm pr-10">
             
             <div className="w-12 h-12 rounded-full bg-museum-gold flex items-center justify-center text-black shrink-0 shadow-lg shadow-museum-gold/20">
-                {activeItem.type === 'badge' ? <Award size={24} /> : <Crown size={24} fill="black"/>}
+                <Icon size={24} strokeWidth={2.5} />
             </div>
 
             <div>
