@@ -18,21 +18,23 @@ import {
 
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/crm' },
+    
+    { type: 'divider' },
+    
     { icon: Calendar, label: 'Weekplanning', href: '/crm/schedule' },
     { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' },
     { icon: Calendar, label: 'AI Regisseur', href: '/crm/planning' },
     
     { type: 'divider' },
     
-    { icon: Download, label: 'Art Curator', href: '/crm/import' },
-    { icon: CheckSquare, label: 'Review Queue', href: '/crm/review' },
+    { icon: Type, label: 'Pagina Teksten', href: '/crm/pages' },
     
     { type: 'divider' },
     
     { icon: Headphones, label: 'Tours', href: '/crm/tours' },
     { icon: Gamepad2, label: 'Games', href: '/crm/games' },
     { icon: FileText, label: 'Focus', href: '/crm/focus' },
-    { icon: Layers, label: 'Salons', href: '/crm/salons' },
+    { icon: Layers, label: 'Galerij', href: '/crm/salons' },
     { icon: Award, label: 'Badge Manager', href: '/crm/badges' },
     
     { type: 'divider' },
