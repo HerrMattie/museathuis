@@ -11,7 +11,7 @@ export default function ExportButton() {
     const handleExport = async (format: 'json' | 'csv') => {
         setLoading(true);
         try {
-            // 1. Fetch all relevant activity logs (you might want to limit this range in production)
+            // 1. Fetch all relevant activity logs
             const { data: logs, error } = await supabase
                 .from('user_activity_logs')
                 .select('user_id, action_type, created_at, meta_data, user_profiles(full_name, age_group, province)')
@@ -25,8 +25,8 @@ export default function ExportButton() {
                 return;
             }
 
-            // 2. Process Data for Analysis (The "Intelligence" Layer)
-            const processedData = logs.map(log => {
+            // 2. Process Data for Analysis
+            const processedData = logs.map((log: any) => {
                 let details = '';
                 let duration = 0;
                 let score = 0;
@@ -46,10 +46,15 @@ export default function ExportButton() {
                 if (meta?.tour_title) details = `Tour: ${meta.tour_title}`;
                 if (meta?.title) details = `Article: ${meta.title}`;
 
+                // FIX: Handle user_profiles as an array or object safely
+                const profile = Array.isArray(log.user_profiles) ? log.user_profiles[0] : log.user_profiles;
+                const userName = profile?.full_name || 'Anonymous';
+                const userDemo = `${profile?.age_group || 'Unknown'} - ${profile?.province || 'Unknown'}`;
+
                 return {
                     Timestamp: new Date(log.created_at).toISOString(),
-                    User: log.user_profiles?.full_name || 'Anonymous',
-                    Demographics: `${log.user_profiles?.age_group || 'Unknown'} - ${log.user_profiles?.province || 'Unknown'}`,
+                    User: userName,
+                    Demographics: userDemo,
                     Action: log.action_type,
                     Details: details,
                     Duration_Seconds: duration,
@@ -65,7 +70,7 @@ export default function ExportButton() {
             } else {
                 // Convert to CSV
                 const headers = Object.keys(processedData[0]).join(',');
-                const rows = processedData.map(row => 
+                const rows = processedData.map((row: any) => 
                     Object.values(row).map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')
                 ).join('\n');
                 
