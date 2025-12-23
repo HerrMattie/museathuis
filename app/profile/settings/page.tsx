@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Loader2, User } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import LockedInput from '@/components/profile/LockedInput'; // Zorg dat dit pad klopt
+import LockedInput from '@/components/profile/LockedInput';
 import { getLevel } from '@/lib/levelSystem';
 
 export default function SettingsPage() {
@@ -14,13 +14,13 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
   const [level, setLevel] = useState(1);
   
-  // Formulier velden
   const [formData, setFormData] = useState({
     full_name: '',
     province: '',
-    bio: '',        // Unlock op Lvl 5
-    website: '',    // Unlock op Lvl 10
-    top_artists: '' // Unlock op Lvl 15
+    bio: '',         // Unlock Lvl 5
+    website: '',     // Unlock Lvl 10
+    top_artists: '', // Unlock Lvl 14
+    header_url: ''   // Unlock Lvl 25
   });
 
   const supabase = createClient();
@@ -40,10 +40,10 @@ export default function SettingsPage() {
             province: profile.province || '',
             bio: profile.bio || '',
             website: profile.website || '',
-            top_artists: profile.top_artists || ''
+            top_artists: profile.top_artists || '',
+            header_url: profile.header_url || ''
         });
         
-        // Bereken level voor de locks
         const { level: userLevel } = getLevel(profile.xp || 0);
         setLevel(userLevel);
       }
@@ -61,7 +61,7 @@ export default function SettingsPage() {
             .eq('user_id', user.id);
 
         if (error) throw error;
-        alert('Profiel bijgewerkt!');
+        alert('Profiel succesvol bijgewerkt!');
         router.push('/profile');
         router.refresh();
     } catch (error: any) {
@@ -71,7 +71,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">Laden...</div>;
+  if (loading) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">Instellingen laden...</div>;
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
@@ -82,11 +82,11 @@ export default function SettingsPage() {
         </Link>
 
         <h1 className="text-3xl font-serif font-bold mb-2">Instellingen</h1>
-        <p className="text-gray-400 mb-8">Beheer je zichtbaarheid en gegevens.</p>
+        <p className="text-gray-400 mb-8">Speel meer velden vrij door XP te verdienen.</p>
 
         <div className="bg-midnight-900 border border-white/10 p-8 rounded-2xl shadow-xl">
             
-            {/* BASIS (ALTIJD BESCHIKBAAR) */}
+            {/* BASIS VELDEN (Altijd beschikbaar) */}
             <div className="mb-6">
                 <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Naam</label>
                 <input 
@@ -109,21 +109,21 @@ export default function SettingsPage() {
                     <option value="Noord-Holland">Noord-Holland</option>
                     <option value="Zuid-Holland">Zuid-Holland</option>
                     <option value="Utrecht">Utrecht</option>
-                    <option value="Flevoland">Flevoland</option>
                     <option value="Gelderland">Gelderland</option>
                     <option value="Overijssel">Overijssel</option>
                     <option value="Drenthe">Drenthe</option>
                     <option value="Groningen">Groningen</option>
                     <option value="Friesland">Friesland</option>
-                    <option value="Noord-Brabant">Noord-Brabant</option>
                     <option value="Limburg">Limburg</option>
+                    <option value="Noord-Brabant">Noord-Brabant</option>
                     <option value="Zeeland">Zeeland</option>
+                    <option value="Flevoland">Flevoland</option>
                 </select>
             </div>
 
             <hr className="border-white/10 my-8"/>
 
-            {/* UNLOCKABLES (IDENTITY HACK) */}
+            {/* UNLOCKED VELDEN (Gamification) */}
             
             <LockedInput level={level} requiredLevel={5} label="Biografie">
                 <textarea 
@@ -144,7 +144,7 @@ export default function SettingsPage() {
                 />
             </LockedInput>
 
-            <LockedInput level={level} requiredLevel={15} label="Top 3 Kunstenaars">
+            <LockedInput level={level} requiredLevel={14} label="Top 3 Kunstenaars">
                 <input 
                     type="text" 
                     value={formData.top_artists}
@@ -154,12 +154,23 @@ export default function SettingsPage() {
                 />
             </LockedInput>
 
+            <LockedInput level={level} requiredLevel={25} label="Header Afbeelding (URL)">
+                <input 
+                    type="text" 
+                    value={formData.header_url}
+                    onChange={(e) => setFormData({...formData, header_url: e.target.value})}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold focus:outline-none"
+                    placeholder="https://mijn-plaatje.nl/banner.jpg"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Plak een link naar een afbeelding.</p>
+            </LockedInput>
+
             <button 
                 onClick={handleSave} 
                 disabled={saving}
-                className="w-full bg-museum-gold text-black font-bold py-4 rounded-xl mt-4 hover:bg-white transition-colors flex justify-center items-center gap-2"
+                className="w-full bg-museum-gold text-black font-bold py-4 rounded-xl mt-6 hover:bg-white transition-colors flex justify-center items-center gap-2"
             >
-                {saving ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Opslaan</>}
+                {saving ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Profiel Opslaan</>}
             </button>
 
         </div>
