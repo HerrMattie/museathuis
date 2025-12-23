@@ -17,6 +17,27 @@ export const BADGE_IDS = {
   GRIEZELIG: '925f79d4-8918-4d48-baff-1afb94cfb70f',       // 31 Okt (Halloween)
   BLAUWE_MAANDAG: '36265e41-3062-4fbc-9180-b64312a5fcbc',  // 3e maandag Jan
 
+  // --- CONTENT: ARTIKELEN (FOCUS) ---
+  BOEKENWURM: '62e076d8-8a05-4cb8-919b-1032ef375c80',     // 3 artikelen
+  BIBLIOTHECARIS: '1ee27677-9122-480f-954b-d5e428cdf5f1', // 20 artikelen
+  DIEPGRAVER: '137d6910-6633-4a11-84af-98ae1f0dc953',     // > 2000 woorden
+  SCANNER: 'e27c4224-6877-4b5c-90af-e6a2cce76286',        // < 5 seconden (Grapje)
+  VERF_DROOGT: '18364089-4100-485c-85b5-759f825a55e8',    // > 10 minuten op pagina
+
+  // --- CONTENT: KUNST KIJKEN (TOURS) ---
+  EERSTE_BLIK: '3aa6c472-d58b-4c24-a01c-37e9acf038ce',    // 1e kunstwerk
+  NIEUWSGIERIG: 'a4593696-708c-4aa6-a4d0-8ce30385ee2f',   // 10 kunstwerken
+  KUNSTLIEFHEBBER: '6c4a4d61-eaa0-423d-81a7-b89dbcb934de',// 50 kunstwerken
+  MUSEUMKAART: '3ac3a051-d2f2-4f5b-81f5-187efd4eacc1',    // 100 kunstwerken
+  CURATOR: '4f107dde-30f2-4ab0-87a8-5809b72fd1ab',        // 500 kunstwerken
+  LEVEND_INVENTARIS: '2501da20-79ad-4096-bc9e-3ac271e9bc75', // 1000 kunstwerken
+
+  // --- CONTENT: GENRES ---
+  HOLLANDSE_GLORIE: 'c4b5e924-7c26-4651-889a-ca95647e5952', // 5x Rembrandt/Vermeer
+  DIERENVRIEND: 'e4289477-7963-42d5-b90d-dc8c65a89bf7',     // 10x Dieren
+  LANDSCHAPSARCHITECT: 'e6165de7-8936-4c80-b030-fb8d16c43997', // 10x Landschap
+  MONOCHROOM: 'b312cf87-3cfe-4250-a3af-af9f31de13c2',       // 5x Zwart-wit
+};
   // --- STREAKS ---
   DE_KOP_IS_ERAF: '61a92d96-932b-4183-988c-d64052b5abfa',  // 3 dagen
   WEEK_WINNAAR: 'c80ebaa6-f20d-47c1-a9c1-aae016c89356',    // 7 dagen
