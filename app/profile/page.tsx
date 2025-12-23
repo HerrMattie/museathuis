@@ -12,9 +12,6 @@ import {
 import { getLevel } from '@/lib/levelSystem';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PolarRadiusAxis } from 'recharts';
 
-// 1. IMPORT DE DEBUGGER
-import GamificationDebugger from '@/components/gamification/GamificationDebugger';
-
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -55,30 +52,6 @@ export default function ProfilePage() {
 
     getData();
   }, []);
-
-  // --- BUTTON HANDLER (Voor de grote rode knop) ---
-  const handleTestLevelUp = async () => {
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        console.log("Sending XP update for user:", user.id);
-
-        const { error } = await supabase.rpc('increment_xp', { 
-            amount: 2000, 
-            user_id_param: user.id 
-        });
-        
-        if (error) {
-            console.error("Error updating XP:", error);
-            alert(`Error: ${error.message}`);
-        } else {
-            console.log("XP Update successfully sent!");
-        }
-    } catch (e) {
-        console.error("Unexpected error:", e);
-    }
-  };
 
   if (loading) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-museum-gold">Profiel laden...</div>;
 
@@ -121,18 +94,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-4xl mx-auto">
-
-        {/* 2. HIER STAAT DE DEBUGGER (Zwart venster rechtsonder) */}
-        <GamificationDebugger />
-
-        {/* --- TEST BUTTON (Rode knop linksonder) --- */}
-        <button 
-            onClick={handleTestLevelUp}
-            className="fixed bottom-4 left-4 z-50 bg-red-600 text-white px-4 py-2 rounded-full font-bold shadow-xl hover:bg-red-700 transition-colors"
-        >
-            TEST LEVEL UP 🚀
-        </button>
-
+          
         {/* HEADER KAART */}
         <div className="bg-gradient-to-r from-midnight-900 to-black border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
@@ -183,7 +145,7 @@ export default function ProfilePage() {
             </div>
         </div>
 
-        {/* --- KUNST DNA (LEVEL 16 UNLOCK) --- */}
+        {/* --- KUNST DNA --- */}
         {level >= 16 ? (
             <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden">
                 <div className="flex flex-col md:flex-row gap-8 items-center">
