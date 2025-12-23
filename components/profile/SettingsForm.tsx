@@ -30,9 +30,10 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
       return [];
   };
 
-  // --- STATE MANAGMENT (Alle velden uit je DB) ---
+  // --- STATE MANAGMENT ---
   
   // 1. Persoonlijk
+  // LET OP: 'role' is hier verwijderd omdat je die niet meer wilde
   const [fullName, setFullName] = useState(initialData?.full_name || initialData?.display_name || '');
   const [gender, setGender] = useState(initialData?.gender || '');
   const [ageGroup, setAgeGroup] = useState(initialData?.age_group || '');
@@ -60,12 +61,13 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
   const [favPeriods, setFavPeriods] = useState<string[]>(parseArray(initialData?.favorite_periods));
   const [topInterests, setTopInterests] = useState<string[]>(parseArray(initialData?.top_interests));
   const [preferredThemes, setPreferredThemes] = useState<string[]>(parseArray(initialData?.preferred_themes));
-  // Favoriete musea is vaak vrije invoer, we simuleren hier even een array of comma-string
   const [favMuseums, setFavMuseums] = useState<string[]>(parseArray(initialData?.favorite_museums));
 
   // 4. Tech & Gebruik
   const [primaryDevice, setPrimaryDevice] = useState(initialData?.primary_device || 'Mobiel');
   const [usesCasting, setUsesCasting] = useState<boolean>(initialData?.uses_casting === true);
+  const [minutesPerDay, setMinutesPerDay] = useState(initialData?.minutes_per_day || 15);
+  const [dataConsent, setDataConsent] = useState<boolean>(initialData?.data_consent === true);
 
 
   // --- HANDLERS ---
@@ -86,7 +88,7 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             // Persoonlijk
             full_name: fullName,
             display_name: fullName,
-            role: role,
+            // role: role,  <-- DEZE REGEL VEROORZAAKTE DE FOUT, NU VERWIJDERD
             gender: gender,
             age_group: ageGroup,
             province: province,
@@ -103,7 +105,7 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
             art_interest_level: artLevel,
             museum_types: museumTypes,
             
-            // Lidmaatschappen (Correcte array structuur)
+            // Lidmaatschappen
             museum_cards: cardsArray,
             memberships: cardsArray,
             has_museum_card: hasMuseumCard,
@@ -160,10 +162,10 @@ export default function SettingsForm({ user, initialData }: { user: any, initial
         {activeTab === 'persoonlijk' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
              <div className="md:col-span-2 border-b border-white/10 pb-4 mb-2">
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Naam & Titel</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Naam</label>
+                <div className="grid grid-cols-1 gap-4">
                     <input type="text" placeholder="Je naam" value={fullName} onChange={(e) => setFullName(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none"/>
-                    <input type="text" placeholder="Bijv. Kunstliefhebber / Student" value={role} onChange={(e) => setRole(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:border-museum-gold outline-none"/>
+                    {/* HIER STOND HET VELD VOOR ROLE, NU VERWIJDERD */}
                 </div>
              </div>
 
