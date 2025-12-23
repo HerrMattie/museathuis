@@ -1,74 +1,50 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Moon, Sun, Lock } from 'lucide-react';
-import { PERMISSIONS } from '@/lib/permissions';
-import { createClient } from '@/lib/supabaseClient';
-import { getLevel } from '@/lib/levelSystem';
+import { useEffect, useState } from 'react';
+import { Moon, Sun } from 'lucide-react';
 
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(true);
-  const [canToggle, setCanToggle] = useState(false);
-  const [userLevel, setUserLevel] = useState(1); // Houden we bij voor de melding
-  const supabase = createClient();
 
   useEffect(() => {
-    const checkAccess = async () => {
-       const { data: { user } } = await supabase.auth.getUser();
-       if (user) {
-           const { data: profile } = await supabase.from('user_profiles').select('xp, is_premium').eq('user_id', user.id).single();
-           if (profile) {
-               const { level } = getLevel(profile.xp || 0);
-               setUserLevel(level);
-               setCanToggle(PERMISSIONS.canUseDarkMode(level, profile.is_premium || false));
-           }
-       }
-    };
-    checkAccess();
-
+    // 1. Check bij laden wat de instelling is
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-        setIsDark(false);
-        document.documentElement.classList.add('light-mode');
+    
+    // Als er 'dark' is opgeslagen OF als er niks is opgeslagen (default dark)
+    if (savedTheme === 'dark' || (!savedTheme)) {
+      setIsDark(true);
+      document.documentElement.classList.add('dark');
+    } else {
+      setIsDark(false);
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
   const toggleTheme = () => {
-      // HARDE FEEDBACK ALS HET NIET MAG
-      if (!canToggle) {
-          alert(`⛔️ Functie vergrendeld!\n\nJe bent nu Level ${userLevel}. Bereik Level 18 (Estheet) om de Nachtwacht Modus te ontgrendelen.`);
-          return;
-      }
-      
-      if (isDark) {
-          document.documentElement.classList.add('light-mode');
-          localStorage.setItem('theme', 'light');
-          setIsDark(false);
-      } else {
-          document.documentElement.classList.remove('light-mode');
-          localStorage.setItem('theme', 'dark');
-          setIsDark(true);
-      }
+    if (isDark) {
+      // Switch naar Licht
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      setIsDark(false);
+    } else {
+      // Switch naar Donker
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      setIsDark(true);
+    }
   };
 
   return (
-    <div className="relative group">
-        <button 
-            onClick={toggleTheme}
-            className={`p-2 rounded-full border transition-all duration-300 relative ${
-                canToggle 
-                ? 'bg-white/5 border-white/10 hover:bg-white/10 text-museum-gold hover:scale-110' 
-                : 'bg-black/40 border-white/5 text-gray-700 cursor-not-allowed opacity-70'
-            }`}
-        >
-            {isDark ? <Moon size={20}/> : <Sun size={20}/>}
-            
-            {!canToggle && (
-                <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg border border-black animate-pulse">
-                    <Lock size={10} strokeWidth={3}/>
-                </div>
-            )}
-        </button>
-    </div>
+    <button
+      onClick={toggleTheme}
+      className="p-2 rounded-full border border-white/10 bg-white/5 hover:bg-museum-gold hover:text-black transition-all duration-300 group"
+      title={isDark ? "Wissel naar lichte modus" : "Wissel naar donkere modus"}
+    >
+      {isDark ? (
+        <Sun size={20} className="group-hover:rotate-90 transition-transform duration-500" />
+      ) : (
+        <Moon size={20} className="group-hover:-rotate-12 transition-transform duration-500" />
+      )}
+    </button>
   );
 }
