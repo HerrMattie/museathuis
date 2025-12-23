@@ -203,7 +203,7 @@ export default function PricingPage() {
                 <CalendarClock size={16}/> Flexibel
             </div>
             <h3 className="text-2xl font-bold mb-2">1 Maand Pas</h3>
-            <div className="text-4xl font-bold mb-6 text-white">€10,00</div>
+            <div className="text-4xl font-bold mb-6 text-white">€9,95</div>
             <div className="text-sm text-gray-400 mb-6">eenmalig / 30 dagen</div>
 
             <p className="text-gray-400 mb-8 text-sm min-h-[40px]">
