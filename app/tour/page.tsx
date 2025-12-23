@@ -12,7 +12,7 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. HAAL CRM TEKSTEN OP
+  // 1. CRM TEKSTEN
   const { data: content } = await supabase
     .from('site_content')
     .select('*')
@@ -30,10 +30,9 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
   const { level } = getLevel(xp);
   const access = getHistoryAccess(level);
 
-  // 3. TOURS OPHALEN VIA PLANNING (Strict Mode)
+  // 3. TOURS OPHALEN
   let dailyTours: any[] = [];
   
-  // Haal planning op voor deze datum
   const { data: schedule } = await supabase
       .from('dayprogram_schedule')
       .select('tour_ids')
@@ -49,8 +48,6 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
       
       if (data) dailyTours = data;
   } 
-  // OPMERKING: Als er GEEN planning is, blijft dailyTours leeg. 
-  // We vallen NIET meer terug op willekeurige items.
 
   // Sorteer: Gratis item op plek 1
   if (dailyTours.length > 0) {
@@ -91,16 +88,41 @@ export default async function TourPage({ searchParams }: { searchParams: { date?
                     const isContentPremium = isPremiumSlot || tour.is_premium;
                     const isLocked = isContentPremium && !user;
 
+                    // --- AFBEELDING LOGICA ---
+                    // 1. Probeer de hero image van de tour zelf
+                    let imgUrl = tour.hero_image_url;
+
+                    // 2. Geen hero image? Kijk of er stops zijn en pak de eerste afbeelding daarvan
+                    if (!imgUrl && tour.stops_data?.stops && tour.stops_data.stops.length > 0) {
+                        // Zoek de eerste stop die een image_url heeft
+                        const firstStopWithImage = tour.stops_data.stops.find((stop: any) => stop.image_url);
+                        if (firstStopWithImage) {
+                            imgUrl = firstStopWithImage.image_url;
+                        }
+                    }
+
+                    // 3. Optimalisatie (Unsplash parameters voor sneller laden)
+                    if (imgUrl && imgUrl.includes('images.unsplash.com')) {
+                        imgUrl = `${imgUrl.split('?')[0]}?w=600&q=60&fm=webp&fit=crop`;
+                    }
+
                     return (
                         <Link key={tour.id} href={isLocked ? '/pricing' : `/tour/${tour.id}`} className="group bg-midnight-900 border border-white/10 rounded-2xl overflow-hidden hover:border-museum-gold/40 transition-all hover:-translate-y-2 hover:shadow-2xl flex flex-col h-full">
                             <div className="h-64 relative overflow-hidden bg-black group-hover:opacity-90 transition-opacity">
-                                {/* Afbeelding */}
-                                {tour.hero_image_url ? (
-                                    <img src={tour.hero_image_url} className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale' : ''}`} />
+                                
+                                {/* DE AFBEELDING */}
+                                {imgUrl ? (
+                                    <img 
+                                        src={imgUrl} 
+                                        alt={tour.title} 
+                                        className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${isLocked ? 'grayscale opacity-60' : ''}`} 
+                                    />
                                 ) : (
+                                    // Fallback icoon als er écht geen plaatje is
                                     <div className="w-full h-full flex items-center justify-center bg-white/5"><Headphones size={48} className="opacity-20"/></div>
                                 )}
                                 
+                                {/* Play Overlay (alleen als niet locked) */}
                                 {!isLocked && (
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
                                         <PlayCircle size={48} className="text-museum-gold drop-shadow-md" />
