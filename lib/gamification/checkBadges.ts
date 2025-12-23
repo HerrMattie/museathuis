@@ -71,3 +71,41 @@ export async function checkTimeBadge(supabase: SupabaseClient, userId: string, m
         await awardBadge(supabase, userId, BADGE_IDS.VERF_DROOGT);
     }
 }
+
+// 4. CHECK VOOR FEEDBACK (Wordt aangeroepen na stemmen)
+export async function checkFeedbackBadges(supabase: SupabaseClient, userId: string, rating: number) {
+  // A. Directe checks
+  await awardBadge(supabase, userId, BADGE_IDS.RECENSENT); // Je eerste review!
+  
+  if (rating === 5) await awardBadge(supabase, userId, BADGE_IDS.FANBOY);
+  if (rating === 1) await awardBadge(supabase, userId, BADGE_IDS.KRITISCHE_NOOT);
+
+  // B. Check Totaal Aantal (Feedback Koning)
+  const { count } = await supabase
+    .from('user_activity_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('action_type', 'submit_feedback'); // Zorg dat je dit trackt in tracking.ts!
+
+  if ((count || 0) + 1 === 10) await awardBadge(supabase, userId, BADGE_IDS.FEEDBACK_KONING);
+}
+
+// 5. CHECK VOOR DELEN
+export async function checkShareBadge(supabase: SupabaseClient, userId: string) {
+    await awardBadge(supabase, userId, BADGE_IDS.INFLUENCER);
+    
+    // Optioneel: Viral Gaan (10x delen)
+    // const { count } ... etc
+}
+
+// 6. CHECK VOOR PAGINA BEZOEK (404, About)
+export async function checkPageVisitBadge(supabase: SupabaseClient, userId: string, pageType: '404' | 'about') {
+    if (pageType === '404') await awardBadge(supabase, userId, BADGE_IDS.VERDWAALD);
+    if (pageType === 'about') await awardBadge(supabase, userId, BADGE_IDS.SUPPORTER);
+}
+
+// 7. CHECK VOOR PROFIEL (Avatar upload)
+export async function checkProfileBadges(supabase: SupabaseClient, userId: string, action: 'avatar' | 'settings') {
+    if (action === 'avatar') await awardBadge(supabase, userId, BADGE_IDS.PROFIEL_PLAATJE);
+    if (action === 'settings') await awardBadge(supabase, userId, BADGE_IDS.INSTELLINGEN_GURU);
+}
