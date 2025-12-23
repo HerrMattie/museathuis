@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // 1. DIT IS DE BELANGRIJKSTE REGEL DIE MISTE:
+  // 1. ZORG DAT DEZE REGEL HIER STAAT:
   darkMode: ["class"], 
   
   content: [
@@ -17,7 +17,7 @@ module.exports = {
       colors: {
         'midnight': {
           900: '#0f172a',
-          950: '#020617',
+          950: '#020617', // Jouw donkerblauw
         },
         'museum-gold': '#d4af37',
       },
