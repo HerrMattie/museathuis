@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, MapPin, User, Ticket, Crown } from 'lucide-react';
+import { Settings, Heart, Award, LogOut, Flame, LayoutDashboard, Palette, CalendarClock, User, Crown } from 'lucide-react';
 import { getLevel } from '@/lib/levelSystem';
 
 export const revalidate = 0;
@@ -34,20 +34,12 @@ export default async function ProfilePage() {
     ? new Date(profile.premium_until).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
 
-  // Helper voor Museumkaart weergave
-  let museumCardText = "Geen";
-  if (profile?.has_museum_card) {
-      museumCardText = "Ja";
-      try {
-          if (profile.museum_cards && typeof profile.museum_cards === 'string') {
-             const parsed = JSON.parse(profile.museum_cards);
-             if (Array.isArray(parsed) && parsed.length > 0) museumCardText = parsed.join(', ');
-          } else if (Array.isArray(profile.museum_cards)) {
-             museumCardText = profile.museum_cards.join(', ');
-          }
-      } catch (e) {
-          museumCardText = "Museumkaart";
-      }
+  const joinDate = new Date(profile?.created_at).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+
+  // Favoriete Stijl bepalen (eerste uit de lijst of fallback)
+  let favoriteStyle = "Nog onbekend";
+  if (profile?.favorite_periods && Array.isArray(profile.favorite_periods) && profile.favorite_periods.length > 0) {
+      favoriteStyle = profile.favorite_periods[0];
   }
 
   return (
@@ -114,26 +106,19 @@ export default async function ProfilePage() {
             </div>
         </div>
 
-        {/* PERSOONLIJKE GEGEVENS & STATUS */}
+        {/* PERSOONLIJKE GEGEVENS & STATUS - AANGEPAST */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {/* Box 1: Provincie */}
-            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><MapPin size={14}/> Provincie</div>
-                <div className="text-white font-bold truncate">{profile?.province || 'Onbekend'}</div>
-            </div>
-
-            {/* Box 2: PREMIUM STATUS (Vervangt Leeftijd) */}
+            
+            {/* Box 1: PREMIUM STATUS */}
             <div className={`p-4 rounded-xl border relative overflow-hidden ${isPremium ? 'bg-museum-gold/10 border-museum-gold/30' : 'bg-white/5 border-white/5'}`}>
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
                     {isPremium ? <Crown size={14} className="text-museum-gold"/> : <User size={14}/>} 
                     Status
                 </div>
-                <div className={`font-bold ${isPremium ? 'text-museum-gold' : 'text-white'}`}>
+                <div className={`font-bold truncate ${isPremium ? 'text-museum-gold' : 'text-white'}`}>
                     {isPremium ? 'Mecenas' : 'Liefhebber'}
                 </div>
-                
-                {/* Subtekst: Datum of Upgrade Link */}
-                <div className="text-[10px] mt-1">
+                <div className="text-[10px] mt-1 truncate">
                     {isPremium ? (
                         <span className="text-gray-400">Tot {premiumDate}</span>
                     ) : (
@@ -142,16 +127,24 @@ export default async function ProfilePage() {
                 </div>
             </div>
 
-            {/* Box 3: Museumkaart */}
+            {/* Box 2: FAVORIETE STIJL (Nieuw) */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
-                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Ticket size={14}/> Museumkaart</div>
-                <div className="text-white font-bold truncate" title={museumCardText}>{museumCardText}</div>
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
+                    <Palette size={14}/> Favoriete Stijl
+                </div>
+                <div className="text-white font-bold truncate">{favoriteStyle}</div>
             </div>
 
-            {/* Box 4: Badges */}
+            {/* Box 3: BADGES */}
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><Award size={14}/> Badges</div>
                 <div className="text-white font-bold">{badgeCount} Behaald</div>
+            </div>
+
+            {/* Box 4: LID SINDS (Nieuw) */}
+            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1"><CalendarClock size={14}/> Lid Sinds</div>
+                <div className="text-white font-bold truncate">{joinDate}</div>
             </div>
         </div>
 
