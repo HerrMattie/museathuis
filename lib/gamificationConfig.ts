@@ -3,7 +3,7 @@ import {
     User, Search, Eye, BookOpen, Heart, GraduationCap, 
     Flame, Map, Palette, Camera, Clock, BarChart3, 
     Filter, Coffee, Crown, Share2, Sparkles, PenTool, 
-    History, Award, Gem, Gift, Ticket, Globe, Star, Zap
+    History, Award, Gem, Gift, Ticket, Globe, Star, Zap, MessageCircle
 } from 'lucide-react';
 
 export const LEVELS = [
@@ -20,7 +20,7 @@ export const LEVELS = [
         level: 2, 
         min_xp: 150, 
         title: "Kenniszoeker", 
-        reward: "+5 extra favorieten opslaan", // Technisch: limiet verhogen of symboolpolitiek
+        reward: "+5 extra favorieten opslaan",
         description: "Je begint je eigen smaak te ontdekken.",
         icon: Search
     },
@@ -68,7 +68,7 @@ export const LEVELS = [
         level: 8, 
         min_xp: 2100, 
         title: "Verdieper", 
-        reward: "Compacte lijstweergave in collecties", // UI Tweak
+        reward: "Compacte lijstweergave in collecties",
         description: "Je houdt van overzicht.",
         icon: BookOpen
     },
@@ -182,7 +182,7 @@ export const LEVELS = [
         title: "Salonstarter", 
         reward: "Badge: 'Gespreksstarter'",
         description: "Je initieert de dialoog.",
-        icon: MessageCircle // Of Camera/Coffee
+        icon: MessageCircle 
     },
     { 
         level: 25, 
@@ -249,6 +249,3 @@ export const LEVELS = [
         icon: Gem
     }
 ];
-
-// Even een fallback icoon fixen voor MessageCircle als die niet in de import stond
-function MessageCircle(props:any) { return <Coffee {...props} /> }
