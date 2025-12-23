@@ -12,6 +12,9 @@ import {
 import { getLevel } from '@/lib/levelSystem';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PolarRadiusAxis } from 'recharts';
 
+// 1. IMPORT DE DEBUGGER
+import GamificationDebugger from '@/components/gamification/GamificationDebugger';
+
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -35,7 +38,7 @@ export default function ProfilePage() {
       setProfile(userProfile);
       setStats({ favCount: favCount || 0, badgeCount: badgeCount || 0 });
 
-      // Haal gemiddelden op (fallback waarden als er weinig users zijn)
+      // Haal gemiddelden op
       const { data: allProfiles } = await supabase.from('user_profiles').select('xp, current_streak').limit(50);
       
       if (allProfiles && allProfiles.length > 0) {
@@ -53,7 +56,7 @@ export default function ProfilePage() {
     getData();
   }, []);
 
-  // --- BUTTON HANDLER ---
+  // --- BUTTON HANDLER (Voor de grote rode knop) ---
   const handleTestLevelUp = async () => {
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -68,11 +71,9 @@ export default function ProfilePage() {
         
         if (error) {
             console.error("Error updating XP:", error);
-            alert(`Error: ${error.message}`); // Show visible error
+            alert(`Error: ${error.message}`);
         } else {
             console.log("XP Update successfully sent!");
-            // Optionally refresh local state to see change immediately
-            // window.location.reload(); 
         }
     } catch (e) {
         console.error("Unexpected error:", e);
@@ -103,7 +104,6 @@ export default function ProfilePage() {
 
   // --- GRAFIEK LOGICA ---
   const avgXP = averages?.xp || 500;
-  
   const radarData = [
     { subject: 'Ervaring', A: Math.min((xp / 10000) * 100, 100), fullMark: 100 }, 
     { subject: 'Collectie', A: Math.min((stats.favCount / 50) * 100, 100), fullMark: 100 }, 
@@ -122,7 +122,10 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-4xl mx-auto">
 
-        {/* --- TEST BUTTON --- */}
+        {/* 2. HIER STAAT DE DEBUGGER (Zwart venster rechtsonder) */}
+        <GamificationDebugger />
+
+        {/* --- TEST BUTTON (Rode knop linksonder) --- */}
         <button 
             onClick={handleTestLevelUp}
             className="fixed bottom-4 left-4 z-50 bg-red-600 text-white px-4 py-2 rounded-full font-bold shadow-xl hover:bg-red-700 transition-colors"
