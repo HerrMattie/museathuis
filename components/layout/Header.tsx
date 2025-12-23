@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { 
   Menu, X, User, 
-  Home, Compass, Gamepad2, BookOpen, Coffee, GraduationCap, Star 
+  Home, Compass, Gamepad2, BookOpen, Coffee, Star 
 } from 'lucide-react';
+import ThemeToggle from './ThemeToggle'; // <--- Zorg dat je dit bestand hebt aangemaakt
 
-// We voegen hier de iconen toe aan de configuratie
 const navItems = [
   { label: 'Tour', href: '/tour', icon: Compass },
   { label: 'Game', href: '/game', icon: Gamepad2 },
@@ -22,14 +22,12 @@ export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // Detecteer scrollen voor extra "subtiele arcering" effect
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Scroll lock voor mobiel menu
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -50,7 +48,7 @@ export default function Header() {
       >
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           
-          {/* LOGO (Stijlvol & Elegant) */}
+          {/* LOGO */}
           <Link href="/" className="flex items-center gap-3 group z-[70]" onClick={() => setIsOpen(false)}>
             <div className="w-10 h-10 bg-museum-gold rounded-sm flex items-center justify-center text-black font-serif font-bold text-xl shadow-[0_0_15px_rgba(212,175,55,0.3)] group-hover:scale-105 transition-transform">
               M
@@ -60,7 +58,7 @@ export default function Header() {
             </span>
           </Link>
 
-          {/* DESKTOP NAVIGATIE (Met Icoontjes!) */}
+          {/* DESKTOP NAVIGATIE */}
           <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-full px-2 py-1 border border-white/5 backdrop-blur-sm">
             {navItems.map((item) => {
               const isActive = pathname === item.href;
@@ -83,8 +81,14 @@ export default function Header() {
             })}
           </nav>
 
-          {/* RECHTS: PROFIEL & MOBIEL KNOP */}
+          {/* RECHTS: TOOLS & PROFIEL */}
           <div className="flex items-center gap-4 z-[70]">
+              
+              {/* DE NIEUWE THEME TOGGLE (Level 18) */}
+              <div className="hidden md:block">
+                  <ThemeToggle />
+              </div>
+
               <Link 
                 href="/profile" 
                 className="hidden md:flex w-10 h-10 rounded-full border border-white/10 bg-white/5 items-center justify-center hover:bg-museum-gold hover:text-black hover:border-museum-gold transition-all duration-300"
@@ -103,13 +107,12 @@ export default function Header() {
         </div>
       </header>
 
-      {/* MOBIEL MENU OVERLAY (Volledig scherm, blijft werken) */}
+      {/* MOBIEL MENU OVERLAY */}
       <div 
         className={`fixed inset-0 z-[50] bg-midnight-950 flex flex-col justify-center px-8 transition-all duration-500 ease-in-out lg:hidden ${
           isOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
         }`}
       >
-          {/* Sfeervolle achtergrond gloed */}
           <div className="absolute top-1/4 right-0 w-80 h-80 bg-museum-gold/10 rounded-full blur-[100px]"></div>
           
           <nav className="flex flex-col gap-6 relative z-10 max-w-md mx-auto w-full">
@@ -123,7 +126,7 @@ export default function Header() {
                   href={item.href}
                   onClick={() => setIsOpen(false)}
                   className={`flex items-center gap-4 text-2xl font-serif font-bold transition-all duration-300 group ${
-                     isOpen ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'
+                      isOpen ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'
                   }`}
                   style={{ transitionDelay: `${index * 50}ms` }}
                 >
@@ -140,6 +143,8 @@ export default function Header() {
             })}
             
             <hr className="border-white/10 my-4" />
+            
+            {/* Mobiele Theme Toggle kan hier eventueel ook bij */}
             
             <Link 
               href="/profile" 
