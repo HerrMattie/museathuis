@@ -7,16 +7,17 @@ import Link from 'next/link';
 import { 
     Settings, Award, LogOut, Flame, LayoutDashboard, 
     Palette, CalendarClock, User, Crown, ChevronRight, 
-    Images, BarChart3, Share2, TrendingUp, Lock 
+    Images, BarChart3, TrendingUp, Lock 
 } from 'lucide-react';
-import { getLevel } from '@/lib/levelSystem';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PolarRadiusAxis } from 'recharts';
+// We halen getLevel nu uit de config file die we eerder samenvoegden
+import { getLevel } from '@/lib/gamificationConfig';
+// IMPORT VAN DE NIEUWE COMPONENT
+import ArtDNA from '@/components/profile/ArtDNA';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<any>({ favCount: 0, badgeCount: 0 });
-  const [averages, setAverages] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
   const supabase = createClient();
@@ -28,25 +29,13 @@ export default function ProfilePage() {
       if (!user) { router.push('/login'); return; }
       setUser(user);
 
+      // Haal profiel inclusief de 'art_dna' kolom op
       const { data: userProfile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
       const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
       const { count: badgeCount } = await supabase.from('user_badges').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
 
       setProfile(userProfile);
       setStats({ favCount: favCount || 0, badgeCount: badgeCount || 0 });
-
-      // Haal gemiddelden op
-      const { data: allProfiles } = await supabase.from('user_profiles').select('xp, current_streak').limit(50);
-      
-      if (allProfiles && allProfiles.length > 0) {
-          const totalXP = allProfiles.reduce((sum, p) => sum + (p.xp || 0), 0);
-          const totalStreak = allProfiles.reduce((sum, p) => sum + (p.current_streak || 0), 0);
-          setAverages({
-              xp: Math.round(totalXP / allProfiles.length),
-              streak: Math.round(totalStreak / allProfiles.length)
-          });
-      }
-
       setLoading(false);
     };
 
@@ -63,7 +52,8 @@ export default function ProfilePage() {
   const isAdmin = profile?.role === 'admin';
 
   const joinDate = new Date(profile?.created_at).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
-  const favoriteStyle = (profile?.favorite_periods && profile.favorite_periods[0]) || "Nog onbekend";
+  // Als er nog geen favoriete stijl is berekend, tonen we een placeholder
+  const favoriteStyle = (profile?.art_dna?.tijd > 60 ? "Modernisme" : "Klassiek") || "Nog onbekend";
 
   // --- AVATAR RAND LOGICA ---
   const getBorderClass = (lvl: number, premium: boolean) => {
@@ -75,22 +65,6 @@ export default function ProfilePage() {
       return "border-white/10";
   };
 
-  // --- GRAFIEK LOGICA ---
-  const avgXP = averages?.xp || 500;
-  const radarData = [
-    { subject: 'Ervaring', A: Math.min((xp / 10000) * 100, 100), fullMark: 100 }, 
-    { subject: 'Collectie', A: Math.min((stats.favCount / 50) * 100, 100), fullMark: 100 }, 
-    { subject: 'Loyaliteit', A: Math.min((profile.current_streak / 30) * 100, 100), fullMark: 100 }, 
-    { subject: 'Kennis', A: Math.min((level / 50) * 100, 100), fullMark: 100 }, 
-    { subject: 'Badges', A: Math.min((stats.badgeCount / 10) * 100, 100), fullMark: 100 }, 
-  ];
-
-  let persona = "De Ontdekker";
-  let personaDesc = "Je bent net begonnen aan je reis.";
-  if (xp > avgXP * 1.5) { persona = "De Kunstkenner"; personaDesc = "Je weet meer dan 80% van de gebruikers!"; }
-  if (profile.current_streak > 10) { persona = "De Volhouder"; personaDesc = "Jouw discipline is ongekend."; }
-  if (stats.favCount > 20) { persona = "De Verzamelaar"; personaDesc = "Je bouwt aan een eigen digitaal museum."; }
-
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-4xl mx-auto">
@@ -100,6 +74,7 @@ export default function ProfilePage() {
             <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
             
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                {/* Avatar */}
                 <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black border-4 shadow-lg shrink-0 overflow-hidden ${getBorderClass(level, isPremium)} bg-midnight-900`}>
                     {profile?.avatar_url ? (
                         <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -108,6 +83,7 @@ export default function ProfilePage() {
                     )}
                 </div>
 
+                {/* Info */}
                 <div className="flex-1 text-center md:text-left w-full">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
                         <div className="flex items-center justify-center md:justify-start gap-2">
@@ -128,6 +104,7 @@ export default function ProfilePage() {
                         <span className="text-museum-gold/80 text-sm font-serif italic">{levelTitle}</span>
                     </div>
 
+                    {/* XP Bar */}
                     <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden relative">
                         <div className="absolute top-0 left-0 h-full bg-museum-gold transition-all duration-1000" style={{ width: `${progress}%` }}></div>
                     </div>
@@ -137,6 +114,7 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
+                {/* Streak */}
                 <div className="flex flex-col items-center bg-white/5 p-4 rounded-2xl border border-white/5 backdrop-blur-sm min-w-[100px]">
                     <Flame className={profile?.current_streak > 0 ? "text-orange-500 fill-orange-500" : "text-gray-600"} size={32} />
                     <span className="text-2xl font-bold mt-2">{profile?.current_streak || 0}</span>
@@ -145,55 +123,28 @@ export default function ProfilePage() {
             </div>
         </div>
 
-        {/* --- KUNST DNA --- */}
-        {level >= 16 ? (
-            <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden">
-                <div className="flex flex-col md:flex-row gap-8 items-center">
-                    <div className="flex-1 space-y-4 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-purple-300">
-                            <BarChart3 size={14}/> Jouw Kunst DNA
-                        </div>
-                        <div>
-                            <h2 className="text-3xl font-bold text-white mb-1">{persona}</h2>
-                            <p className="text-purple-200">{personaDesc}</p>
-                        </div>
-                        
-                        <div className="bg-black/20 rounded-xl p-4">
-                             <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                <span>Ervaring vs Gemiddeld</span>
-                                <span className={xp > avgXP ? "text-green-400" : "text-gray-400"}>{xp > avgXP ? "Boven" : "Onder"}</span>
-                            </div>
-                            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                                <div className="h-full bg-purple-400" style={{ width: `${Math.min((xp / (avgXP * 1.5)) * 100, 100)}%` }} />
-                            </div>
-                        </div>
-
-                        <button className="text-xs flex items-center gap-2 text-purple-300 hover:text-white transition-colors mx-auto md:mx-0">
-                            <Share2 size={14}/> Deel profiel
-                        </button>
+        {/* --- KUNST DNA SECTIE (VERNIEUWD) --- */}
+        {/* We tonen het DNA altijd, of met een slotje als het level te laag is */}
+        <div className="mb-8">
+            {level >= 16 ? (
+                <>
+                    <div className="flex items-center gap-2 mb-4 px-2">
+                        <BarChart3 className="text-museum-gold" size={20}/>
+                        <h2 className="text-xl font-bold text-white">Jouw Kunst DNA</h2>
                     </div>
-
-                    <div className="w-full md:w-1/3 h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                                <PolarGrid stroke="#ffffff20" />
-                                <PolarAngleAxis dataKey="subject" tick={{ fill: '#a5b4fc', fontSize: 10 }} />
-                                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                                <Radar name="Jij" dataKey="A" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.6} />
-                            </RadarChart>
-                        </ResponsiveContainer>
+                    {/* Hier laden we de mooie nieuwe component in! */}
+                    <ArtDNA stats={profile?.art_dna} />
+                </>
+            ) : (
+                <div className="bg-white/5 border border-white/5 rounded-3xl p-8 text-center opacity-50 relative overflow-hidden group">
+                    <div className="mx-auto w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4 text-gray-400 group-hover:scale-110 transition-transform">
+                        <Lock size={24}/>
                     </div>
+                    <h3 className="font-bold text-xl text-gray-300 mb-1">Kunst DNA Analyse</h3>
+                    <p className="text-sm text-gray-500">Wordt ontgrendeld op <strong>Level 16</strong></p>
                 </div>
-            </div>
-        ) : (
-             <div className="bg-white/5 border border-white/5 rounded-3xl p-6 mb-8 text-center opacity-50 relative overflow-hidden">
-                <div className="mx-auto w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-2 text-gray-400">
-                    <Lock size={20}/>
-                </div>
-                <h3 className="font-bold text-gray-300">Kunst DNA</h3>
-                <p className="text-xs text-gray-500">Beschikbaar vanaf Level 16</p>
-            </div>
-        )}
+            )}
+        </div>
 
         {/* STATUS BOXEN */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -215,7 +166,7 @@ export default function ProfilePage() {
 
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                 <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold mb-1">
-                    <Palette size={14}/> Favoriete Stijl
+                    <Palette size={14}/> Stijlvoorkeur
                 </div>
                 <div className="text-white font-bold truncate">{favoriteStyle}</div>
             </div>
