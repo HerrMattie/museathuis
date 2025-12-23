@@ -1,162 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabaseClient'; 
-import { Plus, List, CheckCircle, X, Loader2 } from 'lucide-react';
-import Link from 'next/link';
-import { PERMISSIONS } from '@/lib/permissions';
-import { getLevel } from '@/lib/levelSystem';
-
-type Collection = {
-  id: string;
-  title: string;
-};
+import { ChevronLeft, ChevronRight, Lock, Calendar } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { PERMISSIONS } from '@/lib/permissions'; // Zorg dat dit pad klopt
 
 type Props = {
-  artworkId: string;
+  currentDate: string; // YYYY-MM-DD
+  userLevel: number;
+  isPremium?: boolean; // Voeg dit toe als prop in je Dashboard page!
 };
 
-export default function AddToCollectionButton({ artworkId }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState<{ [key: string]: string }>({}); 
-  const [userLevel, setUserLevel] = useState(1);
-  const [isPremium, setIsPremium] = useState(false);
+export default function TimeTravelControls({ currentDate, userLevel, isPremium = false }: Props) {
+  const router = useRouter();
+  const [showLockMsg, setShowLockMsg] = useState(false);
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
   
-  const supabase = createClient();
+  const curr = new Date(currentDate);
+  curr.setHours(0,0,0,0);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchCollections();
+  const isToday = curr.getTime() === today.getTime();
+  
+  // Bereken gisteren en morgen
+  const prevDate = new Date(curr); prevDate.setDate(curr.getDate() - 1);
+  const nextDate = new Date(curr); nextDate.setDate(curr.getDate() + 1);
+  
+  const prevStr = prevDate.toISOString().split('T')[0];
+  const nextStr = nextDate.toISOString().split('T')[0];
+
+  // --- PERMISSIE LOGICA ---
+  // Hoeveel dagen mag deze gebruiker terug in de tijd?
+  const allowedHistoryDays = PERMISSIONS.getHistoryDays(userLevel, isPremium);
+  
+  // Hoeveel dagen is de 'vorige' datum geleden?
+  const diffTime = Math.abs(today.getTime() - prevDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+  // Mag je naar 'vorige'?
+  // Ja, als de diffDays kleiner of gelijk is aan wat je mag.
+  const canGoBack = diffDays <= allowedHistoryDays;
+
+  const handlePrev = () => {
+    if (canGoBack) {
+      router.push(`/?date=${prevStr}`);
     } else {
-      setFeedback({});
+      setShowLockMsg(true);
+      setTimeout(() => setShowLockMsg(false), 3000);
     }
-  }, [isOpen]);
-
-  const fetchCollections = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-        setLoading(false);
-        return;
-    }
-    
-    // Haal level op voor permissie check
-    const { data: profile } = await supabase.from('user_profiles').select('xp, is_premium').eq('user_id', user.id).single();
-    if (profile) {
-        const { level } = getLevel(profile.xp || 0);
-        setUserLevel(level);
-        setIsPremium(profile.is_premium || false);
-    }
-
-    const { data, error } = await supabase
-      .from('user_collections')
-      .select('id, title')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Fout bij ophalen collecties:', error);
-    } else {
-      setCollections(data as Collection[]);
-    }
-    setLoading(false);
   };
 
-  const handleAddToCollection = async (collectionId: string) => {
-    // Check permissie: Mag deze gebruiker favorieten opslaan?
-    // Level 2 (Kenniszoeker) vereist voor opslaan
-    if (userLevel < 2) {
-         alert("Je moet minimaal Level 2 (Kenniszoeker) zijn om werken op te slaan!");
-         return;
-    }
-    
-    setFeedback(prev => ({ ...prev, [collectionId]: 'Bezig...' }));
-
-    // Upsert voorkomt dubbele items en errors
-    const { error } = await supabase
-      .from('user_collection_items')
-      .upsert(
-        {
-          collection_id: collectionId,
-          artwork_id: artworkId,
-        },
-        { 
-          onConflict: 'collection_id, artwork_id', 
-          ignoreDuplicates: true 
-        }
-      )
-      .select();
-      
-    if (error) { 
-      setFeedback(prev => ({ ...prev, [collectionId]: 'Fout' }));
-      console.error(error);
-    } else {
-      setFeedback(prev => ({ ...prev, [collectionId]: 'Toegevoegd!' }));
+  const handleNext = () => {
+    if (!isToday) {
+      router.push(`/?date=${nextStr}`);
     }
   };
-  
-  const handleClose = () => {
-      setIsOpen(false);
-      setFeedback({});
-  }
-  
+
+  const displayDate = curr.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+
   return (
-    <>
-      {/* DE KNOP OP DE DETAILPAGINA */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-white/20 transition-colors border border-white/20"
-      >
-        <List size={18} /> Voeg toe aan Salon
-      </button>
+    <div className="flex flex-col items-center mb-8 relative z-20">
+      <div className="flex items-center gap-6 bg-white/5 border border-white/10 rounded-full px-6 py-2 backdrop-blur-md">
+        
+        {/* VORIGE KNOP */}
+        <button 
+          onClick={handlePrev}
+          className={`p-2 rounded-full transition-colors ${canGoBack ? 'hover:bg-white/10 text-white' : 'text-gray-600 cursor-not-allowed'}`}
+        >
+          {canGoBack ? <ChevronLeft size={20} /> : <Lock size={16} />}
+        </button>
 
-      {/* DE MODAL */}
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-midnight-900 p-8 rounded-xl w-full max-w-md shadow-2xl border border-white/10">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="font-serif text-2xl text-white">Selecteer Salon</h2>
-              <button onClick={handleClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
-            </div>
+        {/* DATUM DISPLAY */}
+        <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-museum-gold min-w-[150px] justify-center">
+          <Calendar size={14} /> {isToday ? 'Vandaag' : displayDate}
+        </div>
 
-            {loading ? (
-              <div className="text-center text-gray-500 py-4 flex items-center justify-center gap-2">
-                 <Loader2 size={20} className="animate-spin" /> Collecties laden...
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {collections.length === 0 && (
-                    <div className="text-center p-6 bg-white/5 rounded-lg border border-white/10">
-                         <p className="text-gray-400 mb-3">Nog geen Salons gevonden.</p>
-                         <Link href="/profile?tab=collections" className="text-sm font-bold text-museum-gold hover:text-museum-lime transition-colors underline">
-                           Maak je eerste Salon (Level 18)
-                         </Link>
-                    </div>
-                )}
-                {collections.map((col) => (
-                  <button
-                    key={col.id}
-                    onClick={() => handleAddToCollection(col.id)}
-                    className="w-full text-left flex justify-between items-center p-4 bg-midnight-800 rounded-lg hover:bg-midnight-700 transition-colors border border-white/5"
-                    disabled={feedback[col.id] === 'Toegevoegd!'}
-                  >
-                    <span className="text-white font-medium">{col.title}</span>
-                    <span className={`text-sm font-bold flex items-center gap-1.5 ${
-                        feedback[col.id] === 'Toegevoegd!' ? 'text-museum-lime' : 'text-gray-500'
-                    }`}>
-                      {feedback[col.id] === 'Toegevoegd!' ? <><CheckCircle size={16} /> OK</> : <Plus size={16} />}
-                    </span>
-                  </button>
-                ))}
-                
-              </div>
-            )}
-          </div>
+        {/* VOLGENDE KNOP */}
+        <button 
+          onClick={handleNext}
+          disabled={isToday}
+          className={`p-2 rounded-full transition-colors ${isToday ? 'text-gray-700 cursor-default' : 'hover:bg-white/10 text-white'}`}
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
+      {/* LOCK MELDING */}
+      {showLockMsg && (
+        <div className="absolute top-14 bg-red-500/90 text-white text-xs px-4 py-2 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-2 w-64 text-center">
+          🔒 Je hebt je limiet bereikt.<br/>
+          Level up naar <strong>Historicus</strong> (Lvl 12) voor 7 dagen historie!
         </div>
       )}
-    </>
+    </div>
   );
 }
