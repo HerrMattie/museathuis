@@ -12,7 +12,7 @@ export default function PricingPage() {
   const supabase = createClient();
   const router = useRouter();
 
-  const MIN_DONATION_FOR_GIFT = 20; // Minimaal bedrag voor 3 maanden premium
+  const MIN_DONATION_FOR_GIFT = 15; // Minimaal bedrag voor 3 maanden premium
 
   useEffect(() => {
     const getUser = async () => {
@@ -97,11 +97,11 @@ export default function PricingPage() {
             <p className="text-gray-400 mb-8 text-sm">Voor wie wil bijhouden wat hij mooi vindt en mee wil doen.</p>
             
             <ul className="space-y-4 mb-8 flex-1">
-                <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Dagelijkse kunstwerken</li>
+                <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Dagelijkse tours, games en focus</li>
                 <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Favorieten opslaan</li>
-                <li className="flex gap-3 text-sm text-gray-300"><Check size={18} className="text-green-500"/> Meedoen met Games (beperkt)</li>
-                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen Audiotours</li>
-                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen Verdiepende Artikelen</li>
+                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen toegang tot de premium tours, games en focus</li>
+                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen toegang tot de Galerij</li
+                <li className="flex gap-3 text-sm text-gray-500"><X size={18}/> Geen toegang tot de populairste content</li>
             </ul>
 
             <button onClick={() => router.push('/login')} className="w-full py-3 rounded-xl border border-white/20 hover:bg-white/10 font-bold transition-all">
