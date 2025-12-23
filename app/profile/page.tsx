@@ -98,7 +98,27 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-4xl mx-auto">
+
+<button 
+    onClick={async () => {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        // Voeg 2000 XP toe (genoeg voor een level up!)
+        const { error } = await supabase.rpc('increment_xp', { amount: 2000, user_id_param: user?.id });
         
+        // Of als je geen RPC functie hebt, doe het direct:
+        /*
+        const { data: profile } = await supabase.from('user_profiles').select('xp').eq('user_id', user?.id).single();
+        await supabase.from('user_profiles').update({ xp: (profile?.xp || 0) + 2000 }).eq('user_id', user?.id);
+        */
+        console.log("XP Update verstuurd!");
+    }}
+    className="fixed bottom-4 left-4 z-50 bg-red-600 text-white px-4 py-2 rounded-full font-bold shadow-xl"
+>
+    TEST LEVEL UP 🚀
+</button>
+
+          
         {/* HEADER KAART */}
         <div className="bg-gradient-to-r from-midnight-900 to-black border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
