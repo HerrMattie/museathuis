@@ -53,6 +53,32 @@ export default function ProfilePage() {
     getData();
   }, []);
 
+  // --- BUTTON HANDLER ---
+  const handleTestLevelUp = async () => {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        console.log("Sending XP update for user:", user.id);
+
+        const { error } = await supabase.rpc('increment_xp', { 
+            amount: 2000, 
+            user_id_param: user.id 
+        });
+        
+        if (error) {
+            console.error("Error updating XP:", error);
+            alert(`Error: ${error.message}`); // Show visible error
+        } else {
+            console.log("XP Update successfully sent!");
+            // Optionally refresh local state to see change immediately
+            // window.location.reload(); 
+        }
+    } catch (e) {
+        console.error("Unexpected error:", e);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-museum-gold">Profiel laden...</div>;
 
   // --- BEREKENINGEN ---
@@ -75,18 +101,15 @@ export default function ProfilePage() {
       return "border-white/10";
   };
 
-  // --- GRAFIEK LOGICA (AANGEPAST VOOR SPREIDING) ---
+  // --- GRAFIEK LOGICA ---
   const avgXP = averages?.xp || 500;
   
-  // We gebruiken nu vaste doelen zodat een beginner klein begint (0-100 schaal)
-  // Max Level = 50. Max Badge = 20. Max Streak = 30 dagen. Max Collectie = 50 items.
-  
   const radarData = [
-    { subject: 'Ervaring', A: Math.min((xp / 10000) * 100, 100), fullMark: 100 }, // 10.000 XP is "vol"
-    { subject: 'Collectie', A: Math.min((stats.favCount / 50) * 100, 100), fullMark: 100 }, // 50 items is "vol"
-    { subject: 'Loyaliteit', A: Math.min((profile.current_streak / 30) * 100, 100), fullMark: 100 }, // 30 dagen is "vol"
-    { subject: 'Kennis', A: Math.min((level / 50) * 100, 100), fullMark: 100 }, // Level 50 is "vol"
-    { subject: 'Badges', A: Math.min((stats.badgeCount / 10) * 100, 100), fullMark: 100 }, // 10 badges is "vol"
+    { subject: 'Ervaring', A: Math.min((xp / 10000) * 100, 100), fullMark: 100 }, 
+    { subject: 'Collectie', A: Math.min((stats.favCount / 50) * 100, 100), fullMark: 100 }, 
+    { subject: 'Loyaliteit', A: Math.min((profile.current_streak / 30) * 100, 100), fullMark: 100 }, 
+    { subject: 'Kennis', A: Math.min((level / 50) * 100, 100), fullMark: 100 }, 
+    { subject: 'Badges', A: Math.min((stats.badgeCount / 10) * 100, 100), fullMark: 100 }, 
   ];
 
   let persona = "De Ontdekker";
@@ -99,26 +122,14 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-midnight-950 text-white pt-24 pb-12 px-6">
       <div className="max-w-4xl mx-auto">
 
-<button 
-    onClick={async () => {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        // Voeg 2000 XP toe (genoeg voor een level up!)
-        const { error } = await supabase.rpc('increment_xp', { amount: 2000, user_id_param: user?.id });
-        
-        // Of als je geen RPC functie hebt, doe het direct:
-        /*
-        const { data: profile } = await supabase.from('user_profiles').select('xp').eq('user_id', user?.id).single();
-        await supabase.from('user_profiles').update({ xp: (profile?.xp || 0) + 2000 }).eq('user_id', user?.id);
-        */
-        console.log("XP Update verstuurd!");
-    }}
-    className="fixed bottom-4 left-4 z-50 bg-red-600 text-white px-4 py-2 rounded-full font-bold shadow-xl"
->
-    TEST LEVEL UP 🚀
-</button>
+        {/* --- TEST BUTTON --- */}
+        <button 
+            onClick={handleTestLevelUp}
+            className="fixed bottom-4 left-4 z-50 bg-red-600 text-white px-4 py-2 rounded-full font-bold shadow-xl hover:bg-red-700 transition-colors"
+        >
+            TEST LEVEL UP 🚀
+        </button>
 
-          
         {/* HEADER KAART */}
         <div className="bg-gradient-to-r from-midnight-900 to-black border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 right-0 p-32 bg-museum-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
@@ -170,7 +181,6 @@ export default function ProfilePage() {
         </div>
 
         {/* --- KUNST DNA (LEVEL 16 UNLOCK) --- */}
-        {/* We laten hem nu even ZIEN voor test, maar normaal met: level >= 16 ? (...) : (...) */}
         {level >= 16 ? (
             <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-8 mb-8 relative overflow-hidden">
                 <div className="flex flex-col md:flex-row gap-8 items-center">
@@ -203,10 +213,7 @@ export default function ProfilePage() {
                             <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                                 <PolarGrid stroke="#ffffff20" />
                                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#a5b4fc', fontSize: 10 }} />
-                                
-                                {/* DE FIX: Forceer de as van 0 tot 100, ook bij lage scores */}
                                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                                
                                 <Radar name="Jij" dataKey="A" stroke="#D4AF37" fill="#D4AF37" fillOpacity={0.6} />
                             </RadarChart>
                         </ResponsiveContainer>
