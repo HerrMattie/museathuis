@@ -9,24 +9,23 @@ import { getLevel } from '@/lib/levelSystem';
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(true);
   const [canToggle, setCanToggle] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [userLevel, setUserLevel] = useState(1); // Houden we bij voor de melding
   const supabase = createClient();
 
   useEffect(() => {
-    // 1. Check permissies
     const checkAccess = async () => {
        const { data: { user } } = await supabase.auth.getUser();
        if (user) {
            const { data: profile } = await supabase.from('user_profiles').select('xp, is_premium').eq('user_id', user.id).single();
            if (profile) {
                const { level } = getLevel(profile.xp || 0);
+               setUserLevel(level);
                setCanToggle(PERMISSIONS.canUseDarkMode(level, profile.is_premium || false));
            }
        }
     };
     checkAccess();
 
-    // 2. Check opgeslagen voorkeur
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'light') {
         setIsDark(false);
@@ -35,9 +34,9 @@ export default function ThemeToggle() {
   }, []);
 
   const toggleTheme = () => {
+      // HARDE FEEDBACK ALS HET NIET MAG
       if (!canToggle) {
-          setShowTooltip(true);
-          setTimeout(() => setShowTooltip(false), 3000);
+          alert(`⛔️ Functie vergrendeld!\n\nJe bent nu Level ${userLevel}. Bereik Level 18 (Estheet) om de Nachtwacht Modus te ontgrendelen.`);
           return;
       }
       
@@ -53,30 +52,23 @@ export default function ThemeToggle() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative group">
         <button 
             onClick={toggleTheme}
-            className={`p-2 rounded-full border transition-colors ${
+            className={`p-2 rounded-full border transition-all duration-300 relative ${
                 canToggle 
-                ? 'bg-white/5 border-white/10 hover:bg-white/10 text-museum-gold' 
-                : 'bg-transparent border-transparent text-gray-600 cursor-not-allowed'
+                ? 'bg-white/5 border-white/10 hover:bg-white/10 text-museum-gold hover:scale-110' 
+                : 'bg-black/40 border-white/5 text-gray-700 cursor-not-allowed opacity-70'
             }`}
         >
             {isDark ? <Moon size={20}/> : <Sun size={20}/>}
             
             {!canToggle && (
-                <div className="absolute -top-1 -right-1 bg-black rounded-full p-0.5 border border-gray-700">
-                    <Lock size={10} className="text-gray-500"/>
+                <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg border border-black animate-pulse">
+                    <Lock size={10} strokeWidth={3}/>
                 </div>
             )}
         </button>
-
-        {showTooltip && (
-            <div className="absolute right-0 top-12 w-48 bg-black/90 border border-white/20 text-white text-xs p-3 rounded-xl shadow-xl z-50 pointer-events-none">
-                <p className="font-bold text-museum-gold mb-1">🔒 Functie Vergrendeld</p>
-                Bereik <strong>Level 18 (Estheet)</strong> om het licht aan te doen.
-            </div>
-        )}
     </div>
   );
 }
