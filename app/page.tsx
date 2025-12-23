@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
-import Image from 'next/image'; // <--- 1. Importeer Image
+import Image from 'next/image';
 import { Calendar } from 'lucide-react';
 import DailyGrid from '@/components/home/DailyGrid';
 import OnboardingCheck from '@/components/onboarding/OnboardingCheck';
@@ -11,10 +11,20 @@ export default async function Home() {
   const supabase = createClient(cookies());
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. DATA
+  // 1. DATA (AANGEPAST VOOR KUNST DNA 🧬)
+  // We halen niet alleen het rooster op, maar ook de details van de kunstwerken.
+  // Dit is nodig zodat de FavoriteButton straks weet wat de stijl/jaar/etc is.
   const { data: dailyProgram } = await supabase
     .from('dayprogram_schedule')
-    .select('*')
+    .select(`
+        *,
+        // Hier halen we de gekoppelde kunstwerken op.
+        // Pas de naam 'artworks' aan als je foreign key anders heet (bijv. artwork_id)
+        highlight_work:artworks!highlight_id (*),
+        morning_work:artworks!morning_id (*),
+        afternoon_work:artworks!afternoon_id (*),
+        evening_work:artworks!evening_id (*)
+    `)
     .eq('day_date', today)
     .single();
 
@@ -32,18 +42,14 @@ export default async function Home() {
 
       {/* --- ACHTERGROND LAAG --- */}
       <div className="absolute inset-0 z-0 h-[85vh] overflow-hidden">
-          
-          {/* 👇 DE AANPASSING: Next.js Image Component 👇 */}
           <Image
             src="/hero-background.jpg" 
             alt="Museum Hall"
-            fill={true}       // Zorgt dat hij de div vult (vervangt w-full h-full)
-            priority={true}   // BELANGRIJK: Laadt deze afbeelding met voorrang (LCP optimalisatie)
+            fill={true}
+            priority={true}
             className="object-cover"
-            quality={90}      // Iets hogere kwaliteit voor deze grote hero image
+            quality={90}
           />
-          
-          {/* De Fade overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-midnight-950/70 to-midnight-950" />
       </div>
 
@@ -72,6 +78,9 @@ export default async function Home() {
 
           {/* DAILY GRID */}
           <div className="px-4 pb-20 max-w-7xl mx-auto animate-in slide-in-from-bottom-8 duration-700 delay-300">
+              {/* We geven nu het 'verrijkte' dailyProgram door aan de grid.
+                  Zorg dat je in DailyGrid.tsx de <FavoriteButton artwork={item} /> gebruikt!
+              */}
               <DailyGrid 
                 schedule={dailyProgram} 
                 randomArtworks={randomUrls} 
