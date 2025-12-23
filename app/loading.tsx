@@ -1,20 +1,29 @@
-// app/loading.tsx
-import { Brush } from 'lucide-react';
+import { Brush, Loader2 } from 'lucide-react';
 
 export default function Loading() {
   return (
     <div className="fixed inset-0 bg-midnight-950 flex flex-col items-center justify-center z-50">
       <div className="relative">
-        {/* Het schilderende kwastje animatie */}
-        <Brush 
-            size={48} 
-            className="text-museum-gold animate-bounce" 
-            style={{ animationDuration: '1s' }}
-        />
+        {/* Achtergrond gloed */}
+        <div className="absolute inset-0 bg-museum-gold/20 blur-xl rounded-full animate-pulse" />
+        
+        {/* Het icoon */}
+        <div className="relative bg-midnight-900 p-4 rounded-full border border-white/10 shadow-2xl">
+            <Brush 
+                size={32} 
+                className="text-museum-gold animate-bounce" 
+                style={{ animationDuration: '2s' }}
+            />
+        </div>
       </div>
-      <p className="mt-4 text-museum-gold/60 text-sm font-serif animate-pulse">
-        Kunstwerken maken...
-      </p>
+
+      <div className="mt-8 text-center space-y-2">
+          <h3 className="text-museum-gold font-serif text-xl tracking-wide">MuseaThuis</h3>
+          <p className="text-gray-500 text-sm font-sans flex items-center gap-2 justify-center">
+             <Loader2 size={12} className="animate-spin"/>
+             Uw persoonlijke collectie samenstellen...
+          </p>
+      </div>
     </div>
   );
 }
