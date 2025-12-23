@@ -3,99 +3,100 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import Link from 'next/link';
-import { Clock, Share2, Lock, Play } from 'lucide-react';
+import { Clock, Share2, Lock, Play, Info } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 import AudioPlayer from '@/components/ui/AudioPlayer';
-import LikeButton from '@/components/LikeButton';
+// 👇 1. IMPORT DE NIEUWE BUTTON
+import FavoriteButton from '@/components/artwork/FavoriteButton'; 
 import FeedbackButtons from '@/components/FeedbackButtons';
 import { trackActivity } from '@/lib/tracking';
-
-// --- GAMIFICATION IMPORTS ---
 import { checkArticleBadges, checkTimeBadge } from '@/lib/gamification/checkBadges';
 
 export default function FocusDetailPage({ params }: { params: { id: string } }) {
-    const [article, setArticle] = useState<any>(null);
+    const [item, setItem] = useState<any>(null);
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    
-    // State voor de audio speler
     const [showAudio, setShowAudio] = useState(false);
+    const [isFavorited, setIsFavorited] = useState(false);
     
     const supabase = createClient();
 
     useEffect(() => {
         const fetchData = async () => {
-            // 1. Haal User op
             const { data: u } = await supabase.auth.getUser();
             setUser(u?.user);
 
-            // 2. Haal Artikel op
+            // 👇 2. HAAL OOK HET GEKOPPELDE KUNSTWERK OP
+            // We hebben de artwork details nodig voor het DNA (tags, jaar, movement)
             const { data, error } = await supabase
                 .from('focus_items')
-                .select('*')
+                .select(`
+                    *,
+                    artwork:artworks (*) 
+                `)
                 .eq('id', params.id)
                 .single();
             
             if (error) console.error("Error fetching article:", error);
-            setArticle(data);
+            setItem(data);
+            
+            // Check of favoriet is (voor de knop status)
+            if (u?.user && data?.artwork) {
+                const { data: fav } = await supabase
+                    .from('favorites')
+                    .select('id')
+                    .eq('user_id', u.user.id)
+                    .eq('artwork_id', data.artwork.id)
+                    .single();
+                setIsFavorited(!!fav);
+            }
+
             setLoading(false);
 
-            // 3. TRACKING & BADGES
+            // TRACKING & BADGES
             if (u?.user && data) {
                 const textContent = data.content_markdown || data.description || "";
                 const wordCount = textContent.split(/\s+/).length;
 
-                // A. Track de activiteit (voor statistieken)
                 trackActivity(supabase, u.user.id, 'read_focus', data.id, {
                     title: data.title,
                     word_count: wordCount,
                     reading_time: data.reading_time
                 });
-
-                // B. GAMIFICATION: Check of we badges verdienen (Boekenwurm, Diepgraver, etc.)
                 checkArticleBadges(supabase, u.user.id, wordCount);
             }
         };
         
         fetchData();
 
-        // 4. TIMER VOOR 'VERF DROOGT' BADGE (10 minuten = 600.000 ms)
+        // Timer voor badges
         const timer = setTimeout(async () => {
              const { data: u } = await supabase.auth.getUser();
              if (u?.user) {
-                 console.log("⏱️ 10 minuten voorbij: Verf Droogt trigger!");
-                 
-                 // A. Track tijd
-                 trackActivity(supabase, u.user.id, 'time_spent', params.id, {
-                     duration: 600
-                 });
-
-                 // B. GAMIFICATION: Check 'Verf Droogt' badge
+                 trackActivity(supabase, u.user.id, 'time_spent', params.id, { duration: 600 });
                  checkTimeBadge(supabase, u.user.id, 10);
              }
         }, 600000); 
         
-        // Cleanup: Als gebruiker weggaat, stop timer en audio
-        return () => {
-            clearTimeout(timer);
-            setShowAudio(false);
-        };
+        return () => { clearTimeout(timer); setShowAudio(false); };
     }, [params.id, supabase]);
 
     if (loading) return <div className="min-h-screen bg-midnight-950 text-white pt-32 px-6 text-center">Laden...</div>;
-    if (!article) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">Artikel niet gevonden.</div>;
+    if (!item) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white">Artikel niet gevonden.</div>;
 
-    const isLocked = article.is_premium && !user;
+    const isLocked = item.is_premium && !user;
+    // We gebruiken het gekoppelde artwork voor de knop, of anders het focus item zelf als fallback
+    const artworkData = item.artwork || item; 
 
     return (
         <div className="min-h-screen bg-midnight-950 text-white pb-32">
             
             <PageHeader 
-                title={article.title} 
-                subtitle={article.intro}
+                title={item.title} 
+                subtitle={item.intro}
                 parentLink="/focus"
                 parentLabel="Terug naar Artikelen"
-                backgroundImage={article.cover_image}
+                backgroundImage={item.cover_image}
             />
 
             <div className="max-w-3xl mx-auto px-6 -mt-20 relative z-20">
@@ -104,7 +105,6 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                 <div className="bg-midnight-900/90 border border-white/10 p-6 rounded-2xl backdrop-blur-md shadow-2xl mb-12">
                     <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                         
-                        {/* Audio / Lock Knop */}
                         <div className="w-full md:w-auto md:flex-1">
                             {isLocked ? (
                                 <Link href="/pricing" className="w-full bg-museum-gold hover:bg-yellow-500 text-black py-3 px-6 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
@@ -120,18 +120,19 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                             )}
                         </div>
 
-                        {/* Meta Info & Actions */}
                         <div className="flex items-center gap-6 text-sm font-bold text-gray-400">
-                            <span className="flex items-center gap-2"><Clock size={16}/> {article.reading_time || 5} min</span>
+                            <span className="flex items-center gap-2"><Clock size={16}/> {item.reading_time || 5} min</span>
                             <div className="w-px h-6 bg-white/10"></div>
                             
-                            {user && (
-                                <LikeButton 
-                                    itemId={article.id} 
-                                    itemType="focus" 
-                                    userId={user.id} 
-                                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                                />
+                            {/* 👇 3. DE SLIMME DNA KNOP */}
+                            {user && artworkData && (
+                                <div className="flex items-center gap-2">
+                                    <FavoriteButton 
+                                        artwork={artworkData} 
+                                        initialIsFavorited={isFavorited} 
+                                    />
+                                    <span className="text-xs uppercase hidden md:inline-block">Opslaan</span>
+                                </div>
                             )}
                             
                             <button className="p-2 hover:text-white transition-colors"><Share2 size={20}/></button>
@@ -142,7 +143,7 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                 {/* INHOUD */}
                 <div className="prose prose-invert prose-lg max-w-none text-gray-300 leading-relaxed font-serif mb-16">
                     <div className="whitespace-pre-wrap">
-                        {article.content_markdown || article.description || "Geen inhoud beschikbaar."}
+                        {item.content_markdown || item.description || "Geen inhoud beschikbaar."}
                     </div>
                 </div>
                 
@@ -150,25 +151,20 @@ export default function FocusDetailPage({ params }: { params: { id: string } }) 
                 {!isLocked && (
                     <div className="border-t border-white/10 pt-8 flex flex-col items-center">
                         <p className="text-gray-400 font-bold mb-4 text-sm uppercase tracking-wider">Vond u dit interessant?</p>
-                        <FeedbackButtons 
-                            entityId={article.id} 
-                            entityType="focus" 
-                        />
+                        <FeedbackButtons entityId={item.id} entityType="focus" />
                     </div>
                 )}
             </div>
 
-            {/* AUDIO PLAYER */}
             {showAudio && !isLocked && (
                 <AudioPlayer 
-                    src={article.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} 
-                    title={article.title}
+                    src={item.audio_url || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} 
+                    title={item.title}
                     variant="fixed"
                     autoPlay={true}
                     onClose={() => setShowAudio(false)}
                 />
             )}
-
         </div>
     );
 }
