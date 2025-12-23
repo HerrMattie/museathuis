@@ -24,10 +24,11 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-bold uppercase tracking-widest text-xs mb-6">Ontdekken</h4>
             <ul className="space-y-3 text-sm text-slate-400">
-              <li><Link href="/tour" className="hover:text-museum-gold transition-colors">Audiotours</Link></li>
+              <li><Link href="/tour" className="hover:text-museum-gold transition-colors">Tours</Link></li>
               <li><Link href="/game" className="hover:text-museum-gold transition-colors">Games</Link></li>
               <li><Link href="/focus" className="hover:text-museum-gold transition-colors">Focus</Link></li>
               <li><Link href="/salon" className="hover:text-museum-gold transition-colors">Galerij</Link></li>
+              <li><Link href="/best-of" className="hover:text-museum-gold transition-colors">Best of</Link></li>
             </ul>
           </div>
 
@@ -35,6 +36,7 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-bold uppercase tracking-widest text-xs mb-6">Service</h4>
             <ul className="space-y-3 text-sm text-slate-400">
+              <li><Link href="/about" className="hover:text-museum-gold transition-colors">Over MuseaThuis</Link></li>
               <li><Link href="/pricing" className="hover:text-museum-gold transition-colors">Lidmaatschap</Link></li>
               <li><Link href="/profile" className="hover:text-museum-gold transition-colors">Mijn Profiel</Link></li>
               <li><Link href="/contact" className="hover:text-museum-gold transition-colors">Contact & Support</Link></li>
