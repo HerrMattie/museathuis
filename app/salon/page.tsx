@@ -155,7 +155,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
 
                                             <div className="flex items-center gap-4">
                                                 <Link 
-                                                    href={isLocked ? '/pricing' : `/focus/${item.id}`} // Of /salon/[id] als je aparte pagina's hebt
+                                                    href={isLocked ? '/pricing' : `/salon/${item.id}`} // Of /salon/[id] als je aparte pagina's hebt
                                                     className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors ${isLocked ? 'bg-white/10 text-gray-400' : 'bg-museum-gold text-black hover:bg-white'}`}
                                                 >
                                                     {isLocked ? 'Word Lid om te Lezen' : 'Lees & Praat Mee'} <ArrowRight size={16}/>
