@@ -9,15 +9,17 @@ import {
     Palette, CalendarClock, User, Crown, ChevronRight, 
     Images, BarChart3, TrendingUp, Lock 
 } from 'lucide-react';
-// We halen getLevel nu uit de config file die we eerder samenvoegden
-import { getLevel } from '@/lib/gamificationConfig';
-// IMPORT VAN DE NIEUWE COMPONENT
+
+// 👇 FIX: Importeer uit het juiste systeem
+import { getLevel } from '@/lib/levelSystem';
 import ArtDNA from '@/components/profile/ArtDNA';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [stats, setStats] = useState<any>({ favCount: 0, badgeCount: 0 });
+  
+  // We slaan de counts los op
+  const [counts, setCounts] = useState({ favCount: 0, badgeCount: 0 });
   const [loading, setLoading] = useState(true);
   
   const supabase = createClient();
@@ -29,13 +31,29 @@ export default function ProfilePage() {
       if (!user) { router.push('/login'); return; }
       setUser(user);
 
-      // Haal profiel inclusief de 'art_dna' kolom op
-      const { data: userProfile } = await supabase.from('user_profiles').select('*').eq('user_id', user.id).single();
-      const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
-      const { count: badgeCount } = await supabase.from('user_badges').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
+      // 1. Haal profiel
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      // 2. Haal counts (efficiënt met head: true)
+      const { count: favCount } = await supabase
+        .from('favorites')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      const { count: badgeCount } = await supabase
+        .from('user_badges')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
 
       setProfile(userProfile);
-      setStats({ favCount: favCount || 0, badgeCount: badgeCount || 0 });
+      setCounts({ 
+          favCount: favCount || 0, 
+          badgeCount: badgeCount || 0 
+      });
       setLoading(false);
     };
 
@@ -46,16 +64,21 @@ export default function ProfilePage() {
 
   // --- BEREKENINGEN ---
   const xp = profile?.xp || 0;
-  const { level, title: levelTitle, nextLevelXp } = getLevel(xp);
-  const progress = Math.min((xp / nextLevelXp) * 100, 100);
+  
+  // Gebruik de functie uit levelSystem
+  const { level, title: levelTitle, nextLevelXp, currentLevelXp } = getLevel(xp);
+  
+  // Bereken percentage voor de balk (xp in dit level / totaal nodig voor dit level)
+  const xpInLevel = xp - currentLevelXp;
+  const xpNeeded = nextLevelXp - currentLevelXp;
+  const progress = Math.min((xpInLevel / xpNeeded) * 100, 100);
+
   const isPremium = profile?.is_premium ?? false;
   const isAdmin = profile?.role === 'admin';
 
   const joinDate = new Date(profile?.created_at).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
-  // Als er nog geen favoriete stijl is berekend, tonen we een placeholder
   const favoriteStyle = (profile?.art_dna?.tijd > 60 ? "Modernisme" : "Klassiek") || "Nog onbekend";
 
-  // --- AVATAR RAND LOGICA ---
   const getBorderClass = (lvl: number, premium: boolean) => {
       if (lvl >= 40) return "border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.6)] animate-pulse";
       if (lvl >= 30 || premium) return "border-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.4)]";
@@ -109,8 +132,8 @@ export default function ProfilePage() {
                         <div className="absolute top-0 left-0 h-full bg-museum-gold transition-all duration-1000" style={{ width: `${progress}%` }}></div>
                     </div>
                     <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-bold uppercase tracking-widest">
-                        <span>{xp} XP</span>
-                        <span>{nextLevelXp} XP (Next)</span>
+                        <span>{Math.floor(xp)} XP</span>
+                        <span>{Math.floor(nextLevelXp)} XP (Next)</span>
                     </div>
                 </div>
 
@@ -123,8 +146,7 @@ export default function ProfilePage() {
             </div>
         </div>
 
-        {/* --- KUNST DNA SECTIE (VERNIEUWD) --- */}
-        {/* We tonen het DNA altijd, of met een slotje als het level te laag is */}
+        {/* --- KUNST DNA --- */}
         <div className="mb-8">
             {level >= 16 ? (
                 <>
@@ -132,7 +154,6 @@ export default function ProfilePage() {
                         <BarChart3 className="text-museum-gold" size={20}/>
                         <h2 className="text-xl font-bold text-white">Jouw Kunst DNA</h2>
                     </div>
-                    {/* Hier laden we de mooie nieuwe component in! */}
                     <ArtDNA stats={profile?.art_dna} />
                 </>
             ) : (
@@ -175,7 +196,7 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 text-gray-500 group-hover:text-rose-400 text-xs uppercase font-bold mb-1 transition-colors">
                     <Images size={14}/> Mijn Collectie
                 </div>
-                <div className="text-white font-bold">{stats.favCount} Werken</div>
+                <div className="text-white font-bold">{counts.favCount} Werken</div>
             </Link>
 
             <div className="bg-white/5 p-4 rounded-xl border border-white/5">
@@ -202,7 +223,7 @@ export default function ProfilePage() {
                     <div className="p-3 bg-yellow-900/20 text-yellow-500 rounded-xl group-hover:bg-yellow-500 group-hover:text-black transition-colors">
                         <Award size={24} />
                     </div>
-                    <span className="text-2xl font-bold text-white">{stats.badgeCount}</span>
+                    <span className="text-2xl font-bold text-white">{counts.badgeCount}</span>
                 </div>
                 <h3 className="font-bold text-lg text-gray-200 group-hover:text-white">Ere-Galerij</h3>
                 <p className="text-sm text-gray-500 mt-1">Bekijk uw behaalde medailles.</p>
