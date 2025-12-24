@@ -11,36 +11,14 @@ import Link from 'next/link';
 
 export const revalidate = 0;
 
-// Helper om de string uit de database ("Brain") om te zetten naar een Icoon Component
 const getIcon = (iconName: string) => {
     const icons: any = {
-        'Brain': Brain,
-        'Award': Award,
-        'Crown': Crown,
-        'Grid': LayoutGrid,
-        'LayoutGrid': LayoutGrid,
-        'Star': Star,
-        'BookOpen': BookOpen,
-        'Eye': Eye,
-        'Target': Target,
-        'Globe': Globe,
-        'Map': Map,
-        'Flame': Flame,
-        'Library': Library,
-        'Trophy': Trophy,
-        'Scroll': Scroll,
-        'Coffee': Coffee,
-        'Search': Search,
-        'MoonStar': MoonStar,
-        'UserCheck': UserCheck,
-        'Compass': Compass,
-        'PenTool': PenTool,
-        'Heart': Heart,
-        'CloudRain': CloudRain,
-        'Moon': Moon,
-        'Sun': Sun,
-        'Clock': Clock,
-        'Palette': Palette
+        'Brain': Brain, 'Award': Award, 'Crown': Crown, 'Grid': LayoutGrid, 'LayoutGrid': LayoutGrid,
+        'Star': Star, 'BookOpen': BookOpen, 'Eye': Eye, 'Target': Target, 'Globe': Globe,
+        'Map': Map, 'Flame': Flame, 'Library': Library, 'Trophy': Trophy, 'Scroll': Scroll,
+        'Coffee': Coffee, 'Search': Search, 'MoonStar': MoonStar, 'UserCheck': UserCheck,
+        'Compass': Compass, 'PenTool': PenTool, 'Heart': Heart, 'CloudRain': CloudRain,
+        'Moon': Moon, 'Sun': Sun, 'Clock': Clock, 'Palette': Palette
     };
     return icons[iconName] || Award;
 };
@@ -52,11 +30,9 @@ export default async function AchievementsPage() {
     if (!user) return redirect('/login');
     
     // 1. Haal alle badges op
-    const { data: allBadges } = await supabase
-        .from('badges')
-        .select('*');
+    const { data: allBadges } = await supabase.from('badges').select('*');
 
-    // 2. Haal de badges op die de user HEEFT
+    // 2. Haal user badges op
     const { data: userBadges } = await supabase
         .from('user_badges')
         .select('badge_id')
@@ -64,34 +40,22 @@ export default async function AchievementsPage() {
 
     const unlockedSet = new Set(userBadges?.map(b => b.badge_id));
 
-    // 3. FILTEREN: Verberg badges die geheim zijn én nog niet behaald
+    // 3. FILTEREN: Verberg onbehaalde geheime badges
     const visibleBadges = allBadges?.filter(badge => {
-        // Als badge NIET geheim is -> altijd tonen
-        if (!badge.is_secret) return true;
-        // Als badge WEL geheim is -> alleen tonen als hij behaald is
-        return unlockedSet.has(badge.id);
-    });
+        if (!badge.is_secret) return true; // Openbare tonen we altijd
+        return unlockedSet.has(badge.id);  // Geheime tonen we alleen als je hem hebt
+    }) || [];
 
-    // 4. SORTEREN: 2 Niveau's (Behaald eerst, daarna onbehaald)
-    const sortedBadges = visibleBadges?.sort((a, b) => {
+    // 4. SORTEREN
+    const sortedBadges = [...visibleBadges].sort((a, b) => {
         const hasA = unlockedSet.has(a.id);
         const hasB = unlockedSet.has(b.id);
 
-        // Helper functie om de "Rang" te bepalen
-        const getRank = (unlocked: boolean) => {
-            if (unlocked) return 0; // Rang 0: Behaald (Bovenaan)
-            return 1;               // Rang 1: Nog niet behaald
-        };
-
+        const getRank = (unlocked: boolean) => (unlocked ? 0 : 1);
         const rankA = getRank(hasA);
         const rankB = getRank(hasB);
 
-        // Stap A: Sorteer op Rang (Behaald vs Onbehaald)
-        if (rankA !== rankB) {
-            return rankA - rankB;
-        }
-
-        // Stap B: Als rang gelijk is, sorteer op XP (Laag -> Hoog)
+        if (rankA !== rankB) return rankA - rankB;
         return (a.xp_reward || 0) - (b.xp_reward || 0);
     });
 
@@ -108,14 +72,15 @@ export default async function AchievementsPage() {
                         <h1 className="text-4xl font-serif font-bold text-white mb-2">Ere-Galerij</h1>
                         <p className="text-gray-400">Verzamel medailles en ontdek geheime achievements.</p>
                     </div>
+                    
+                    {/* 👇 AANGEPAST: Teller toont nu unlockedSet.size t.o.v. visibleBadges.length */}
                     <div className="bg-museum-gold text-black px-4 py-2 rounded-lg font-bold text-xl shadow-lg shadow-museum-gold/20">
-                        {/* We tonen hier nog wel het TOTAAL aantal (incl geheime) om nieuwsgierigheid te wekken */}
-                        {unlockedSet.size} / {allBadges?.length || 0}
+                        {unlockedSet.size} / {visibleBadges.length}
                     </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {sortedBadges?.map((badge) => {
+                    {sortedBadges.map((badge) => {
                         const isUnlocked = unlockedSet.has(badge.id);
                         const BadgeIcon = getIcon(badge.icon_name);
 
@@ -145,7 +110,6 @@ export default async function AchievementsPage() {
                                         {badge.description}
                                     </p>
                                     
-                                    {/* XP Label */}
                                     <div className="mt-auto">
                                         <span className={`text-[10px] font-bold uppercase tracking-widest py-1 px-3 rounded ${
                                             isUnlocked ? 'bg-museum-gold/20 text-museum-gold' : 'bg-black/30 text-gray-500'
