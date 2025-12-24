@@ -1,11 +1,10 @@
 import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Coffee, MessageCircle, Clock, ArrowRight, Lock, Crown } from 'lucide-react';
+import { Coffee, Clock, ArrowRight, Lock, Crown } from 'lucide-react';
 import DateNavigator from '@/components/ui/DateNavigator';
 import { getLevel } from '@/lib/levelSystem';
 import { getHistoryAccess } from '@/lib/accessControl';
-// We hergebruiken de FavoriteButton als je salon-items wilt kunnen opslaan
 import FavoriteButton from '@/components/artwork/FavoriteButton';
 
 export const revalidate = 0;
@@ -14,7 +13,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 1. DATUM LOGICA (DE MAGIE ZIT HIER 🪄)
+  // 1. DATUM LOGICA
   const todayDate = new Date();
   const todayStr = todayDate.toISOString().split('T')[0];
   const selectedDate = searchParams.date || todayStr;
@@ -25,8 +24,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   const diff = currentObj.getDate() - day + (day === 0 ? -6 : 1);
   const mondayDate = new Date(currentObj.setDate(diff)).toISOString().split('T')[0];
 
-  // 2. HAAL ROOSTERS OP (VANDAAG + MAANDAG)
-  // We halen beide dagen op om te kijken of we moeten terugvallen
+  // 2. HAAL ROOSTERS OP
   const { data: schedules } = await supabase
       .from('dayprogram_schedule')
       .select('salon_ids, day_date')
@@ -36,31 +34,27 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
   const mondaySchedule = schedules?.find(s => s.day_date === mondayDate);
 
   // BEPAAL WELKE SALON WE TONEN
-  // Regel: Hebben we vandaag een ID? Gebruik die. Zo niet? Gebruik die van maandag.
   let activeSalonIds = todaySchedule?.salon_ids;
   
+  // Fallback naar maandag als vandaag leeg is
   if (!activeSalonIds || activeSalonIds.length === 0) {
       activeSalonIds = mondaySchedule?.salon_ids || [];
   }
 
-  // 3. HAAL DE INHOUD OP (SALON ITEMS)
+  // 3. HAAL DE INHOUD OP (SALONS)
   let salonItems: any[] = [];
   if (activeSalonIds.length > 0) {
-      // We gaan ervan uit dat Salons technisch gezien 'focus_items' zijn in de database,
-      // of een aparte tabel. Pas 'focus_items' aan naar 'salons' als je een aparte tabel hebt.
+      // FIX: We zoeken nu in de juiste tabel 'salons'
       const { data } = await supabase
           .from('salons') 
-          .select(`
-              *,
-              artwork:artworks (*)
-          `)
+          .select(`*`) // Haal salon info op
           .in('id', activeSalonIds)
           .eq('status', 'published');
       
       if (data) salonItems = data;
   }
 
-  // 4. LEVEL CHECK & CONTENT
+  // 4. LEVEL CHECK & CONTENT (CRM Teksten)
   const { count: actionCount } = await supabase.from('user_activity_logs').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const { count: favCount } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('user_id', user?.id);
   const xp = ((actionCount || 0) * 15) + ((favCount || 0) * 50);
@@ -88,7 +82,6 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
           </p>
           
           <div className="flex justify-center">
-             {/* We gebruiken hier 'week' mode als je wilt springen per week, of 'day' als je per dag wilt kijken */}
              <DateNavigator basePath="/salon" currentDate={selectedDate} maxBack={access.days} mode="day" />
           </div>
       </div>
@@ -102,7 +95,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
                     const isLocked = isPremium && !user;
 
                     // Afbeelding logic
-                    let imgUrl = item.cover_image || item.image_url;
+                    let imgUrl = item.image_url; // Salons hebben direct een image_url kolom
                     if (imgUrl && imgUrl.includes('images.unsplash.com')) {
                         imgUrl = `${imgUrl.split('?')[0]}?w=800&q=70&fm=webp&fit=crop`;
                     }
@@ -150,21 +143,16 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
                                             </h2>
                                             
                                             <div className="prose prose-invert text-gray-400 mb-6 line-clamp-3">
-                                                {item.intro || item.description}
+                                                {item.description}
                                             </div>
 
                                             <div className="flex items-center gap-4">
                                                 <Link 
-                                                    href={isLocked ? '/pricing' : `/salon/${item.id}`} // Of /salon/[id] als je aparte pagina's hebt
+                                                    href={isLocked ? '/pricing' : `/salon/${item.id}`} 
                                                     className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-colors ${isLocked ? 'bg-white/10 text-gray-400' : 'bg-museum-gold text-black hover:bg-white'}`}
                                                 >
                                                     {isLocked ? 'Word Lid om te Lezen' : 'Lees & Praat Mee'} <ArrowRight size={16}/>
                                                 </Link>
-                                                
-                                                {/* DNA KNOP */}
-                                                {!isLocked && user && item.artwork && (
-                                                    <FavoriteButton artwork={item.artwork} />
-                                                )}
                                             </div>
                                         </div>
 
