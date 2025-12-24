@@ -6,12 +6,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_KEY = process.env.GOOGLE_AI_API_KEY;
 
-// We gebruiken Flash (snel, efficiënt en gratis in de free tier)
+// We blijven Gemini 2.5 Flash gebruiken voor snelheid en schaalbaarheid
 const MODEL_NAME = "gemini-2.5-flash"; 
 
-// ⚠️ BELANGRIJK: Rate Limit instellingen voor Gratis Tier
-// Google staat ~15 requests per minuut toe.
-// 60 sec / 15 = 4 sec. Wij nemen 5 sec voor de veiligheid.
 const DELAY_MS = 5000; 
 
 if (!SUPABASE_URL || !SUPABASE_KEY || !GOOGLE_KEY) {
@@ -29,20 +26,18 @@ const model = genAI.getGenerativeModel({
 
 async function run() {
   console.log(`🐢 Start "Slow & Free" Verrijking met ${MODEL_NAME}...`);
-  console.log(`⏱️ Snelheid: 1 kunstwerk per ${DELAY_MS/1000} seconden.`);
-
+  
   let processedCount = 0;
   let keepRunning = true;
 
   while (keepRunning) {
       
-      // 1. Haal EÉN item op dat nog niet verrijkt is
       const { data: artworks, error } = await supabase
         .from('artworks')
-        .select('id, title, artist, museum, description_nl, ai_tags') 
+        .select('id, title, artist, museum, description_nl, ai_tags, year_created, materials') 
         .eq('is_enriched', false)
         .not('title', 'is', null) 
-        .limit(1); // Batch size is 1 om rate limits strak te managen
+        .limit(1);
 
       if (error) {
           console.error("❌ DB Error:", error.message);
@@ -50,7 +45,7 @@ async function run() {
       }
 
       if (!artworks || artworks.length === 0) {
-          console.log("🎉 Klaar! Geen onverwerkte items meer gevonden.");
+          console.log("🎉 Klaar! Alle kunstwerken zijn verrijkt.");
           break;
       }
 
@@ -58,32 +53,44 @@ async function run() {
       process.stdout.write(`🎨 [${processedCount + 1}] Verwerken: "${art.title}"... `);
 
       try {
-            // Context opbouwen
             const contextInfo = `
                 Titel: ${art.title}
                 Kunstenaar: ${art.artist}
                 Museum: ${art.museum || 'Onbekend'}
+                Jaar: ${art.year_created || 'Onbekend'}
+                Materiaal: ${art.materials || 'Onbekend'}
                 Huidige Tags: ${Array.isArray(art.ai_tags) ? art.ai_tags.join(', ') : art.ai_tags}
                 Basis Info: ${art.description_nl || 'Geen extra info'}
             `;
 
-            // De Uitgebreide Prompt
             const prompt = `
-              Je bent een kunstcurator voor de app 'MuseaThuis'. Analyseer dit kunstwerk:
+              Je bent een kunstcurator voor 'MuseaThuis'. Analyseer dit kunstwerk:
               ${contextInfo}
               
-              Genereer een JSON object met exact deze velden (in het Nederlands):
+              Genereer een JSON object met exact deze velden:
               {
-                "ai_description": "Een wervende, korte introductie voor de overzichtspagina (max 30 woorden).",
-                "description_primary": "Het hoofdverhaal. Vertellend en boeiend. (ca. 80-100 woorden).",
-                "description_technical": "Analyse van techniek, materiaal, compositie en kleur.",
-                "description_historical": "De historische context en relevantie.",
-                "description_symbolism": "Symboliek en verborgen betekenissen.",
-                "audio_script": "Een levendig script voor een audiotour (spreektaal, begin met 'Kijk eens naar...'). Max 1 minuut.",
-                "fun_fact": "Eén verrassend weetje (1 zin).",
-                "ai_mood": "Eén woord dat de sfeer beschrijft (bijv. Melancholisch, Euforisch).",
+                "ai_description": "Korte wervende intro (max 30 woorden).",
+                "description_primary": "Boeiend hoofdverhaal (80-100 woorden).",
+                "description_technical": "Analyse van techniek en compositie.",
+                "description_historical": "Historische context.",
+                "description_symbolism": "Symboliek.",
+                "audio_script": "Levendig script (spreektaal).",
+                "fun_fact": "Verrassend weetje.",
+                "ai_mood": "Eén woord sfeer (bijv. 'Sereniteit').",
                 "dominant_colors": ["#Hex1", "#Hex2", "#Hex3"],
-                "new_tags": ["tag1", "tag2", "tag3"]
+                "new_tags": ["tag1", "tag2"],
+                "dna_scores": {
+                   "vorm": 50, // 0=Realistisch, 100=Abstract
+                   "tijd": 50, // 0=Klassiek, 100=Modern
+                   "sfeer": 50, // 0=Harmonie, 100=Dramatiek
+                   "palet": 50, // 0=Sober, 100=Vivid
+                   "focus": 50  // 0=Mens, 100=Omgeving
+                },
+                "ai_metadata": {
+                   "movement": "Bijv. Impressionisme",
+                   "genre": "Bijv. Portret",
+                   "detected_objects": ["Lijst van objecten op het werk"]
+                }
               }
             `;
             
@@ -91,26 +98,25 @@ async function run() {
             const response = await result.response;
             const data = JSON.parse(response.text());
 
-            // Tags samenvoegen
             const currentTags = Array.isArray(art.ai_tags) ? art.ai_tags : [];
             const newTags = Array.isArray(data.new_tags) ? data.new_tags : [];
             const mergedTags = [...new Set([...currentTags, ...newTags])];
 
-            // 2. Update de database
             const { error: updateError } = await supabase
                 .from('artworks')
                 .update({ 
                     ai_description: data.ai_description,
-                    description: data.description_primary, // Overschrijft de oude import tekst
+                    description: data.description_primary,
                     description_technical: data.description_technical,
                     description_historical: data.description_historical,
                     description_symbolism: data.description_symbolism,
                     audio_script: data.audio_script,
                     fun_fact: data.fun_fact,
                     ai_mood: data.ai_mood,
-                    dominant_colors: data.dominant_colors, // Array wordt door Supabase goed afgehandeld
+                    dominant_colors: data.dominant_colors,
                     ai_tags: mergedTags,
-                    
+                    art_dna: data.dna_scores, // Vult de DNA-grafiek scores
+                    ai_metadata: data.ai_metadata, // Vult filters en zoek-metadata
                     is_enriched: true,
                     updated_at: new Date().toISOString()
                 })
@@ -118,18 +124,16 @@ async function run() {
             
             if (updateError) throw updateError;
 
-            console.log("✅"); // Succesvol afgerond
+            console.log("✅");
             processedCount++;
 
       } catch (e) {
             console.log("❌"); 
-            console.error(`   Foutmelding: ${e.message}`);
-            // Bij een fout wachten we iets langer (10s) voor de zekerheid
+            console.error(`   Fout: ${e.message}`);
             await new Promise(r => setTimeout(r, 10000));
             continue; 
       }
 
-      // 🛑 DE PAUZE (Cruciaal voor gratis gebruik)
       await new Promise(r => setTimeout(r, DELAY_MS));
   }
 }
