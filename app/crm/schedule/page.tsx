@@ -127,9 +127,13 @@ export default async function CrmSchedulePage() {
                     <div>
                         <strong className="block text-slate-400 mb-1 uppercase tracking-wider text-[10px]">Salons</strong>
                         {daySalons.length > 0 ? (
-                            <span className={`font-bold flex items-center gap-1 ${isInheritedSalon ? 'text-blue-500' : 'text-museum-gold-dark'}`}>
+                            // 👇 HIER IS DE FIX: 'title' verplaatst naar de span
+                            <span 
+                                className={`font-bold flex items-center gap-1 ${isInheritedSalon ? 'text-blue-500' : 'text-museum-gold-dark'}`}
+                                title={isInheritedSalon ? "Week thema (van maandag)" : ""}
+                            >
                                 {daySalons.length}
-                                {isInheritedSalon && <Repeat size={10} title="Week thema (van maandag)" />}
+                                {isInheritedSalon && <Repeat size={10} />}
                             </span>
                         ) : (
                             <span className="text-slate-400">-</span>
