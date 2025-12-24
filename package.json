@@ -13,7 +13,7 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "recharts": "^2.12.7",
-    "next-themes": "^0.3.0",  <-- DEZE MOET ER STAAN
+    "next-themes": "^0.3.0",
     "@supabase/supabase-js": "^2.47.0",
     "@supabase/ssr": "^0.1.0",
     "class-variance-authority": "^0.7.0",
