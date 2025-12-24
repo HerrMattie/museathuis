@@ -49,7 +49,7 @@ export default async function SalonPage({ searchParams }: { searchParams: { date
       // We gaan ervan uit dat Salons technisch gezien 'focus_items' zijn in de database,
       // of een aparte tabel. Pas 'focus_items' aan naar 'salons' als je een aparte tabel hebt.
       const { data } = await supabase
-          .from('focus_items') 
+          .from('salons') 
           .select(`
               *,
               artwork:artworks (*)
