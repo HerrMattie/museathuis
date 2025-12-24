@@ -3,10 +3,10 @@ import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-// Importeer de Gamification Popup die we eerder maakten
 import AchievementPopup from "@/components/gamification/AchievementPopup";
 import { createClient } from "@/lib/supabaseServer";
 import { cookies } from "next/headers";
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 // 1. Fonts Configureren
 const inter = Inter({ 
@@ -32,48 +32,43 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // We halen de user server-side op (handig als je later iets met SSR wilt doen)
+  // We halen de user server-side op
   const supabase = createClient(cookies());
   await supabase.auth.getUser();
 
   return (
-    <html lang="nl" className={`${inter.variable} ${playfair.variable}`}>
+    // 'suppressHydrationWarning' is nodig voor next-themes om errors te voorkomen
+    <html lang="nl" suppressHydrationWarning className={`${inter.variable} ${playfair.variable}`}>
       <head>
-        {/* Snelheids optimalisatie voor externe plaatjes */}
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
       </head>
       
-      {/* 3. DE BODY MET DAG/NACHT LOGICA 
-          - bg-white text-midnight-950: Dit is de "DAG" stand (Wit met blauwe letters).
-          - dark:bg-midnight-950 dark:text-white: Dit is de "NACHT" stand (Blauw met witte letters).
-          - De 'ThemeToggle' knop voegt de class 'dark' toe aan de HTML tag, waardoor de 'dark:' regels actief worden.
-      */}
-      <body className="
-        font-sans antialiased flex flex-col min-h-screen transition-colors duration-300
+      <body className="font-sans antialiased flex flex-col min-h-screen bg-white text-midnight-950 dark:bg-midnight-950 dark:text-white selection:bg-museum-gold selection:text-black">
         
-        /* DAG MODUS */
-        bg-white text-midnight-950 
-        
-        /* NACHT MODUS */
-        dark:bg-midnight-950 dark:text-white
-        
-        selection:bg-museum-gold selection:text-black
-      ">
-        
-        {/* De Gamification Popup luistert altijd naar Badges & Levels */}
-        <AchievementPopup />
-        
-        {/* De Header (Navigatie & Theme Toggle) */}
-        <Header />
-        
-        {/* De Pagina Inhoud (flex-1 duwt de footer naar beneden bij weinig content) */}
-        <div className="flex-1">
-            {children}
-        </div>
+        {/* De ThemeProvider wikkelt ALLES in de juiste context */}
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange
+        >
+            
+            {/* De Gamification Popup luistert altijd naar Badges & Levels */}
+            <AchievementPopup />
+            
+            {/* De Header (Navigatie & Theme Toggle) */}
+            <Header />
+            
+            {/* De Pagina Inhoud */}
+            <main className="flex-1">
+                {children}
+            </main>
 
-        {/* De Footer */}
-        <Footer />
+            {/* De Footer */}
+            <Footer />
+
+        </ThemeProvider>
         
       </body>
     </html>
