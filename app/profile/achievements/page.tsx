@@ -64,22 +64,29 @@ export default async function AchievementsPage() {
 
     const unlockedSet = new Set(userBadges?.map(b => b.badge_id));
 
-    // 3. SORTEREN: 3 Niveau's
-    const sortedBadges = allBadges?.sort((a, b) => {
+    // 3. FILTEREN: Verberg badges die geheim zijn én nog niet behaald
+    const visibleBadges = allBadges?.filter(badge => {
+        // Als badge NIET geheim is -> altijd tonen
+        if (!badge.is_secret) return true;
+        // Als badge WEL geheim is -> alleen tonen als hij behaald is
+        return unlockedSet.has(badge.id);
+    });
+
+    // 4. SORTEREN: 2 Niveau's (Behaald eerst, daarna onbehaald)
+    const sortedBadges = visibleBadges?.sort((a, b) => {
         const hasA = unlockedSet.has(a.id);
         const hasB = unlockedSet.has(b.id);
 
         // Helper functie om de "Rang" te bepalen
-        const getRank = (badge: any, unlocked: boolean) => {
-            if (unlocked) return 0;         // Rang 0: Behaald (Bovenaan)
-            if (!badge.is_secret) return 1; // Rang 1: Openbaar & Nog niet behaald
-            return 2;                       // Rang 2: Geheim & Nog niet behaald (Onderaan)
+        const getRank = (unlocked: boolean) => {
+            if (unlocked) return 0; // Rang 0: Behaald (Bovenaan)
+            return 1;               // Rang 1: Nog niet behaald
         };
 
-        const rankA = getRank(a, hasA);
-        const rankB = getRank(b, hasB);
+        const rankA = getRank(hasA);
+        const rankB = getRank(hasB);
 
-        // Stap A: Sorteer op Rang (0 -> 1 -> 2)
+        // Stap A: Sorteer op Rang (Behaald vs Onbehaald)
         if (rankA !== rankB) {
             return rankA - rankB;
         }
@@ -102,6 +109,7 @@ export default async function AchievementsPage() {
                         <p className="text-gray-400">Verzamel medailles en ontdek geheime achievements.</p>
                     </div>
                     <div className="bg-museum-gold text-black px-4 py-2 rounded-lg font-bold text-xl shadow-lg shadow-museum-gold/20">
+                        {/* We tonen hier nog wel het TOTAAL aantal (incl geheime) om nieuwsgierigheid te wekken */}
                         {unlockedSet.size} / {allBadges?.length || 0}
                     </div>
                 </div>
@@ -109,11 +117,6 @@ export default async function AchievementsPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {sortedBadges?.map((badge) => {
                         const isUnlocked = unlockedSet.has(badge.id);
-                        const isSecret = badge.is_secret || false; 
-                        
-                        // Een badge is alleen 'visueel' geheim als hij secret is ÉN nog niet behaald
-                        const isHidden = isSecret && !isUnlocked;
-
                         const BadgeIcon = getIcon(badge.icon_name);
 
                         return (
@@ -130,31 +133,25 @@ export default async function AchievementsPage() {
                                     ? 'bg-museum-gold text-black shadow-museum-gold/50' 
                                     : 'bg-black/30 text-gray-600'
                                 }`}>
-                                    {isUnlocked ? <BadgeIcon size={40} /> : (isHidden ? <HelpCircle size={32}/> : <Lock size={32} />)}
+                                    {isUnlocked ? <BadgeIcon size={40} /> : <Lock size={32} />}
                                 </div>
 
                                 <div className="flex-1 flex flex-col justify-center w-full">
                                     <h3 className={`font-bold mb-2 ${isUnlocked ? 'text-white' : 'text-gray-500'}`}>
-                                        {isHidden ? "Geheime Prestatie" : badge.name}
+                                        {badge.name}
                                     </h3>
                                     
                                     <p className="text-xs text-gray-500 mb-4 h-8 line-clamp-2 leading-relaxed px-2">
-                                        {isHidden ? "Blijf spelen om deze te ontgrendelen." : badge.description}
+                                        {badge.description}
                                     </p>
                                     
                                     {/* XP Label */}
                                     <div className="mt-auto">
-                                        {isHidden ? (
-                                            <span className="text-[10px] font-bold uppercase tracking-widest py-1 px-3 rounded bg-black/30 text-gray-700">
-                                                ??? XP
-                                            </span>
-                                        ) : (
-                                            <span className={`text-[10px] font-bold uppercase tracking-widest py-1 px-3 rounded ${
-                                                isUnlocked ? 'bg-museum-gold/20 text-museum-gold' : 'bg-black/30 text-gray-500'
-                                            }`}>
-                                                {badge.xp_reward} XP
-                                            </span>
-                                        )}
+                                        <span className={`text-[10px] font-bold uppercase tracking-widest py-1 px-3 rounded ${
+                                            isUnlocked ? 'bg-museum-gold/20 text-museum-gold' : 'bg-black/30 text-gray-500'
+                                        }`}>
+                                            {badge.xp_reward} XP
+                                        </span>
                                     </div>
                                 </div>
                             </div>
