@@ -85,15 +85,26 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        await supabase.from('game_scores').insert({
+        // CORRECTIE: Gebruik geen .catch(), maar destructureer { error }
+        const { error } = await supabase.from('game_scores').insert({
             user_id: user.id,
             game_id: params.id,
             score: score
-        }).catch(err => console.log("Score bestaat al of error", err)); // Vang dubbele insert op
-        
-        await supabase.from('user_activity_logs').insert({
-             user_id: user.id, action_type: 'play_game', entity_id: params.id, metadata: { score }
         });
+
+        if (error) {
+            console.log("Score bestaat al of error bij opslaan", error);
+        }
+        
+        // Log activiteit (optioneel, mag falen zonder de app te breken)
+        const { error: logError } = await supabase.from('user_activity_logs').insert({
+             user_id: user.id, 
+             action_type: 'play_game', 
+             entity_id: params.id, 
+             metadata: { score }
+        });
+        
+        if (logError) console.log("Kon activiteit niet loggen", logError);
     }
     setSaving(false);
   };
@@ -128,7 +139,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
         {/* MAIN CONTAINER */}
         <div className="flex-1 flex flex-col lg:flex-row h-screen pt-4 pb-20 lg:pb-0">
             
-            {/* LINKERKANT: AFBEELDING (Op mobiel boven, op desktop links) */}
+            {/* LINKERKANT: AFBEELDING */}
             <div className="w-full lg:w-1/2 h-[40vh] lg:h-full bg-black/40 relative flex items-center justify-center p-6 border-b lg:border-b-0 lg:border-r border-white/10">
                 {currentQ.image_url ? (
                     <img 
@@ -152,12 +163,10 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
                         Vraag {currentIndex + 1} / {questions.length}
                     </div>
 
-                    {/* Vraag Titel: Iets kleiner op desktop voor lange teksten */}
                     <h2 className="text-xl md:text-2xl lg:text-3xl font-serif font-medium leading-snug mb-10 text-white">
                         {currentQ.question}
                     </h2>
 
-                    {/* Antwoorden Grid */}
                     <div className="grid grid-cols-1 gap-3 w-full mb-8">
                         {currentQ.shuffledAnswers.map((answer: string, idx: number) => {
                             const isSelected = selectedAnswer === answer;
@@ -181,7 +190,6 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
                         })}
                     </div>
 
-                    {/* Volgende Knop */}
                     <div className="h-16">
                         {selectedAnswer && (
                             <button onClick={nextQuestion} className="w-full bg-white text-black px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-museum-gold transition-colors animate-in fade-in slide-in-from-bottom-2">
