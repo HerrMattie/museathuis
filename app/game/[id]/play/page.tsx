@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Trophy, XCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { updateGameProgress, checkBadgeCondition } from '@/lib/gamification'; // Zorg dat deze imports kloppen of haal ze weg als je nog geen gamification lib hebt
 
 export default function GamePlayPage({ params }: { params: { id: string } }) {
   const [questions, setQuestions] = useState<any[]>([]);
@@ -80,11 +79,10 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
     setGameOver(true);
     confetti({ particleCount: 150, spread: 100 });
     
-    // Sla score op (als je dat systeem al hebt)
+    // Hier kun je later je gamification logica toevoegen om scores op te slaan
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        // Hier zou je code komen om XP toe te kennen
-        // await updateGameProgress(user.id, params.id, score);
+        console.log(`User ${user.id} finished with score ${score}`);
     }
   };
 
