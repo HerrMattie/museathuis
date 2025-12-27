@@ -31,7 +31,7 @@ export async function GET(req: Request) {
         const targetDate = addDays(today, 0); 
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         
-        // FORCEER ALLES VOOR TESTEN
+        // FORCEER ALLES VOOR TESTEN (Zet later terug naar const isMonday = targetDate.getDay() === 1;)
         const isMonday = true; 
 
         // Verwijder oude data voor test
@@ -141,7 +141,8 @@ export async function GET(req: Request) {
             }
 
             // Bouw stops (of AI het deed of niet)
-            const finalStops = tourSelection.map((art, index) => {
+            // HIER IS DE FIX TOEGEPAST: (art: any, index: number)
+            const finalStops = tourSelection.map((art: any, index: number) => {
                 // Probeer AI tekst te vinden, anders fallback naar database beschrijving
                 const aiStop = tourContent?.stops?.find((s:any) => s.nr === index || s.title === art.title);
                 return {
