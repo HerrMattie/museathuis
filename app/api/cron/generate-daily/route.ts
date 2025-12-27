@@ -235,12 +235,21 @@ export async function GET(req: Request) {
             }
         }
 
-// ---------------------------------------------------------
-        // STAP G: OPSLAAN IN ROOSTER (Met UPSERT)
+        // ---------------------------------------------------------
+        // STAP G: OPSLAAN IN ROOSTER (Met FIX)
         // ---------------------------------------------------------
         
-        // We voegen 'day_date' toe aan de onConflict check.
-        // Dit zorgt ervoor dat als de datum al bestaat, hij de rij update in plaats van crasht.
+        // HIER DEFINIEREN WE DATA OBJECT EERST:
+        const scheduleData = {
+            day_date: dateStr,
+            theme_title: themeTitle,
+            theme_description: curationData?.theme_description,
+            tour_ids: createdIds.tours,
+            focus_ids: createdIds.focus,
+            game_ids: createdIds.games,
+            salon_ids: createdIds.salons
+        };
+
         const { error: scheduleError } = await supabase
             .from('dayprogram_schedule')
             .upsert(scheduleData, { onConflict: 'day_date' });
