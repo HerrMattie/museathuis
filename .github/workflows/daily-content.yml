@@ -2,63 +2,88 @@ name: Daily Museum Generation
 
 on:
   schedule:
+    # Draai elke nacht om 02:00 UTC
     - cron: '0 2 * * *'
+  # Knop om handmatig te starten
   workflow_dispatch:
 
 jobs:
   generate-content:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # Veiligheid: stop als het langer duurt dan 15 min
+    
     steps:
-      # --- SALONS (3 keer apart aanroepen) ---
-      - name: Salon 1
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=salon -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Start Generatie
+        run: echo "🚀 Start Daily Generation via Vercel Cron Wrapper"
+
+      # --- SALONS (Eén voor één om timeout te voorkomen) ---
+      - name: Salon 1 Genereren
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=salon" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
       
-      - name: Wacht 10s
+      - name: Wacht 10 seconden
         run: sleep 10
 
-      - name: Salon 2
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=salon -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-      
-      - name: Wacht 10s
+      - name: Salon 2 Genereren
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=salon" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Wacht 10 seconden
         run: sleep 10
 
-      - name: Salon 3
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=salon -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Salon 3 Genereren
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=salon" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
-      # --- TOURS (3 keer apart aanroepen) ---
-      - name: Wacht 10s
+      # --- TOURS ---
+      - name: Wacht 10 seconden
         run: sleep 10
 
-      - name: Tour 1
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=tour -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Tour 1 Genereren
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=tour" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
-      - name: Wacht 10s
+      - name: Wacht 10 seconden
         run: sleep 10
 
-      - name: Tour 2
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=tour -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Tour 2 Genereren
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=tour" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
-      - name: Wacht 10s
+      - name: Wacht 10 seconden
         run: sleep 10
 
-      - name: Tour 3
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=tour -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      - name: Tour 3 Genereren
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=tour" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
-      # --- EXTRAS (3 keer apart aanroepen) ---
-      - name: Wacht 10s
+      # --- EXTRAS ---
+      - name: Wacht 10 seconden
         run: sleep 10
-      
+
       - name: Extras 1 (Focus & Game)
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=extras -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-      
-      - name: Wacht 10s
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=extras" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Wacht 10 seconden
         run: sleep 10
 
       - name: Extras 2 (Focus & Game)
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=extras -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=extras" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
       
-      - name: Wacht 10s
+      - name: Wacht 10 seconden
         run: sleep 10
 
       - name: Extras 3 (Focus & Game)
-        run: curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=extras -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+        run: |
+          curl -X GET "${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?task=extras" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
