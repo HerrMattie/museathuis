@@ -39,7 +39,7 @@ export async function GET(req: Request) {
         const cooldownDate = subDays(today, COOLDOWN_DAYS);
 
         // 3. Rollende Buffer (We plannen 7 dagen vooruit)
-        const targetDate = addDays(today, 7); 
+        const targetDate = addDays(today, 0); 
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         const dayOfWeek = targetDate.getDay(); 
         
