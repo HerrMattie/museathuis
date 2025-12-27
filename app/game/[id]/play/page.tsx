@@ -1,118 +1,202 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { X, Trophy } from 'lucide-react';
+import { Trophy, XCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import FeedbackButtons from '@/components/FeedbackButtons';
-import { checkBadges } from '@/lib/badgeSystem'; // <--- BELANGRIJK: Importeer dit!
-import { trackActivity } from '@/lib/tracking'; // <--- Importeer de centrale tracker
+import { updateGameProgress, checkBadgeCondition } from '@/lib/gamification'; // Zorg dat deze imports kloppen of haal ze weg als je nog geen gamification lib hebt
 
 export default function GamePlayPage({ params }: { params: { id: string } }) {
-    const [questions, setQuestions] = useState<any[]>([]);
-    const [currentQ, setCurrentQ] = useState(0);
-    const [score, setScore] = useState(0);
-    const [finished, setFinished] = useState(false);
-    const [startTime, setStartTime] = useState<number>(Date.now()); // <--- Tijd bijhouden
-    const [user, setUser] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [score, setScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const supabase = createClient();
+  const router = useRouter();
 
-    const router = useRouter();
-    const supabase = createClient();
+  // 1. HAAL VRAGEN OP UIT DATABASE
+  useEffect(() => {
+    const fetchGame = async () => {
+      // Haal de vragen op (game_items)
+      const { data, error } = await supabase
+        .from('game_items')
+        .select('*')
+        .eq('game_id', params.id)
+        .order('order_index', { ascending: true });
 
-    // 1. Data ophalen
-    useEffect(() => {
-        const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-            
-            // Mock data (of fetch hier je echte vragen)
-            setQuestions([
-                { text: "Wie schilderde de Nachtwacht?", options: ["Vermeer", "Rembrandt", "Van Gogh", "Hals"], correct: 1 },
-                { text: "Welk jaar?", options: ["1642", "1500", "1900", "1750"], correct: 0 }
-            ]);
-            setStartTime(Date.now()); // Start de klok
+      if (error || !data || data.length === 0) {
+        console.error("Geen vragen gevonden!", error);
+        // Fallback als er echt niets is (zodat je niet op wit scherm blijft)
+        setLoading(false);
+        return;
+      }
+
+      // Hussel de antwoorden voor elke vraag
+      const processedQuestions = data.map((q: any) => {
+        const allAnswers = [q.correct_answer, ...q.wrong_answers];
+        return {
+          ...q,
+          shuffledAnswers: allAnswers.sort(() => Math.random() - 0.5)
         };
-        init();
-    }, []);
+      });
 
-    const handleAnswer = (index: number) => {
-        const isCorrect = index === questions[currentQ].correct;
-        if (isCorrect) {
-            setScore(prev => prev + 100);
-            confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
-        }
-
-        setTimeout(() => {
-            if (currentQ < questions.length - 1) {
-                setCurrentQ(curr => curr + 1);
-            } else {
-                // We geven de *nieuwe* score mee, want state update is soms traag
-                finishGame(isCorrect ? score + 100 : score);
-            }
-        }, 1000);
+      setQuestions(processedQuestions);
+      setLoading(false);
     };
 
-    // 2. De Finish Functie (Hier gebeurt de magie!)
-const finishGame = async (finalScore: number) => {
-    setFinished(true);
-    if (!user) return;
+    fetchGame();
+  }, [params.id]);
 
-    const duration = Math.floor((Date.now() - startTime) / 1000);
-    const maxScore = questions.length * 100;
+  const handleAnswer = (answer: string) => {
+    if (selectedAnswer) return; // Al gekozen
 
-    // VERVANG ALLES HIERONDER MET DIT:
-    // We sturen alle data naar je centrale tracking.
-    // Die regelt opslag, streaks én badges (zoals 'Snelheidsduivel' of 'Quiz Meester').
-    await trackActivity(supabase, user.id, 'complete_game', params.id, {
-        score: finalScore,
-        max_score: maxScore,
-        duration: duration,
-        type: 'quiz' // Of haal dit dynamisch op
-    });
-};
+    setSelectedAnswer(answer);
+    const currentQ = questions[currentIndex];
+    const correct = answer === currentQ.correct_answer;
+    setIsCorrect(correct);
 
-    if (questions.length === 0) return <div className="bg-midnight-950 min-h-screen"/>;
-
-    if (finished) {
-        return (
-            <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6 text-center text-white animate-in zoom-in-95">
-                <div className="max-w-md w-full bg-slate-900 p-8 rounded-3xl border border-white/10 shadow-2xl">
-                    <Trophy className="w-24 h-24 text-museum-gold mx-auto mb-6 animate-bounce"/>
-                    <h1 className="text-4xl font-serif font-black mb-2">Goed Gedaan!</h1>
-                    <div className="text-6xl font-black text-white mb-8">{score} <span className="text-xl text-gray-500">PTN</span></div>
-                    
-                    <div className="bg-white/5 rounded-2xl p-4 mb-8">
-                        <FeedbackButtons entityId={params.id} entityType="game" className="justify-center"/>
-                    </div>
-
-                    <button onClick={() => router.push('/game')} className="w-full bg-white text-black px-8 py-4 rounded-xl font-bold hover:scale-105 transition-transform">
-                        Terug naar Overzicht
-                    </button>
-                </div>
-            </div>
-        );
+    if (correct) {
+      setScore(s => s + 100);
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
     }
+  };
 
-    const q = questions[currentQ];
+  const nextQuestion = () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+      setSelectedAnswer(null);
+      setIsCorrect(null);
+    } else {
+      finishGame();
+    }
+  };
+
+  const finishGame = async () => {
+    setGameOver(true);
+    confetti({ particleCount: 150, spread: 100 });
     
+    // Sla score op (als je dat systeem al hebt)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        // Hier zou je code komen om XP toe te kennen
+        // await updateGameProgress(user.id, params.id, score);
+    }
+  };
+
+  if (loading) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>;
+
+  // GEEN VRAGEN GEVONDEN?
+  if (questions.length === 0) return (
+    <div className="min-h-screen bg-midnight-950 flex flex-col items-center justify-center text-white p-6 text-center">
+        <h1 className="text-2xl font-bold mb-4">Oeps, nog geen vragen.</h1>
+        <p className="text-gray-400 mb-6">De AI is nog bezig met het bedenken van deze quiz. Probeer het over een minuutje nog eens.</p>
+        <button onClick={() => router.back()} className="text-museum-gold hover:underline">Terug</button>
+    </div>
+  );
+
+  // GAME OVER SCHERM
+  if (gameOver) {
     return (
-        <div className="min-h-screen bg-midnight-950 text-white flex flex-col">
-            <div className="p-6 flex justify-between items-center">
-               <button onClick={() => router.back()}><X className="text-gray-500 hover:text-white"/></button>
-               <div className="font-mono text-museum-gold">{score}</div>
-            </div>
-            
-            <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full p-6">
-                <h2 className="text-2xl md:text-3xl font-serif font-bold text-center mb-12">{q.text}</h2>
-                <div className="grid grid-cols-1 gap-4">
-                   {q.options.map((opt: string, i: number) => (
-                      <button key={i} onClick={() => handleAnswer(i)} className="p-4 rounded-xl border border-white/10 bg-white/5 text-left font-bold hover:bg-white/10 transition-colors">
-                         {opt}
-                      </button>
-                   ))}
-                </div>
+        <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6">
+            <div className="bg-midnight-900 border border-white/10 p-8 rounded-3xl text-center max-w-md w-full shadow-2xl">
+                <Trophy size={64} className="text-museum-gold mx-auto mb-6" />
+                <h1 className="text-3xl font-serif font-bold text-white mb-2">Goed Gedaan!</h1>
+                <p className="text-gray-400 mb-6">Je hebt de quiz afgerond.</p>
+                <div className="text-6xl font-black text-white mb-8">{score} <span className="text-lg font-normal text-gray-500">PTN</span></div>
+                
+                <button 
+                    onClick={() => router.push('/game')}
+                    className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-museum-gold transition-colors"
+                >
+                    Terug naar Overzicht
+                </button>
             </div>
         </div>
     );
+  }
+
+  // DE VRAAG ZELF
+  const currentQ = questions[currentIndex];
+
+  return (
+    <div className="min-h-screen bg-midnight-950 text-white flex flex-col">
+        {/* Progress Bar */}
+        <div className="h-2 bg-white/10 w-full">
+            <div 
+                className="h-full bg-museum-gold transition-all duration-500"
+                style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+            ></div>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
+            
+            {/* Vraag Nummer */}
+            <div className="text-gray-500 font-bold uppercase tracking-widest text-xs mb-8">
+                Vraag {currentIndex + 1} / {questions.length}
+            </div>
+
+            {/* De Vraag */}
+            <h2 className="text-3xl md:text-4xl font-serif font-bold text-center mb-12 leading-tight">
+                {currentQ.question}
+            </h2>
+
+            {/* Afbeelding (optioneel) */}
+            {currentQ.image_url && (
+                <div className="mb-8 w-full h-48 md:h-64 rounded-2xl overflow-hidden border border-white/10 shadow-lg">
+                     <img src={currentQ.image_url} className="w-full h-full object-cover" alt="hint" />
+                </div>
+            )}
+
+            {/* Antwoord Opties */}
+            <div className="grid grid-cols-1 gap-4 w-full">
+                {currentQ.shuffledAnswers.map((answer: string, idx: number) => {
+                    const isSelected = selectedAnswer === answer;
+                    const isCorrectAnswer = answer === currentQ.correct_answer;
+                    
+                    // Bepaal kleur
+                    let btnClass = "bg-white/5 border-white/10 hover:bg-white/10";
+                    if (selectedAnswer) {
+                        if (isCorrectAnswer) btnClass = "bg-emerald-500/20 border-emerald-500 text-emerald-500";
+                        else if (isSelected && !isCorrectAnswer) btnClass = "bg-red-500/20 border-red-500 text-red-500";
+                        else btnClass = "opacity-50"; // De rest dimmen
+                    }
+
+                    return (
+                        <button
+                            key={idx}
+                            onClick={() => handleAnswer(answer)}
+                            disabled={!!selectedAnswer}
+                            className={`p-6 rounded-xl border-2 text-left font-bold text-lg transition-all flex justify-between items-center ${btnClass}`}
+                        >
+                            {answer}
+                            {selectedAnswer && isCorrectAnswer && <CheckCircle size={20}/>}
+                            {selectedAnswer && isSelected && !isCorrectAnswer && <XCircle size={20}/>}
+                        </button>
+                    );
+                })}
+            </div>
+
+        </div>
+
+        {/* Volgende Knop (verschijnt na antwoord) */}
+        <div className="p-6 border-t border-white/10 bg-midnight-900/50 backdrop-blur-md">
+            <div className="max-w-2xl mx-auto flex justify-between items-center">
+                <div className="font-bold text-xl">Score: {score}</div>
+                {selectedAnswer && (
+                    <button 
+                        onClick={nextQuestion}
+                        className="bg-white text-black px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-museum-gold transition-colors"
+                    >
+                        {currentIndex < questions.length - 1 ? 'Volgende' : 'Afronden'} <ArrowRight size={18}/>
+                    </button>
+                )}
+            </div>
+        </div>
+    </div>
+  );
 }
