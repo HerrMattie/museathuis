@@ -4,6 +4,7 @@ import { addDays, format, subDays, parseISO } from 'date-fns';
 import { generateWithAI } from '@/lib/aiHelper';
 import { WEEKLY_STRATEGY } from '@/lib/scheduleConfig';
 
+// Instellingen voor Vercel (zodat het script niet stopt na 10 sec)
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,8 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// HULPFUNCTIE: Maak context met simpele indexen
+// HULPFUNCTIE: Maak context met simpele indexen [NR:0], [NR:1]
+// Dit snapt de AI veel beter dan lange database ID's.
 const createSimpleArtContext = (artworks: any[]) => {
     return artworks.map((a, index) => {
         const meta = a.ai_metadata;
@@ -28,17 +30,19 @@ export async function GET(req: Request) {
         const today = new Date();
         const COOLDOWN_DAYS = 30; 
         const cooldownDate = subDays(today, COOLDOWN_DAYS);
+        
+        // 1. Datum Bepalen (Zet targetDate op 0 voor VANDAAG testen, 1 voor morgen)
         const targetDate = addDays(today, 0); 
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         
-        // FORCEER ALLES VOOR TESTEN (Zet later terug naar const isMonday = targetDate.getDay() === 1;)
+        // FORCEER MAANDAG VOOR TESTEN (Zet later terug naar: targetDate.getDay() === 1)
         const isMonday = true; 
 
-        // Verwijder oude data voor test
+        // SCHOONMAAK: Verwijder eventuele oude data voor deze datum zodat we vers kunnen testen
         const { data: existing } = await supabase.from('dayprogram_schedule').select('id').eq('day_date', dateStr).single();
         if (existing) {
             await supabase.from('dayprogram_schedule').delete().eq('id', existing.id);
-            console.log("♻️ Oude planning verwijderd.");
+            console.log("♻️ Oude planning verwijderd voor her-generatie.");
         }
 
         console.log(`🚀 Start generatie voor: ${dateStr}`);
@@ -47,12 +51,12 @@ export async function GET(req: Request) {
         const createdIds = { tours: [] as string[], focus: [] as string[], games: [] as string[], salons: [] as string[] };
 
         // ---------------------------------------------------------
-        // STAP A: SALONS 
+        // STAP A: SALONS (Alleen op maandag)
         // ---------------------------------------------------------
         if (isMonday) {
             console.log("🎨 Salons genereren...");
             const salonPrompt = `
-                Genereer 3 creatieve titels voor kunstcollecties.
+                Genereer 3 creatieve, unieke titels voor kunstcollecties (Salons).
                 Geef ALLEEN JSON terug. Geen markdown.
                 Format: { "salons": [{ "title": "...", "description": "...", "tags": ["tag1"] }] }
             `;
@@ -71,6 +75,7 @@ export async function GET(req: Request) {
                             tags: item.tags,
                             is_premium: true
                         }).select('id').single();
+                        
                         if (insertedSalon) createdIds.salons.push(insertedSalon.id);
                     }
                 }
@@ -80,7 +85,7 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP B: ARTWORK POOL
+        // STAP B: ARTWORK POOL OPHALEN
         // ---------------------------------------------------------
         const { data: rawPool } = await supabase
             .from('artworks')
@@ -89,18 +94,22 @@ export async function GET(req: Request) {
             .not('image_url', 'is', null) 
             .limit(200);
 
-        if (!rawPool || rawPool.length < 5) throw new Error(`Te weinig kunstwerken (${rawPool?.length}).`);
+        if (!rawPool || rawPool.length < 5) throw new Error(`Te weinig kunstwerken (${rawPool?.length}). Run eerst het enrich-script.`);
 
+        // Filter op recent gebruik en hussel de lijst
         const artPool = rawPool.filter((a: any) => !a.last_used_at || parseISO(a.last_used_at) < cooldownDate);
         const shuffledPool = (artPool.length > 5 ? artPool : rawPool).sort(() => 0.5 - Math.random());
+        
+        // Pak de eerste 30 als kandidaten
         const selectionPool = shuffledPool.slice(0, 30);
 
         // ---------------------------------------------------------
-        // STAP C: DE CURATOR
+        // STAP C: DE CURATOR (Thema kiezen)
         // ---------------------------------------------------------
         const catalogText = createSimpleArtContext(selectionPool);
         const curationPrompt = `
-        Kies 5 werken voor een audiotour. Geef ALLEEN JSON terug.
+        Kies 5 werken voor een audiotour die samen een verhaal vertellen.
+        Geef ALLEEN JSON terug.
         Lijst: ${catalogText}
         Format: { "theme_title": "...", "theme_description": "...", "selected_nrs": [0, 1, 2, 3, 4] }
         `;
@@ -109,26 +118,27 @@ export async function GET(req: Request) {
         try {
             curationData = await generateWithAI(curationPrompt, true);
         } catch (e) {
-            console.error("❌ Curator faalde, fallback naar random.", e);
+            console.error("❌ Curator faalde, fallback naar random selectie.", e);
             curationData = { selected_nrs: [0,1,2,3,4], theme_title: `Collectie ${dateStr}` };
         }
 
         const selectedNrs = curationData?.selected_nrs || [0,1,2,3,4];
         let tourSelection = selectedNrs.map((nr: number) => selectionPool[nr]).filter(Boolean);
         
-        if (tourSelection.length === 0) tourSelection = selectionPool.slice(0, 5); // Hard fallback
+        // Hard fallback als mapping faalt
+        if (tourSelection.length === 0) tourSelection = selectionPool.slice(0, 5);
         
         tourSelection.forEach((a:any) => usedArtworkIds.push(a.id));
         const themeTitle = curationData?.theme_title || `Collectie van ${dateStr}`;
 
         // ---------------------------------------------------------
-        // STAP D: DE TOUR (Met Safety Net)
+        // STAP D: DE TOUR MAKEN
         // ---------------------------------------------------------
         if (tourSelection.length > 0) {
             console.log("🎧 Tour script schrijven...");
             const tourContext = createSimpleArtContext(tourSelection);
             const tourPrompt = `
-            Schrijf audiotour script voor: "${themeTitle}".
+            Schrijf een audiotour script voor thema: "${themeTitle}".
             Gebruik deze werken: ${tourContext}
             Geef ALLEEN JSON. Format: { "intro_text": "...", "stops": [ { "nr": 0, "title": "...", "description": "..." } ] }
             `;
@@ -137,13 +147,11 @@ export async function GET(req: Request) {
             try {
                 tourContent = await generateWithAI(tourPrompt, true);
             } catch (e) {
-                console.error("❌ Tour AI faalde, gebruik standaard data.", e);
+                console.error("❌ Tour AI faalde, gebruik standaard teksten.", e);
             }
 
-            // Bouw stops (of AI het deed of niet)
-            // HIER IS DE FIX TOEGEPAST: (art: any, index: number)
+            // Match AI tekst aan database objecten
             const finalStops = tourSelection.map((art: any, index: number) => {
-                // Probeer AI tekst te vinden, anders fallback naar database beschrijving
                 const aiStop = tourContent?.stops?.find((s:any) => s.nr === index || s.title === art.title);
                 return {
                     title: art.title,
@@ -155,7 +163,7 @@ export async function GET(req: Request) {
 
             const { data: tour } = await supabase.from('tours').insert({
                 title: themeTitle,
-                intro: tourContent?.intro_text || `Welkom bij de tour: ${themeTitle}.`,
+                intro: tourContent?.intro_text || `Welkom bij de tentoonstelling: ${themeTitle}.`,
                 stops_data: { stops: finalStops },
                 hero_image_url: tourSelection[0]?.image_url,
                 status: 'published',
@@ -167,12 +175,12 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP E: FOCUS
+        // STAP E: FOCUS ARTIKEL
         // ---------------------------------------------------------
         const focusArt = tourSelection[0]; 
         if (focusArt) {
             console.log("📖 Focus artikel schrijven...");
-            const focusPrompt = `Schrijf artikel over "${focusArt.title}". JSON: { "title": "...", "intro": "...", "content_markdown": "..." }`;
+            const focusPrompt = `Schrijf een boeiend artikel over "${focusArt.title}". JSON: { "title": "...", "intro": "...", "content_markdown": "..." }`;
             
             try {
                 const fData: any = await generateWithAI(focusPrompt, true);
@@ -193,17 +201,28 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP F: GAMES
+        // STAP F: GAMES (Met Fallback voor foute antwoorden!)
         // ---------------------------------------------------------
         console.log("🎮 Games genereren...");
         const gameTypes = ['Multiple Choice', 'Open Vraag'];
         
         for (const type of gameTypes) {
             const gameContext = createSimpleArtContext(tourSelection);
+            
+            // VERBETERDE PROMPT: Dwing expliciet om 3 foute antwoorden
             const gamePrompt = `
-            Maak '${type}' quiz (3 vragen) over: ${themeTitle}.
-            Context: ${gameContext}
-            JSON: [ { "question": "...", "correct_answer": "...", "wrong_answers": ["..."], "related_nr": 0 } ]
+            Maak een '${type}' quiz (3 vragen) over: ${themeTitle}.
+            Gebruik de context: ${gameContext}
+            
+            BELANGRIJK: Zorg voor PRECIES 3 "wrong_answers" per vraag.
+            Format JSON: [ 
+                { 
+                    "question": "...", 
+                    "correct_answer": "...", 
+                    "wrong_answers": ["Fout 1", "Fout 2", "Fout 3"], 
+                    "related_nr": 0 
+                } 
+            ]
             `;
 
             try {
@@ -220,11 +239,19 @@ export async function GET(req: Request) {
                         createdIds.games.push(gm.id);
                         const gameItems = gData.map((it:any, idx:number) => {
                             const relatedArt = tourSelection[it.related_nr] || tourSelection[0];
+                            
+                            // SAFETY CHECK: Als AI faalt en geen wrong_answers geeft, vul aan met dummy data
+                            // Dit voorkomt de bug dat je maar 1 knop ziet
+                            let wrongs = it.wrong_answers;
+                            if (!wrongs || !Array.isArray(wrongs) || wrongs.length < 3) {
+                                wrongs = ["Rembrandt", "Mondriaan", "Vermeer"]; 
+                            }
+
                             return {
                                 game_id: gm.id,
                                 question: it.question,
                                 correct_answer: it.correct_answer,
-                                wrong_answers: it.wrong_answers,
+                                wrong_answers: wrongs, 
                                 image_url: relatedArt?.image_url,
                                 order_index: idx
                             };
@@ -238,7 +265,7 @@ export async function GET(req: Request) {
         }
 
         // ---------------------------------------------------------
-        // STAP G: OPSLAAN
+        // STAP G: OPSLAAN IN ROOSTER (Met UPSERT om crash te voorkomen)
         // ---------------------------------------------------------
         const scheduleData = {
             day_date: dateStr,
@@ -256,6 +283,7 @@ export async function GET(req: Request) {
 
         if (scheduleError) throw scheduleError;
 
+        // Update 'last_used_at' zodat we volgende week andere kunst krijgen
         if (usedArtworkIds.length > 0) {
             await supabase.from('artworks').update({ last_used_at: new Date().toISOString() }).in('id', usedArtworkIds);
         }
@@ -273,7 +301,4 @@ export async function GET(req: Request) {
         });
 
     } catch (error: any) {
-        console.error("❌ CRON FATAL ERROR:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-}
+        console
