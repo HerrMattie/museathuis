@@ -1,0 +1,33 @@
+name: Daily Museum Generation
+
+on:
+  schedule:
+    # Draai elke nacht om 02:00 UTC (03:00 of 04:00 NL tijd)
+    - cron: '0 2 * * *'
+  # Voegt een knop toe om het handmatig te starten in GitHub (handig voor testen!)
+  workflow_dispatch:
+
+jobs:
+  generate-content:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Genereer Salons (Heavy Load)
+        run: |
+          curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?part=salons \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+      
+      - name: Wacht 60 seconden (Cooldown voor DB & AI)
+        run: sleep 60
+
+      - name: 2. Genereer Tours
+        run: |
+          curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?part=tours \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Wacht 30 seconden
+        run: sleep 30
+
+      - name: 3. Genereer Extras (Focus & Games)
+        run: |
+          curl -X GET ${{ secrets.VERCEL_APP_URL }}/api/cron/generate-daily?part=extras \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
