@@ -1,8 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron/generate-daily",
-      "schedule": "0 3 * * *"
+      "path": "/api/cron/generate-daily?part=salons",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/generate-daily?part=tours",
+      "schedule": "5 2 * * *"
+    },
+    {
+      "path": "/api/cron/generate-daily?part=extras",
+      "schedule": "10 2 * * *"
     }
   ]
 }
