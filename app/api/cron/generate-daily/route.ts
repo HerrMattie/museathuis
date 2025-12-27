@@ -11,7 +11,7 @@ const CONFIG = {
     SALON: 30, // Aantal werken voor een Salon
     TOUR: 8    // Aantal werken voor een Tour
   },
-  AI_MODEL: "gemini-2.5-flash", // Of 1.5-flash als 2.5 nog niet beschikbaar is
+  AI_MODEL: "gemini-2.5-flash", // Zorg dat je toegang hebt, anders "gemini-1.5-flash"
 };
 
 const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator. Antwoord ALTIJD met pure JSON. Geen markdown, geen uitleg.`;
@@ -20,7 +20,7 @@ const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator. Antwoord ALTIJD met pure 
 // 2. SETUP CLIENTS
 // ============================================================================
 
-// BELANGRIJK: Gebruik de SERVICE_ROLE key voor schrijf-rechten!
+// Gebruik de SERVICE_ROLE key zodat de cronjob mag schrijven in de DB
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! 
@@ -35,7 +35,7 @@ export const dynamic = 'force-dynamic';
 // 3. HELPER FUNCTIES
 // ============================================================================
 
-// Functie om JSON uit de AI tekst te peuteren, zelfs als er tekst omheen staat
+// Functie om JSON uit de AI tekst te halen (verwijdert tekst eromheen)
 function cleanAndParseJSON(text: string, fallback: any) {
     try {
         const start = text.indexOf('{');
@@ -48,16 +48,25 @@ function cleanAndParseJSON(text: string, fallback: any) {
     } catch (e) {
         console.error("JSON Parse Error:", e);
         console.error("Ruwe tekst was:", text);
+        // Bij error geven we de dynamische fallback terug (nooit 'dagelijkse salon')
         return fallback;
     }
 }
+
+// Helper om database errors direct te gooien
+const checkDbError = (error: any, context: string) => {
+    if (error) {
+        console.error(`❌ DB ERROR bij ${context}:`, error);
+        throw new Error(`DB Fout in ${context}: ${error.message}`);
+    }
+};
 
 // ============================================================================
 // 4. MAIN ROUTE
 // ============================================================================
 
 export async function GET(request: NextRequest) {
-  // A. BEVEILIGING (Check wachtwoord van GitHub/Cron)
+  // A. BEVEILIGING (Check het CRON_SECRET wachtwoord)
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new NextResponse('Unauthorized', { status: 401 });
@@ -67,26 +76,17 @@ export async function GET(request: NextRequest) {
   const task = searchParams.get('task'); // 'salon', 'tour', 'extras'
   const today = new Date().toISOString().split('T')[0];
   
-  // Configureer AI voor JSON modus
+  // Configureer AI
   const model = genAI.getGenerativeModel({ 
       model: CONFIG.AI_MODEL, 
       systemInstruction: AI_REGISSEUR_PROMPT,
       generationConfig: { responseMimeType: "application/json" }
   });
 
-  const usedArtworkIds: string[] = []; // Let op: string array voor UUIDs
+  const usedArtworkIds: string[] = []; 
   const logs: string[] = [];
-  
   const log = (msg: string) => { console.log(msg); logs.push(msg); };
   
-  // Helper om DB errors hard te laten crashen (zodat je ze ziet in logs)
-  const checkDbError = (error: any, context: string) => {
-      if (error) {
-          console.error(`❌ DB ERROR bij ${context}:`, error);
-          throw new Error(`DB Fout in ${context}: ${error.message}`);
-      }
-  };
-
   log(`🚀 Start Taak: ${task}`);
 
   try {
@@ -101,20 +101,25 @@ export async function GET(request: NextRequest) {
         if (!arts || arts.length < 15) throw new Error(`Te weinig artworks (${arts?.length})`);
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
-        // 2. AI genereert titel
+        // 2. Bepaal een dynamische fallback naam (gebaseerd op het 1e werk)
+        // Als AI faalt, heet de salon: "Expositie rondom [Naam 1e werk]"
+        const fallbackTitle = `Expositie: ${arts[0].title} e.a.`;
+        const fallbackSubtitle = `Een samengestelde collectie inclusief werk van ${arts[0].artist}.`;
+
+        // 3. AI genereert titel
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
-        const prompt = `Collectie van ${arts.length} werken:\n${artList}\nVerzin een creatieve titel en ondertitel. JSON format: { "titel": "...", "ondertitel": "..." }`;
+        const prompt = `Collectie van ${arts.length} werken:\n${artList}\nVerzin een creatieve, artistieke titel en ondertitel die de sfeer vat. JSON format: { "titel": "...", "ondertitel": "..." }`;
         
         const result = await model.generateContent(prompt);
-        const json = cleanAndParseJSON(result.response.text(), { titel: "Dagelijkse Salon", ondertitel: "Kunst Selectie" });
+        const json = cleanAndParseJSON(result.response.text(), { titel: fallbackTitle, ondertitel: fallbackSubtitle });
 
-        // 3. Opslaan (LIVE ZETTEN)
+        // 4. Opslaan (LIVE)
         const { error: insertError } = await supabase.from('salons').insert({
             title: json.titel, 
             subtitle: json.ondertitel, 
             artwork_ids: arts.map((a: any) => a.id), 
             date: today,
-            status: 'published', // <--- DIRECT LIVE
+            status: 'published',
             created_at: new Date().toISOString()
         });
         checkDbError(insertError, "Opslaan Salon");
@@ -126,29 +131,45 @@ export async function GET(request: NextRequest) {
     // TAAK: TOUR
     // ------------------------------------------------------------------------
     else if (task === 'tour') {
+        // 1. Haal random kunst
         const { data: arts, error: fetchError } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.TOUR });
         checkDbError(fetchError, "Ophalen Tour Artworks");
 
         if (!arts || arts.length < 4) throw new Error("Te weinig artworks");
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
+        // 2. Maak de Stops Data (Cruciaal voor de app!)
+        const stopsData = arts.map((art: any, index: number) => ({
+            artwork_id: art.id,
+            order: index + 1,
+            title: art.title,
+            artist: art.artist
+        }));
+
+        // 3. Dynamische Fallback
+        const fallbackTitle = `Route langs ${arts[0].artist}`;
+        const fallbackIntro = `Ontdek een selectie van ${arts.length} werken, beginnend bij ${arts[0].title}.`;
+
+        // 4. AI genereert titel
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
         const prompt = `Route met ${arts.length} werken:\n${artList}\nVerzin titel en intro. JSON format: { "titel": "...", "intro": "..." }`;
 
         const result = await model.generateContent(prompt);
-        const json = cleanAndParseJSON(result.response.text(), { titel: "Museum Tour", intro: "Ontdek deze werken." });
+        const json = cleanAndParseJSON(result.response.text(), { titel: fallbackTitle, intro: fallbackIntro });
 
+        // 5. Opslaan (LIVE met stops_data)
         const { error: insertError } = await supabase.from('tours').insert({
             title: json.titel, 
             intro: json.intro, 
-            artwork_ids: arts.map((a: any) => a.id), 
+            artwork_ids: arts.map((a: any) => a.id),
+            stops_data: stopsData,
             date: today,
-            status: 'published', // <--- DIRECT LIVE
+            status: 'published',
             created_at: new Date().toISOString()
         });
         checkDbError(insertError, "Opslaan Tour");
 
-        log(`✅ Tour "${json.titel}" GEPUBLICEERD.`);
+        log(`✅ Tour "${json.titel}" GEPUBLICEERD (Met ${stopsData.length} stops).`);
     }
 
     // ------------------------------------------------------------------------
@@ -161,6 +182,7 @@ export async function GET(request: NextRequest) {
 
         if (focusArt?.[0]) {
             const art = focusArt[0];
+            // Gewone tekst, geen JSON nodig
             const res = await model.generateContent(`Korte 'wist-je-dat' over: ${art.title}. Max 1 zin. Geen JSON.`);
             
             const { error: insertFocus } = await supabase.from('focus_items').insert({
@@ -169,7 +191,7 @@ export async function GET(request: NextRequest) {
                 artwork_id: art.id, 
                 date: today, 
                 cover_image: art.image_url,
-                status: 'published' // <--- DIRECT LIVE
+                status: 'published'
             });
             checkDbError(insertFocus, "Opslaan Focus Item");
             usedArtworkIds.push(art.id);
@@ -186,7 +208,7 @@ export async function GET(request: NextRequest) {
                 artwork_id: gameArt[0].id, 
                 date: today, 
                 question: `Vraag over ${gameArt[0].title}?`,
-                status: 'published' // <--- DIRECT LIVE
+                status: 'published'
             });
             checkDbError(insertGame, "Opslaan Game");
             usedArtworkIds.push(gameArt[0].id);
@@ -198,7 +220,7 @@ export async function GET(request: NextRequest) {
     // 5. UPDATE "LAST USED" (Zzodat we morgen nieuwe kunst krijgen)
     // ------------------------------------------------------------------------
     if (usedArtworkIds.length > 0) {
-        // Set zorgt voor unieke IDs
+        // Array.from(new Set(...)) zorgt voor unieke UUIDs
         const uniqueIds = Array.from(new Set(usedArtworkIds));
         
         const { error: updateError } = await supabase
@@ -214,7 +236,6 @@ export async function GET(request: NextRequest) {
 
   } catch (e: any) {
     console.error("CRITICAL FAILURE:", e);
-    // Stuur error terug naar GitHub zodat de actie faalt (en je een mail krijgt)
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
