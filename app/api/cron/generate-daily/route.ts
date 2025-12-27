@@ -7,9 +7,8 @@ const CONFIG = {
   AI_MODEL: "gemini-2.5-flash", 
 };
 
-const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator en Regisseur van een digitaal museum.`;
+const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator. Antwoord ALTIJD met pure JSON. Geen markdown, geen uitleg.`;
 
-// CRUCIALE CHECK: Gebruik de SERVICE_ROLE key, anders mag je niet schrijven!
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! 
@@ -20,6 +19,26 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
+// --- NIEUWE HELPER FUNCTIE ---
+// Deze functie sloopt alle tekst weg die geen JSON is
+function cleanAndParseJSON(text: string, fallback: any) {
+    try {
+        // Zoek de eerste { en de laatste }
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        
+        if (start === -1 || end === -1) throw new Error("Geen JSON haken gevonden");
+        
+        // Pak alleen het stukje ertussen
+        const cleanJson = text.substring(start, end + 1);
+        return JSON.parse(cleanJson);
+    } catch (e) {
+        console.error("JSON Parse Error:", e);
+        console.error("Ruwe tekst was:", text); // Zie in logs wat Gemini echt zei
+        return fallback;
+    }
+}
+
 export async function GET(request: NextRequest) {
   // 1. AUTH CHECK
   const authHeader = request.headers.get('authorization');
@@ -29,18 +48,23 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const task = searchParams.get('task'); 
-
   const today = new Date().toISOString().split('T')[0];
-  const model = genAI.getGenerativeModel({ model: CONFIG.AI_MODEL, systemInstruction: AI_REGISSEUR_PROMPT });
+  
+  // We vragen expliciet om JSON mode in de config (werkt goed bij nieuwere modellen)
+  const model = genAI.getGenerativeModel({ 
+      model: CONFIG.AI_MODEL, 
+      systemInstruction: AI_REGISSEUR_PROMPT,
+      generationConfig: { responseMimeType: "application/json" } // DWINGT JSON AF
+  });
+
   const usedArtworkIds: number[] = []; 
   const logs: string[] = [];
-  
-  // Helper om errors direct te gooien
   const log = (msg: string) => { console.log(msg); logs.push(msg); };
+  
   const checkDbError = (error: any, context: string) => {
       if (error) {
           console.error(`❌ DB ERROR bij ${context}:`, error);
-          throw new Error(`DB Fout in ${context}: ${error.message} (Details: ${JSON.stringify(error)})`);
+          throw new Error(`DB Fout in ${context}: ${error.message}`);
       }
   };
 
@@ -58,14 +82,12 @@ export async function GET(request: NextRequest) {
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
-        const prompt = `Collectie van ${arts.length} werken:\n${artList}\nVerzin titel en ondertitel. JSON: { "titel": "...", "ondertitel": "..." }`;
+        const prompt = `Collectie van ${arts.length} werken:\n${artList}\nVerzin een creatieve titel en ondertitel. JSON format: { "titel": "...", "ondertitel": "..." }`;
         
         const result = await model.generateContent(prompt);
-        const text = result.response.text().replace(/```json|```/g, '').trim();
-        let json;
-        try { json = JSON.parse(text); } catch { json = { titel: "Dagelijkse Salon", ondertitel: "Kunst Selectie" }; }
+        // Gebruik de nieuwe schoonmaak functie
+        const json = cleanAndParseJSON(result.response.text(), { titel: "Dagelijkse Salon", ondertitel: "Kunst Selectie" });
 
-        // HARD ERROR CHECK BIJ INSERT
         const { error: insertError } = await supabase.from('salons').insert({
             title: json.titel, 
             subtitle: json.ondertitel, 
@@ -74,7 +96,7 @@ export async function GET(request: NextRequest) {
         });
         checkDbError(insertError, "Opslaan Salon");
 
-        log(`✅ Salon "${json.titel}" OPGESLAGEN in DB.`);
+        log(`✅ Salon "${json.titel}" OPGESLAGEN.`);
     }
 
     // ========================================================================
@@ -88,14 +110,12 @@ export async function GET(request: NextRequest) {
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
-        const prompt = `Route met ${arts.length} werken:\n${artList}\nVerzin titel en intro. JSON: { "titel": "...", "intro": "..." }`;
+        const prompt = `Route met ${arts.length} werken:\n${artList}\nVerzin titel en intro. JSON format: { "titel": "...", "intro": "..." }`;
 
         const result = await model.generateContent(prompt);
-        const text = result.response.text().replace(/```json|```/g, '').trim();
-        let json;
-        try { json = JSON.parse(text); } catch { json = { titel: "Museum Tour", intro: "Ontdek deze werken." }; }
+        // Gebruik de nieuwe schoonmaak functie
+        const json = cleanAndParseJSON(result.response.text(), { titel: "Museum Tour", intro: "Ontdek deze werken." });
 
-        // HARD ERROR CHECK BIJ INSERT
         const { error: insertError } = await supabase.from('tours').insert({
             title: json.titel, 
             intro: json.intro, 
@@ -104,7 +124,7 @@ export async function GET(request: NextRequest) {
         });
         checkDbError(insertError, "Opslaan Tour");
 
-        log(`✅ Tour "${json.titel}" OPGESLAGEN in DB.`);
+        log(`✅ Tour "${json.titel}" OPGESLAGEN.`);
     }
 
     // ========================================================================
@@ -117,20 +137,18 @@ export async function GET(request: NextRequest) {
 
         if (focusArt?.[0]) {
             const art = focusArt[0];
-            const res = await model.generateContent(`Korte 'wist-je-dat' over: ${art.title}. Max 1 zin.`);
+            const res = await model.generateContent(`Korte 'wist-je-dat' over: ${art.title}. Max 1 zin. Geen JSON, gewoon tekst.`);
             
-            // LET OP: Check of 'cover_image' bestaat in je tabel! Zo niet, haal die regel weg.
             const { error: insertFocus } = await supabase.from('focus_items').insert({
                 title: art.title, 
                 content: res.response.text().trim(), 
                 artwork_id: art.id, 
                 date: today, 
-                cover_image: art.image_url // <--- DIT IS VAAK DE BOOSDOENER ALS DE KOLOM NIET BESTAAT
+                cover_image: art.image_url
             });
             checkDbError(insertFocus, "Opslaan Focus Item");
-            
             usedArtworkIds.push(art.id);
-            log(`✅ Focus: ${art.title} OPGESLAGEN.`);
+            log(`✅ Focus: ${art.title}`);
         }
 
         // Game
@@ -145,19 +163,17 @@ export async function GET(request: NextRequest) {
                 question: `Vraag over ${gameArt[0].title}?` 
             });
             checkDbError(insertGame, "Opslaan Game");
-
             usedArtworkIds.push(gameArt[0].id);
             log(`✅ Game OPGESLAGEN.`);
         }
     }
 
-    // DB UPDATE (COOLDOWN)
+    // DB UPDATE
     if (usedArtworkIds.length > 0) {
         const { error: updateError } = await supabase
             .from('artworks')
             .update({ last_used_at: new Date().toISOString() })
             .in('id', Array.from(new Set(usedArtworkIds)));
-        
         checkDbError(updateError, "Updaten last_used_at");
         log(`🔄 ${usedArtworkIds.length} items gemarkeerd als gebruikt.`);
     }
@@ -166,7 +182,6 @@ export async function GET(request: NextRequest) {
 
   } catch (e: any) {
     console.error("CRITICAL FAILURE:", e);
-    // Stuur de echte error terug zodat je die in GitHub ziet
-    return NextResponse.json({ success: false, error: e.message, details: e }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
