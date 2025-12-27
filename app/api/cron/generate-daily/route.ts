@@ -17,7 +17,7 @@ const CONFIG = {
     SALON: 30,  // EIS: 30 werken per salon
     TOUR: 8     // EIS: 8 werken per tour
   },
-  // Let op: Zorg dat je toegang hebt tot 2.5, anders fallback naar 1.5-flash
+  // Fallback naar 1.5-flash als 2.5 nog niet beschikbaar is in jouw regio/tier
   AI_MODEL: "gemini-2.5-flash", 
 };
 
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
                 themeData = { titel: `Salon ${i}`, ondertitel: "Een diverse collectie meesterwerken." };
             }
 
-            // Opslaan in DB (Uitcommentariëren zodra tabel bestaat)
+            // Opslaan in DB (Haal comments weg zodra tabel bestaat)
             /* await supabase.from('salons').insert({ 
                 title: themeData.titel,
                 subtitle: themeData.ondertitel,
@@ -184,9 +184,6 @@ export async function GET(request: NextRequest) {
             if (focusArt && focusArt[0]) {
                 const art = focusArt[0];
                 
-                // Optioneel: Laat AI een "Wist je datje" schrijven
-                // const prompt = `Schrijf 1 korte zin over ${art.title}`;
-                
                 log(`Focus #${f}: ${art.title} (${art.artist})`, 'SUCCESS');
                 
                 /*
@@ -207,11 +204,8 @@ export async function GET(request: NextRequest) {
 
     for (let g = 1; g <= CONFIG.COUNTS.GAMES; g++) {
         try {
-            // Je kunt hier ook een artwork ophalen om de vraag over te laten gaan
             const { data: gameArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
             const subject = gameArt && gameArt[0] ? gameArt[0].title : "Kunstgeschiedenis";
-
-            // Eventueel AI aanroepen voor vraag generatie
             
             log(`Game #${g} gegenereerd (Onderwerp: ${subject}).`, 'SUCCESS');
             
@@ -224,11 +218,13 @@ export async function GET(request: NextRequest) {
 
 
     // -----------------------------------------------------------------------
-    // STAP E: UPDATE DB
+    // STAP E: UPDATE DB (DE FIX ZIT HIERONDER)
     // -----------------------------------------------------------------------
     
     if (usedArtworkIds.length > 0) {
-        const uniqueIds = [...new Set(usedArtworkIds)];
+        // FIX: Gebruik Array.from in plaats van [...new Set()] om TS errors te voorkomen
+        const uniqueIds = Array.from(new Set(usedArtworkIds));
+        
         log(`${uniqueIds.length} artworks worden gemarkeerd als gebruikt.`, 'INFO');
         
         await supabase
