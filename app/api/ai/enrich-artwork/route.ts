@@ -4,29 +4,31 @@ import { generateWithAI, getEnrichmentPrompt } from '@/lib/aiHelper';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { title, artist, museum, description_nl } = body;
+    const { title, artist, museum, image_url } = body;
 
-    // 1. Validatie
+    // VALIDATIE: Titel en artiest zijn minimaal nodig
     if (!title || !artist) {
-        return NextResponse.json({ error: "Titel en kunstenaar zijn verplicht." }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Title and Artist are required' },
+        { status: 400 }
+      );
     }
 
-    // 2. Haal de centrale prompt op (dezelfde kwaliteit als je script!)
-    const prompt = getEnrichmentPrompt({
-        title,
-        artist,
-        museum,
-        extra: description_nl
+    // 1. Haal de prompt op uit de helper
+    // FIX: Geen object { title, artist } meegeven, maar losse argumenten!
+    const prompt = getEnrichmentPrompt(title, artist);
+
+    // 2. Vraag AI om JSON data
+    const aiData = await generateWithAI(prompt, true);
+
+    // 3. Geef resultaat terug
+    return NextResponse.json({
+      success: true,
+      data: aiData
     });
 
-    // 3. Roep de AI aan (gebruikt nu het Lite model)
-    const data = await generateWithAI(prompt, true);
-
-    // 4. Stuur terug
-    return NextResponse.json({ ...data, is_enriched: true });
-
   } catch (error: any) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: error.message || "Er ging iets mis." }, { status: 500 });
+    console.error("Enrichment Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
