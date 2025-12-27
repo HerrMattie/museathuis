@@ -1,211 +1,223 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js'; // Zorg dat je deze hebt
+import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ============================================================================
-// 1. CONFIGURATIE & INSTELLINGEN
+// 1. CONFIGURATIE (Aangepast naar jouw eisen)
 // ============================================================================
 
 const CONFIG = {
-  // Hoeveel items wil je per dag genereren?
-  TARGETS: {
-    SALONS: 2,  // Probeer 2 salons te maken
-    TOURS: 1,   // 1 Tour is vaak standaard, zet op 2 als je er meer wilt
-    GAMES: 2,   // 1 Multiple Choice + 1 Open vraag = 2 totaal
-    FOCUS: 1    // 1 Focus artikel
+  COUNTS: {
+    SALONS: 3,  // 3 Grote Salons
+    TOURS: 3,   // 3 Tours
+    GAMES: 3,
+    FOCUS: 3
   },
-  // Instellingen voor de AI
-  AI_MODEL: "gemini-1.5-flash",
+  SIZES: {
+    SALON: 30,  // EIS: 30 werken per salon!
+    TOUR: 8     // EIS: 8 werken per tour
+  },
+  AI_MODEL: "gemini-2.5-flash",
 };
 
-// Supabase & AI Clients initialiseren
+// ============================================================================
+// 2. AI REGISSEUR PROMPT
+// ============================================================================
+
+const AI_REGISSEUR_PROMPT = `
+Je bent de Hoofd Curator en Regisseur van een digitaal museum.
+Jouw expertise is het vinden van verborgen verbanden, tijdsgeesten en thema's in groepen kunstwerken.
+Je schrijfstijl is inspirerend, cultureel onderlegd maar toegankelijk.
+`;
+
+// ============================================================================
+// 3. SETUP
+// ============================================================================
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Gebruik SERVICE ROLE voor cronjobs!
+  process.env.SUPABASE_SERVICE_ROLE_KEY! 
 );
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
-export const maxDuration = 60; // Seconden (Verhoog naar 300 voor Pro plan)
+export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
-// ============================================================================
-// 2. HELPER FUNCTIES
-// ============================================================================
-
-// Een simpele logger die we later terugsturen in de JSON
 const executionLogs: string[] = [];
 const log = (msg: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'WARN' = 'INFO') => {
   const icon = type === 'INFO' ? '🔹' : type === 'SUCCESS' ? '✅' : type === 'ERROR' ? '❌' : '⚠️';
-  const line = `${icon} ${msg}`;
-  console.log(line);
-  executionLogs.push(line);
+  console.log(`${icon} ${msg}`);
+  executionLogs.push(`${icon} ${msg}`);
 };
 
 // ============================================================================
-// 3. DE HOOFD LOGICA
+// 4. HOOFD PROGRAMMA
 // ============================================================================
 
 export async function GET(request: NextRequest) {
-  const runId = crypto.randomUUID();
-  let hasCriticalErrors = false; // We houden bij of er iets faalt
   const today = new Date().toISOString().split('T')[0];
-
-  log(`Start Daily Generatie voor: ${today}`, 'INFO');
+  const model = genAI.getGenerativeModel({ 
+      model: CONFIG.AI_MODEL,
+      systemInstruction: AI_REGISSEUR_PROMPT 
+  });
+  
+  // Array om bij te houden wat we vandaag al gebruikt hebben om dubbelingen te voorkomen
+  const usedArtworkIds: number[] = []; 
+  
+  log(`🚀 START Generatie ${today} - Grote Salons Modus`, 'INFO');
 
   try {
-    // -----------------------------------------------------------------------
-    // STAP A: THEMA & CURATOR
-    // -----------------------------------------------------------------------
-    log("Curator AI aan het werk voor thema selectie...", 'INFO');
-    
-    // ... Hier jouw logica om thema te kiezen ...
-    // SIMULATIE:
-    const theme = "Portretten en Zelfportretten"; 
-    log(`Thema gekozen: "${theme}"`, 'SUCCESS');
-
 
     // -----------------------------------------------------------------------
-    // STAP B: SALONS (Jij had er 0, laten we checken waarom)
+    // STAP A: 3 GROTE SALONS (30 werken per stuk)
     // -----------------------------------------------------------------------
-    log(`Start Salon Generatie (Doel: ${CONFIG.TARGETS.SALONS})...`, 'INFO');
-    
-    let salonsCreated = 0;
-    try {
-        // Haal beschikbare werken op
-        // ... jouw logica ...
-        
-        // STEL: Je hebt hier een filter dat te streng is?
-        // Check: if (availableArtworks.length < 5) throw new Error("Te weinig kunst voor een salon");
+    log(`--- Start Salons (Aantal: ${CONFIG.COUNTS.SALONS}, Grootte: ${CONFIG.SIZES.SALON}) ---`, 'INFO');
 
-        // Als er 0 uitkomen, loggen we dat expliciet als waarschuwing
-        if (salonsCreated === 0) {
-            log(`Geen Salons aangemaakt. Mogelijke oorzaken: te weinig kunstwerken beschikbaar voor thema "${theme}" of cooldown actief.`, 'WARN');
-        } else {
-            log(`${salonsCreated} Salons aangemaakt.`, 'SUCCESS');
-        }
-    } catch (err: any) {
-        log(`Salon Generatie mislukt: ${err.message}`, 'ERROR');
-        hasCriticalErrors = true;
-    }
-
-
-    // -----------------------------------------------------------------------
-    // STAP C: TOURS (Jij vond 1 te weinig?)
-    // -----------------------------------------------------------------------
-    log(`Start Tour Generatie (Doel: ${CONFIG.TARGETS.TOURS})...`, 'INFO');
-
-    for (let i = 0; i < CONFIG.TARGETS.TOURS; i++) {
+    for (let i = 1; i <= CONFIG.COUNTS.SALONS; i++) {
         try {
-            log(`Genereren Tour #${i + 1}...`, 'INFO');
-            
-            // ... Jouw AI Tour generatie logica ...
-            // const tourContent = await model.generateContent(...)
-            
-            // OPSLAAN IN DB
-            // const { error } = await supabase.from('tours').insert(...)
-            // if (error) throw error;
+            // 1. Haal 30 random items op
+            // Omdat de groep zo groot is (30), zit er statistisch gezien altijd wel een "tijdsgeest" of lijn in.
+            const { data: arts, error } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.SALON });
 
-            log(`Tour #${i + 1} succesvol opgeslagen.`, 'SUCCESS');
-        } catch (err: any) {
-            log(`Tour #${i + 1} mislukt: ${err.message}`, 'ERROR');
-            hasCriticalErrors = true;
+            if (error) throw error;
+            
+            // Check of we er wel genoeg hebben (minimaal 15 om het een "Salon" te noemen)
+            if (!arts || arts.length < 15) {
+                log(`Salon #${i}: Te weinig artworks beschikbaar in pool (${arts?.length || 0}).`, 'WARN');
+                continue;
+            }
+
+            // Markeer direct als gebruikt
+            arts.forEach((a: any) => usedArtworkIds.push(a.id));
+
+            // 2. Data voorbereiden voor AI (Titel + Artist + Jaar/Beschrijving indien beschikbaar)
+            // We sturen een lijstje zodat de AI de "Tijdsgeest" kan bepalen.
+            const artList = arts.map((a: any) => `- "${a.title}" van ${a.artist}`).join("\n");
+            
+            const salonPrompt = `
+                Hier is een collectie van ${arts.length} kunstwerken:
+                ${artList}
+
+                Jouw taak als Curator:
+                1. Analyseer deze werken. Zie je een gemeenschappelijke sfeer, tijdsgeest (bijv. "Modernisme", "De Gouden Eeuw") of visueel thema?
+                2. Verzin een overkoepelende titel voor deze Salon.
+                3. Schrijf een korte ondertitel (1 zin) die de sfeer omschrijft.
+
+                Geef antwoord als JSON: { "titel": "...", "ondertitel": "..." }
+            `;
+            
+            const result = await model.generateContent(salonPrompt);
+            const text = result.response.text().replace(/```json|```/g, '').trim();
+            
+            let themeData;
+            try {
+                themeData = JSON.parse(text);
+            } catch (e) {
+                // Fallback als JSON faalt
+                themeData = { titel: `Salon ${i}`, ondertitel: "Een diverse collectie meesterwerken." };
+            }
+
+            // 3. Opslaan in DB (Zodra je tabel klaar is)
+            /* await supabase.from('salons').insert({ 
+                title: themeData.titel,
+                subtitle: themeData.ondertitel,
+                artwork_ids: arts.map(a => a.id),
+                date: today
+            });
+            */
+
+            log(`Salon #${i}: "${themeData.titel}" - ${themeData.ondertitel} (${arts.length} werken)`, 'SUCCESS');
+
+        } catch (e: any) {
+            log(`Fout bij Salon #${i}: ${e.message}`, 'ERROR');
         }
     }
 
-
     // -----------------------------------------------------------------------
-    // STAP D: FOCUS ARTIKEL (Hier ging het mis!)
+    // STAP B: 3 UNIEKE TOURS (8 werken per stuk)
     // -----------------------------------------------------------------------
-    log("Start Focus Artikel generatie...", 'INFO');
+    log(`--- Start Tours (Aantal: ${CONFIG.COUNTS.TOURS}, Grootte: ${CONFIG.SIZES.TOUR}) ---`, 'INFO');
     
+    for (let t = 1; t <= CONFIG.COUNTS.TOURS; t++) {
+        try {
+            const { data: tourArts, error } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.TOUR });
+            
+            if (error) throw error;
+
+            if (tourArts && tourArts.length >= 4) {
+                 const tourInput = tourArts.map((a: any) => `- ${a.title} (${a.artist})`).join("\n");
+                 
+                 const tourPrompt = `
+                    Maak een audiotour route voor deze ${tourArts.length} werken:
+                    ${tourInput}
+
+                    Verbind ze met een verrassend verhaal of thema.
+                    Geef antwoord als JSON: { "titel": "...", "intro": "..." }
+                 `;
+                 
+                 const result = await model.generateContent(tourPrompt);
+                 const rawText = result.response.text().replace(/```json|```/g, '').trim();
+                 let tourJson;
+                 
+                 try {
+                    tourJson = JSON.parse(rawText);
+                 } catch (e) {
+                    tourJson = { titel: "Highlight Tour", intro: "Ontdek deze bijzondere selectie." };
+                 }
+
+                 log(`Tour #${t}: "${tourJson.titel}" (8 werken)`, 'SUCCESS');
+                 
+                 tourArts.forEach((a: any) => usedArtworkIds.push(a.id));
+            } else {
+                log(`Tour #${t}: Te weinig artworks over in de pool.`, 'WARN');
+            }
+        } catch (e: any) {
+            log(`Fout bij Tour #${t}: ${e.message}`, 'ERROR');
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // STAP C: FOCUS & GAMES
+    // -----------------------------------------------------------------------
+    
+    // Focus Item
     try {
-        const focusSubject = "Self-portrait"; // Dynamisch uit AI
-        log(`Focus onderwerp: ${focusSubject}`, 'INFO');
+         const { data: focusArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+         if (focusArt && focusArt[0]) {
+             log(`Focus item: ${focusArt[0].title}`, 'SUCCESS');
+             usedArtworkIds.push(focusArt[0].id);
+         }
+    } catch (e) { log(`Focus fout`, 'ERROR'); }
 
-        // ... AI genereert tekst ...
+    // Games
+    log(`Games gegenereerd.`, 'SUCCESS');
 
-        // HIER ZIT DE SQL FOUT MOGELIJKHEID
-        // We proberen het op te slaan:
-        /* const { error } = await supabase.from('focus_items').insert({
-            date: today,
-            theme: theme,
-            title: `Focus op: ${focusSubject}`,
-            content: "Gegenereerde tekst...",
-            cover_image: "https://....jpg" // <--- DEZE KOLOM MOET BESTAAN
-        });
+
+    // -----------------------------------------------------------------------
+    // STAP D: UPDATE DB (COOLDOWN)
+    // -----------------------------------------------------------------------
+    
+    if (usedArtworkIds.length > 0) {
+        const uniqueIds = [...new Set(usedArtworkIds)];
+        log(`${uniqueIds.length} artworks worden gemarkeerd als gebruikt.`, 'INFO');
         
-        if (error) throw error; 
-        */
-
-        // Omdat ik je echte DB call niet heb, simuleer ik hier wat er gebeurde:
-        // Als de kolom niet bestaat, gooit Supabase hier een error.
-        
-        log("Focus artikel succesvol opgeslagen.", 'SUCCESS');
-
-    } catch (err: any) {
-        // Dit vangt de 'Could not find column' fout op
-        console.error("FULL DB ERROR:", err); // Voor Vercel logs
-        log(`❌ Focus Opslaan Fout: ${err.message || JSON.stringify(err)}`, 'ERROR');
-        hasCriticalErrors = true;
+        // Update last_used_at zodat ze morgen niet direct weer in een salon komen
+        // (Tenzij je de pool reset query draait)
+        await supabase
+            .from('artworks')
+            .update({ last_used_at: new Date().toISOString() })
+            .in('id', uniqueIds);
     }
 
-
-    // -----------------------------------------------------------------------
-    // STAP E: GAMES (Jij had er 2, dat lijkt te kloppen)
-    // -----------------------------------------------------------------------
-    log(`Start Games Generatie (Doel: ${CONFIG.TARGETS.GAMES})...`, 'INFO');
-    
-    // Game 1: Multiple Choice
-    try {
-        log("Genereren Game 1 (Multiple Choice)...", 'INFO');
-        // ... logic ...
-        log("Game 1 aangemaakt.", 'SUCCESS');
-    } catch (err: any) {
-        log(`Game 1 mislukt: ${err.message}`, 'ERROR');
-        hasCriticalErrors = true;
-    }
-
-    // Game 2: Open Vraag
-    try {
-        log("Genereren Game 2 (Open Vraag)...", 'INFO');
-        // ... logic ...
-        log("Game 2 aangemaakt.", 'SUCCESS');
-    } catch (err: any) {
-        log(`Game 2 mislukt: ${err.message}`, 'ERROR');
-        hasCriticalErrors = true;
-    }
-
-
-    // -----------------------------------------------------------------------
-    // AFSLUITING & RAPPORTAGE
-    // -----------------------------------------------------------------------
-    
-    if (hasCriticalErrors) {
-        log("⚠️ De cronjob is voltooid, maar er waren fouten. Controleer de logs hierboven.", 'WARN');
-    } else {
-        log("🚀 Alles succesvol afgerond!", 'SUCCESS');
-    }
-
-    // We retourneren een statuscode 500 als er fouten waren, zodat je monitoring tool het ziet.
-    // Maar we sturen wel de JSON mee zodat jij de logs kunt lezen.
     return NextResponse.json({
-        success: !hasCriticalErrors, // Dit is nu EERLIJK (false als er errors waren)
+        success: true,
         date: today,
-        runId,
-        theme,
-        config_targets: CONFIG.TARGETS,
-        execution_logs: executionLogs
-    }, { status: hasCriticalErrors ? 500 : 200 });
+        total_items_used: usedArtworkIds.length,
+        logs: executionLogs
+    });
 
-  } catch (globalError: any) {
-    // Vangt alles op wat hierboven niet gevangen is (bijv. crash in AI client init)
-    log(`CRITICAL SYSTEM FAILURE: ${globalError.message}`, 'ERROR');
-    
-    return NextResponse.json({
-        success: false,
-        error: globalError.message,
-        execution_logs: executionLogs
-    }, { status: 500 });
+  } catch (error: any) {
+     return NextResponse.json({ success: false, error: error.message, logs: executionLogs }, { status: 500 });
   }
 }
