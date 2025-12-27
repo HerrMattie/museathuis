@@ -301,4 +301,7 @@ export async function GET(req: Request) {
         });
 
     } catch (error: any) {
-        console
+        console.error("❌ CRON FATAL ERROR:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
