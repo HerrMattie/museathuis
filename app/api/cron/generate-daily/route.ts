@@ -7,18 +7,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // ============================================================================
 
 const CONFIG = {
-  SIZES: { 
-    SALON: 30,
-    TOUR: 8
-  },
+  SIZES: { SALON: 30, TOUR: 8 },
   AI_MODEL: "gemini-2.5-flash",
 };
 
-const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator. Antwoord ALTIJD met pure JSON. Geen markdown, geen uitleg.`;
-
-// ============================================================================
-// 2. SETUP CLIENTS
-// ============================================================================
+const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator. Antwoord ALTIJD met pure JSON.`;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +24,7 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 // ============================================================================
-// 3. HELPER FUNCTIES
+// 2. HELPER FUNCTIES
 // ============================================================================
 
 function cleanAndParseJSON(text: string, fallback: any) {
@@ -39,8 +32,7 @@ function cleanAndParseJSON(text: string, fallback: any) {
         const start = text.indexOf('{');
         const end = text.lastIndexOf('}');
         if (start === -1 || end === -1) throw new Error("Geen JSON haken gevonden");
-        const cleanJson = text.substring(start, end + 1);
-        return JSON.parse(cleanJson);
+        return JSON.parse(text.substring(start, end + 1));
     } catch (e) {
         console.error("JSON Parse Error:", e);
         return fallback;
@@ -55,7 +47,7 @@ const checkDbError = (error: any, context: string) => {
 };
 
 // ============================================================================
-// 4. MAIN ROUTE
+// 3. MAIN ROUTE
 // ============================================================================
 
 export async function GET(request: NextRequest) {
@@ -88,31 +80,25 @@ export async function GET(request: NextRequest) {
         const { data: arts, error: fetchError } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.SALON });
         checkDbError(fetchError, "Ophalen Salon Artworks");
         
-        if (!arts || arts.length < 15) throw new Error(`Te weinig artworks (${arts?.length})`);
+        if (!arts || arts.length < 15) throw new Error(`Te weinig artworks`);
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
-        // 🖼️ FIX: Pak cover image van het eerste werk
         const coverImage = arts[0].image_url || null;
-
-        const fallbackTitle = `Expositie: ${arts[0].title} e.a.`;
-        const fallbackSubtitle = `Een samengestelde collectie inclusief werk van ${arts[0].artist}.`;
-        const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
-        const prompt = `Collectie van ${arts.length} werken:\n${artList}\nVerzin een creatieve, artistieke titel en ondertitel. JSON format: { "titel": "...", "ondertitel": "..." }`;
+        const prompt = `Collectie van ${arts.length} werken (eerste: ${arts[0].title}). Verzin titel/ondertitel. JSON: { "titel": "...", "ondertitel": "..." }`;
         
         const result = await model.generateContent(prompt);
-        const json = cleanAndParseJSON(result.response.text(), { titel: fallbackTitle, ondertitel: fallbackSubtitle });
+        const json = cleanAndParseJSON(result.response.text(), { titel: `Salon: ${arts[0].title}`, ondertitel: "Kunst Selectie" });
 
         const { error: insertError } = await supabase.from('salons').insert({
             title: json.titel, 
             subtitle: json.ondertitel, 
             artwork_ids: arts.map((a: any) => a.id), 
-            cover_image: coverImage, // <--- HIER IS DE IMAGE FIX
+            cover_image: coverImage, 
             date: today,
             status: 'published',
             created_at: new Date().toISOString()
         });
         checkDbError(insertError, "Opslaan Salon");
-
         log(`✅ Salon "${json.titel}" GEPUBLICEERD.`);
     }
 
@@ -126,42 +112,31 @@ export async function GET(request: NextRequest) {
         if (!arts || arts.length < 4) throw new Error("Te weinig artworks");
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
-        // 🖼️ FIX: Pak hero image van het eerste werk
         const heroImage = arts[0].image_url || null;
-
         const stopsData = arts.map((art: any, index: number) => ({
-            artwork_id: art.id,
-            order: index + 1,
-            title: art.title,
-            artist: art.artist,
-            image_url: art.image_url // Ook handig voor de stops lijst
+            artwork_id: art.id, order: index + 1, title: art.title, artist: art.artist, image_url: art.image_url
         }));
 
-        const fallbackTitle = `Route langs ${arts[0].artist}`;
-        const fallbackIntro = `Ontdek een selectie van ${arts.length} werken, beginnend bij ${arts[0].title}.`;
-        const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
-        const prompt = `Route met ${arts.length} werken:\n${artList}\nVerzin titel en intro. JSON format: { "titel": "...", "intro": "..." }`;
-
+        const prompt = `Route met ${arts.length} werken (start: ${arts[0].title}). Verzin titel/intro. JSON: { "titel": "...", "intro": "..." }`;
         const result = await model.generateContent(prompt);
-        const json = cleanAndParseJSON(result.response.text(), { titel: fallbackTitle, intro: fallbackIntro });
+        const json = cleanAndParseJSON(result.response.text(), { titel: `Tour: ${arts[0].title}`, intro: "Ontdek deze werken." });
 
         const { error: insertError } = await supabase.from('tours').insert({
             title: json.titel, 
             intro: json.intro, 
             artwork_ids: arts.map((a: any) => a.id),
             stops_data: stopsData,
-            hero_image_url: heroImage, // <--- HIER IS DE IMAGE FIX
+            hero_image_url: heroImage,
             date: today,
             status: 'published',
             created_at: new Date().toISOString()
         });
         checkDbError(insertError, "Opslaan Tour");
-
-        log(`✅ Tour "${json.titel}" GEPUBLICEERD (Met ${stopsData.length} stops).`);
+        log(`✅ Tour "${json.titel}" GEPUBLICEERD.`);
     }
 
     // ------------------------------------------------------------------------
-    // TAAK: EXTRAS
+    // TAAK: EXTRAS (FOCUS & GAME) - MET JSON FIX
     // ------------------------------------------------------------------------
     else if (task === 'extras') {
         // Focus
@@ -170,17 +145,20 @@ export async function GET(request: NextRequest) {
 
         if (focusArt?.[0]) {
             const art = focusArt[0];
-            const res = await model.generateContent(`Korte 'wist-je-dat' over: ${art.title}. Max 1 zin. Geen JSON.`);
+            // Vraag om JSON met veld 'text', zodat we die er netjes uit kunnen vissen
+            const res = await model.generateContent(`Wist-je-dat over: ${art.title}. JSON: { "text": "..." }`);
+            const json = cleanAndParseJSON(res.response.text(), { text: `Wist je dat ${art.title} een bijzonder werk is?` });
             
+            // We slaan json.text op, NIET het hele json object
             const { error: insertFocus } = await supabase.from('focus_items').insert({
                 title: art.title, 
-                content: res.response.text().trim(), 
+                content: json.text, // <--- HIER ZIT DE FIX (Schone tekst)
                 artwork_id: art.id, 
                 date: today, 
                 cover_image: art.image_url,
                 status: 'published'
             });
-            checkDbError(insertFocus, "Opslaan Focus Item");
+            checkDbError(insertFocus, "Opslaan Focus");
             usedArtworkIds.push(art.id);
             log(`✅ Focus: ${art.title}`);
         }
@@ -205,15 +183,44 @@ export async function GET(request: NextRequest) {
     }
 
     // ------------------------------------------------------------------------
+    // CRUCIALE STAP: UPDATE 'DAILY_SCHEDULES' (DE KOPPELING)
+    // ------------------------------------------------------------------------
+    // Dit zorgt dat het in je CRM planning verschijnt
+    try {
+        log(`🔗 Bezig met updaten van Daily Schedule voor ${today}...`);
+        
+        // We proberen salon/tour ID op te halen die we net hebben gemaakt
+        const { data: salons } = await supabase.from('salons').select('id').eq('date', today).limit(1);
+        const { data: tours } = await supabase.from('tours').select('id').eq('date', today).limit(1);
+
+        const updates: any = {};
+        if (salons?.[0]) updates.salon_id = salons[0].id;
+        if (tours?.[0]) updates.tour_id = tours[0].id;
+
+        if (Object.keys(updates).length > 0) {
+            // Upsert: Als rij bestaat updaten, anders maken
+            const { error: scheduleError } = await supabase
+                .from('daily_schedules')
+                .upsert({ date: today, ...updates }, { onConflict: 'date' });
+                
+            if (scheduleError) {
+                // Als tabel niet bestaat, falen we zachtjes (loggen wel)
+                console.error("Schedule Update Failed (bestaat tabel daily_schedules?):", scheduleError);
+                log(`⚠️ Kon schedule niet updaten (Check tabel daily_schedules).`);
+            } else {
+                log(`✅ Daily Schedule bijgewerkt!`);
+            }
+        }
+    } catch (e) {
+        console.error("Schedule logic error:", e);
+    }
+
+    // ------------------------------------------------------------------------
     // UPDATE LAST USED
     // ------------------------------------------------------------------------
     if (usedArtworkIds.length > 0) {
         const uniqueIds = Array.from(new Set(usedArtworkIds));
-        const { error: updateError } = await supabase
-            .from('artworks')
-            .update({ last_used_at: new Date().toISOString() })
-            .in('id', uniqueIds);
-        checkDbError(updateError, "Updaten last_used_at");
+        await supabase.from('artworks').update({ last_used_at: new Date().toISOString() }).in('id', uniqueIds);
         log(`🔄 ${uniqueIds.length} items gemarkeerd als gebruikt.`);
     }
 
