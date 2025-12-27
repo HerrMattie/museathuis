@@ -10,7 +10,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = false) 
   try {
     // 1. Instellingen: Forceer JSON mime-type voor betere resultaten
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash", 
+        model: "gemini-2.5-flash", 
         generationConfig: {
             responseMimeType: jsonMode ? "application/json" : "text/plain",
             temperature: 0.7 
