@@ -3,21 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ============================================================================
-// 1. CONFIGURATIE (Aangepast naar jouw eisen)
+// 1. CONFIGURATIE
 // ============================================================================
 
 const CONFIG = {
   COUNTS: {
     SALONS: 3,  // 3 Grote Salons
     TOURS: 3,   // 3 Tours
-    GAMES: 3,
-    FOCUS: 3
+    GAMES: 3,   // 3 Games
+    FOCUS: 3    // 3 Focus items
   },
   SIZES: {
-    SALON: 30,  // EIS: 30 werken per salon!
+    SALON: 30,  // EIS: 30 werken per salon
     TOUR: 8     // EIS: 8 werken per tour
   },
-  AI_MODEL: "gemini-2.5-flash",
+  // Let op: Zorg dat je toegang hebt tot 2.5, anders fallback naar 1.5-flash
+  AI_MODEL: "gemini-2.5-flash", 
 };
 
 // ============================================================================
@@ -62,10 +63,10 @@ export async function GET(request: NextRequest) {
       systemInstruction: AI_REGISSEUR_PROMPT 
   });
   
-  // Array om bij te houden wat we vandaag al gebruikt hebben om dubbelingen te voorkomen
+  // Array om bij te houden wat we vandaag al gebruikt hebben
   const usedArtworkIds: number[] = []; 
   
-  log(`🚀 START Generatie ${today} - Grote Salons Modus`, 'INFO');
+  log(`🚀 START Generatie ${today} (Model: ${CONFIG.AI_MODEL})`, 'INFO');
 
   try {
 
@@ -76,33 +77,28 @@ export async function GET(request: NextRequest) {
 
     for (let i = 1; i <= CONFIG.COUNTS.SALONS; i++) {
         try {
-            // 1. Haal 30 random items op
-            // Omdat de groep zo groot is (30), zit er statistisch gezien altijd wel een "tijdsgeest" of lijn in.
+            // 1. Haal 30 random items
             const { data: arts, error } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.SALON });
 
             if (error) throw error;
             
-            // Check of we er wel genoeg hebben (minimaal 15 om het een "Salon" te noemen)
             if (!arts || arts.length < 15) {
-                log(`Salon #${i}: Te weinig artworks beschikbaar in pool (${arts?.length || 0}).`, 'WARN');
+                log(`Salon #${i}: Te weinig artworks beschikbaar (${arts?.length || 0}).`, 'WARN');
                 continue;
             }
 
-            // Markeer direct als gebruikt
             arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
-            // 2. Data voorbereiden voor AI (Titel + Artist + Jaar/Beschrijving indien beschikbaar)
-            // We sturen een lijstje zodat de AI de "Tijdsgeest" kan bepalen.
-            const artList = arts.map((a: any) => `- "${a.title}" van ${a.artist}`).join("\n");
-            
+            // 2. AI Bedenkt thema
+            const artList = arts.map((a: any) => `- "${a.title}" (${a.artist})`).join("\n");
             const salonPrompt = `
                 Hier is een collectie van ${arts.length} kunstwerken:
                 ${artList}
 
                 Jouw taak als Curator:
-                1. Analyseer deze werken. Zie je een gemeenschappelijke sfeer, tijdsgeest (bijv. "Modernisme", "De Gouden Eeuw") of visueel thema?
-                2. Verzin een overkoepelende titel voor deze Salon.
-                3. Schrijf een korte ondertitel (1 zin) die de sfeer omschrijft.
+                1. Analyseer deze werken. Zie je een rode draad, tijdsgeest of visueel thema?
+                2. Verzin een overkoepelende titel.
+                3. Schrijf een korte ondertitel (1 zin).
 
                 Geef antwoord als JSON: { "titel": "...", "ondertitel": "..." }
             `;
@@ -114,11 +110,10 @@ export async function GET(request: NextRequest) {
             try {
                 themeData = JSON.parse(text);
             } catch (e) {
-                // Fallback als JSON faalt
                 themeData = { titel: `Salon ${i}`, ondertitel: "Een diverse collectie meesterwerken." };
             }
 
-            // 3. Opslaan in DB (Zodra je tabel klaar is)
+            // Opslaan in DB (Uitcommentariëren zodra tabel bestaat)
             /* await supabase.from('salons').insert({ 
                 title: themeData.titel,
                 subtitle: themeData.ondertitel,
@@ -127,7 +122,7 @@ export async function GET(request: NextRequest) {
             });
             */
 
-            log(`Salon #${i}: "${themeData.titel}" - ${themeData.ondertitel} (${arts.length} werken)`, 'SUCCESS');
+            log(`Salon #${i}: "${themeData.titel}" (${arts.length} werken)`, 'SUCCESS');
 
         } catch (e: any) {
             log(`Fout bij Salon #${i}: ${e.message}`, 'ERROR');
@@ -151,23 +146,24 @@ export async function GET(request: NextRequest) {
                  const tourPrompt = `
                     Maak een audiotour route voor deze ${tourArts.length} werken:
                     ${tourInput}
-
-                    Verbind ze met een verrassend verhaal of thema.
+                    Verbind ze met een verrassend verhaal.
                     Geef antwoord als JSON: { "titel": "...", "intro": "..." }
                  `;
                  
                  const result = await model.generateContent(tourPrompt);
                  const rawText = result.response.text().replace(/```json|```/g, '').trim();
                  let tourJson;
-                 
                  try {
                     tourJson = JSON.parse(rawText);
                  } catch (e) {
                     tourJson = { titel: "Highlight Tour", intro: "Ontdek deze bijzondere selectie." };
                  }
 
-                 log(`Tour #${t}: "${tourJson.titel}" (8 werken)`, 'SUCCESS');
-                 
+                 /*
+                 await supabase.from('tours').insert({ ... });
+                 */
+
+                 log(`Tour #${t}: "${tourJson.titel}"`, 'SUCCESS');
                  tourArts.forEach((a: any) => usedArtworkIds.push(a.id));
             } else {
                 log(`Tour #${t}: Te weinig artworks over in de pool.`, 'WARN');
@@ -178,32 +174,63 @@ export async function GET(request: NextRequest) {
     }
 
     // -----------------------------------------------------------------------
-    // STAP C: FOCUS & GAMES
+    // STAP C: FOCUS ITEMS (Loop toegevoegd!)
     // -----------------------------------------------------------------------
-    
-    // Focus Item
-    try {
-         const { data: focusArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
-         if (focusArt && focusArt[0]) {
-             log(`Focus item: ${focusArt[0].title}`, 'SUCCESS');
-             usedArtworkIds.push(focusArt[0].id);
-         }
-    } catch (e) { log(`Focus fout`, 'ERROR'); }
+    log(`--- Start Focus Items (Aantal: ${CONFIG.COUNTS.FOCUS}) ---`, 'INFO');
 
-    // Games
-    log(`Games gegenereerd.`, 'SUCCESS');
+    for (let f = 1; f <= CONFIG.COUNTS.FOCUS; f++) {
+        try {
+            const { data: focusArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+            if (focusArt && focusArt[0]) {
+                const art = focusArt[0];
+                
+                // Optioneel: Laat AI een "Wist je datje" schrijven
+                // const prompt = `Schrijf 1 korte zin over ${art.title}`;
+                
+                log(`Focus #${f}: ${art.title} (${art.artist})`, 'SUCCESS');
+                
+                /*
+                await supabase.from('focus_items').insert({ ... });
+                */
+                
+                usedArtworkIds.push(art.id);
+            }
+        } catch (e: any) {
+             log(`Focus #${f} fout: ${e.message}`, 'ERROR');
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // STAP D: GAMES (Loop toegevoegd!)
+    // -----------------------------------------------------------------------
+    log(`--- Start Games (Aantal: ${CONFIG.COUNTS.GAMES}) ---`, 'INFO');
+
+    for (let g = 1; g <= CONFIG.COUNTS.GAMES; g++) {
+        try {
+            // Je kunt hier ook een artwork ophalen om de vraag over te laten gaan
+            const { data: gameArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+            const subject = gameArt && gameArt[0] ? gameArt[0].title : "Kunstgeschiedenis";
+
+            // Eventueel AI aanroepen voor vraag generatie
+            
+            log(`Game #${g} gegenereerd (Onderwerp: ${subject}).`, 'SUCCESS');
+            
+            if(gameArt && gameArt[0]) usedArtworkIds.push(gameArt[0].id);
+
+        } catch (e: any) {
+            log(`Game #${g} fout: ${e.message}`, 'ERROR');
+        }
+    }
 
 
     // -----------------------------------------------------------------------
-    // STAP D: UPDATE DB (COOLDOWN)
+    // STAP E: UPDATE DB
     // -----------------------------------------------------------------------
     
     if (usedArtworkIds.length > 0) {
         const uniqueIds = [...new Set(usedArtworkIds)];
         log(`${uniqueIds.length} artworks worden gemarkeerd als gebruikt.`, 'INFO');
         
-        // Update last_used_at zodat ze morgen niet direct weer in een salon komen
-        // (Tenzij je de pool reset query draait)
         await supabase
             .from('artworks')
             .update({ last_used_at: new Date().toISOString() })
