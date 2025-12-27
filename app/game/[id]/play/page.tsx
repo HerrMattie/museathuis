@@ -3,39 +3,45 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { Trophy, XCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Trophy, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function GamePlayPage({ params }: { params: { id: string } }) {
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
   const supabase = createClient();
   const router = useRouter();
 
-  // 1. HAAL VRAGEN OP UIT DATABASE
   useEffect(() => {
     const fetchGame = async () => {
-      // Haal de vragen op (game_items)
-      const { data, error } = await supabase
+      // Check eerst of user al gespeeld heeft!
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+         const { data: existing } = await supabase.from('game_scores').select('id').eq('game_id', params.id).eq('user_id', user.id).single();
+         if (existing) {
+             alert("Je hebt deze challenge al gespeeld vandaag!");
+             router.push(`/game/${params.id}`); // Terugsturen
+             return;
+         }
+      }
+
+      const { data } = await supabase
         .from('game_items')
         .select('*')
         .eq('game_id', params.id)
         .order('order_index', { ascending: true });
 
-      if (error || !data || data.length === 0) {
-        console.error("Geen vragen gevonden!", error);
-        // Fallback als er echt niets is (zodat je niet op wit scherm blijft)
+      if (!data || data.length === 0) {
         setLoading(false);
         return;
       }
 
-      // Hussel de antwoorden voor elke vraag
       const processedQuestions = data.map((q: any) => {
         const allAnswers = [q.correct_answer, ...q.wrong_answers];
         return {
@@ -49,17 +55,14 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
     };
 
     fetchGame();
-  }, [params.id]);
+  }, [params.id, router, supabase]);
 
   const handleAnswer = (answer: string) => {
-    if (selectedAnswer) return; // Al gekozen
-
+    if (selectedAnswer) return;
     setSelectedAnswer(answer);
-    const currentQ = questions[currentIndex];
-    const correct = answer === currentQ.correct_answer;
-    setIsCorrect(correct);
-
-    if (correct) {
+    
+    const isCorrect = answer === questions[currentIndex].correct_answer;
+    if (isCorrect) {
       setScore(s => s + 100);
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
     }
@@ -69,7 +72,6 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setSelectedAnswer(null);
-      setIsCorrect(null);
     } else {
       finishGame();
     }
@@ -78,118 +80,97 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
   const finishGame = async () => {
     setGameOver(true);
     confetti({ particleCount: 150, spread: 100 });
-    
-    // Hier kun je later je gamification logica toevoegen om scores op te slaan
+    setSaving(true);
+
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-        console.log(`User ${user.id} finished with score ${score}`);
+        // Score opslaan in de ECHTE tabel
+        await supabase.from('game_scores').insert({
+            user_id: user.id,
+            game_id: params.id,
+            score: score
+        });
+        
+        // Log voor XP (optioneel, als je activity logs gebruikt)
+        await supabase.from('user_activity_logs').insert({
+             user_id: user.id, action_type: 'play_game', entity_id: params.id, metadata: { score }
+        });
     }
+    setSaving(false);
   };
 
   if (loading) return <div className="min-h-screen bg-midnight-950 flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>;
 
-  // GEEN VRAGEN GEVONDEN?
-  if (questions.length === 0) return (
-    <div className="min-h-screen bg-midnight-950 flex flex-col items-center justify-center text-white p-6 text-center">
-        <h1 className="text-2xl font-bold mb-4">Oeps, nog geen vragen.</h1>
-        <p className="text-gray-400 mb-6">De AI is nog bezig met het bedenken van deze quiz. Probeer het over een minuutje nog eens.</p>
-        <button onClick={() => router.back()} className="text-museum-gold hover:underline">Terug</button>
-    </div>
-  );
-
-  // GAME OVER SCHERM
   if (gameOver) {
     return (
         <div className="min-h-screen bg-midnight-950 flex items-center justify-center p-6">
             <div className="bg-midnight-900 border border-white/10 p-8 rounded-3xl text-center max-w-md w-full shadow-2xl">
                 <Trophy size={64} className="text-museum-gold mx-auto mb-6" />
                 <h1 className="text-3xl font-serif font-bold text-white mb-2">Goed Gedaan!</h1>
-                <p className="text-gray-400 mb-6">Je hebt de quiz afgerond.</p>
+                <p className="text-gray-400 mb-6">Score opgeslagen.</p>
                 <div className="text-6xl font-black text-white mb-8">{score} <span className="text-lg font-normal text-gray-500">PTN</span></div>
-                
-                <button 
-                    onClick={() => router.push('/game')}
-                    className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-museum-gold transition-colors"
-                >
-                    Terug naar Overzicht
+                <button onClick={() => router.push(`/game/${params.id}`)} className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-museum-gold transition-colors">
+                    Bekijk Leaderboard
                 </button>
             </div>
         </div>
     );
   }
 
-  // DE VRAAG ZELF
   const currentQ = questions[currentIndex];
+  const isCorrectAnswer = selectedAnswer === currentQ.correct_answer;
 
   return (
     <div className="min-h-screen bg-midnight-950 text-white flex flex-col">
-        {/* Progress Bar */}
         <div className="h-2 bg-white/10 w-full">
-            <div 
-                className="h-full bg-museum-gold transition-all duration-500"
-                style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-            ></div>
+            <div className="h-full bg-museum-gold transition-all duration-500" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}></div>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-2xl mx-auto w-full">
-            
-            {/* Vraag Nummer */}
-            <div className="text-gray-500 font-bold uppercase tracking-widest text-xs mb-8">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 max-w-2xl mx-auto w-full">
+            <div className="text-gray-500 font-bold uppercase tracking-widest text-xs mb-6">
                 Vraag {currentIndex + 1} / {questions.length}
             </div>
 
-            {/* De Vraag */}
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-center mb-12 leading-tight">
+            {/* AANGEPASTE TITEL GROOTTE: text-xl of 2xl ipv 4xl */}
+            <h2 className="text-xl md:text-2xl font-serif font-medium text-center mb-8 leading-snug">
                 {currentQ.question}
             </h2>
 
-            {/* Afbeelding (optioneel) */}
             {currentQ.image_url && (
-                <div className="mb-8 w-full h-48 md:h-64 rounded-2xl overflow-hidden border border-white/10 shadow-lg">
-                     <img src={currentQ.image_url} className="w-full h-full object-cover" alt="hint" />
+                <div className="mb-8 w-full h-40 md:h-56 rounded-xl overflow-hidden border border-white/10 shadow-lg bg-black/50">
+                     <img src={currentQ.image_url} className="w-full h-full object-contain" alt="hint" />
                 </div>
             )}
 
-            {/* Antwoord Opties */}
-            <div className="grid grid-cols-1 gap-4 w-full">
+            <div className="grid grid-cols-1 gap-3 w-full">
                 {currentQ.shuffledAnswers.map((answer: string, idx: number) => {
                     const isSelected = selectedAnswer === answer;
-                    const isCorrectAnswer = answer === currentQ.correct_answer;
+                    const isTheCorrectOne = answer === currentQ.correct_answer;
                     
-                    // Bepaal kleur
                     let btnClass = "bg-white/5 border-white/10 hover:bg-white/10";
                     if (selectedAnswer) {
-                        if (isCorrectAnswer) btnClass = "bg-emerald-500/20 border-emerald-500 text-emerald-500";
-                        else if (isSelected && !isCorrectAnswer) btnClass = "bg-red-500/20 border-red-500 text-red-500";
-                        else btnClass = "opacity-50"; // De rest dimmen
+                        if (isTheCorrectOne) btnClass = "bg-emerald-500/20 border-emerald-500 text-emerald-500";
+                        else if (isSelected) btnClass = "bg-red-500/20 border-red-500 text-red-500";
+                        else btnClass = "opacity-40";
                     }
 
                     return (
-                        <button
-                            key={idx}
-                            onClick={() => handleAnswer(answer)}
-                            disabled={!!selectedAnswer}
-                            className={`p-6 rounded-xl border-2 text-left font-bold text-lg transition-all flex justify-between items-center ${btnClass}`}
-                        >
+                        <button key={idx} onClick={() => handleAnswer(answer)} disabled={!!selectedAnswer}
+                            className={`p-4 rounded-xl border-2 text-left font-medium text-base transition-all flex justify-between items-center ${btnClass}`}>
                             {answer}
-                            {selectedAnswer && isCorrectAnswer && <CheckCircle size={20}/>}
-                            {selectedAnswer && isSelected && !isCorrectAnswer && <XCircle size={20}/>}
+                            {selectedAnswer && isTheCorrectOne && <CheckCircle size={18}/>}
+                            {selectedAnswer && isSelected && !isTheCorrectOne && <XCircle size={18}/>}
                         </button>
                     );
                 })}
             </div>
-
         </div>
 
-        {/* Volgende Knop (verschijnt na antwoord) */}
         <div className="p-6 border-t border-white/10 bg-midnight-900/50 backdrop-blur-md">
             <div className="max-w-2xl mx-auto flex justify-between items-center">
                 <div className="font-bold text-xl">Score: {score}</div>
                 {selectedAnswer && (
-                    <button 
-                        onClick={nextQuestion}
-                        className="bg-white text-black px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-museum-gold transition-colors"
-                    >
+                    <button onClick={nextQuestion} className="bg-white text-black px-6 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-museum-gold transition-colors">
                         {currentIndex < questions.length - 1 ? 'Volgende' : 'Afronden'} <ArrowRight size={18}/>
                     </button>
                 )}
