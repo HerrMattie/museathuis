@@ -1,7 +1,7 @@
 // lib/aiHelper.ts
 
 // Kies het model met de ruimste gratis limieten (Lite = vaak 30 RPM vs Flash = 5 RPM)
-const MODEL_NAME = "gemini-2.5-flash-lite"; 
+const MODEL_NAME = "gemini-2.5-flash"; 
 
 export async function generateWithAI(prompt: string, jsonMode: boolean = true) {
   // Check beide mogelijke namen voor de key voor de zekerheid
