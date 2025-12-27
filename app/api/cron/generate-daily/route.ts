@@ -100,7 +100,7 @@ export async function GET(req: Request) {
         const { data: rawPool, error: poolError } = await supabase
             .from('artworks')
             .select('id, title, artist, description, image_url, last_used_at, ai_metadata')
-            .is('status', 'active')
+            .is('status', 'published')
             .not('image_url', 'is', null)
             .limit(300);
 
