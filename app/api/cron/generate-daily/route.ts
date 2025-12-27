@@ -9,6 +9,7 @@ const CONFIG = {
 
 const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator en Regisseur van een digitaal museum.`;
 
+// CRUCIALE CHECK: Gebruik de SERVICE_ROLE key, anders mag je niet schrijven!
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! 
@@ -27,24 +28,33 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const task = searchParams.get('task'); // 'salon', 'tour', 'focus', 'game'
+  const task = searchParams.get('task'); 
 
   const today = new Date().toISOString().split('T')[0];
   const model = genAI.getGenerativeModel({ model: CONFIG.AI_MODEL, systemInstruction: AI_REGISSEUR_PROMPT });
   const usedArtworkIds: number[] = []; 
   const logs: string[] = [];
+  
+  // Helper om errors direct te gooien
   const log = (msg: string) => { console.log(msg); logs.push(msg); };
+  const checkDbError = (error: any, context: string) => {
+      if (error) {
+          console.error(`❌ DB ERROR bij ${context}:`, error);
+          throw new Error(`DB Fout in ${context}: ${error.message} (Details: ${JSON.stringify(error)})`);
+      }
+  };
 
   log(`🚀 Start Taak: ${task}`);
 
   try {
     // ========================================================================
-    // TAAK: MAAK 1 SALON
+    // TAAK: SALON
     // ========================================================================
     if (task === 'salon') {
-        const { data: arts } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.SALON });
+        const { data: arts, error: fetchError } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.SALON });
+        checkDbError(fetchError, "Ophalen Salon Artworks");
         
-        if (!arts || arts.length < 15) throw new Error("Te weinig artworks");
+        if (!arts || arts.length < 15) throw new Error(`Te weinig artworks (${arts?.length})`);
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
@@ -55,17 +65,25 @@ export async function GET(request: NextRequest) {
         let json;
         try { json = JSON.parse(text); } catch { json = { titel: "Dagelijkse Salon", ondertitel: "Kunst Selectie" }; }
 
-        await supabase.from('salons').insert({
-            title: json.titel, subtitle: json.ondertitel, artwork_ids: arts.map((a: any) => a.id), date: today
+        // HARD ERROR CHECK BIJ INSERT
+        const { error: insertError } = await supabase.from('salons').insert({
+            title: json.titel, 
+            subtitle: json.ondertitel, 
+            artwork_ids: arts.map((a: any) => a.id), 
+            date: today
         });
-        log(`✅ Salon "${json.titel}" aangemaakt.`);
+        checkDbError(insertError, "Opslaan Salon");
+
+        log(`✅ Salon "${json.titel}" OPGESLAGEN in DB.`);
     }
 
     // ========================================================================
-    // TAAK: MAAK 1 TOUR
+    // TAAK: TOUR
     // ========================================================================
     else if (task === 'tour') {
-        const { data: arts } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.TOUR });
+        const { data: arts, error: fetchError } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.TOUR });
+        checkDbError(fetchError, "Ophalen Tour Artworks");
+
         if (!arts || arts.length < 4) throw new Error("Te weinig artworks");
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
@@ -77,44 +95,78 @@ export async function GET(request: NextRequest) {
         let json;
         try { json = JSON.parse(text); } catch { json = { titel: "Museum Tour", intro: "Ontdek deze werken." }; }
 
-        await supabase.from('tours').insert({
-            title: json.titel, intro: json.intro, artwork_ids: arts.map((a: any) => a.id), date: today
+        // HARD ERROR CHECK BIJ INSERT
+        const { error: insertError } = await supabase.from('tours').insert({
+            title: json.titel, 
+            intro: json.intro, 
+            artwork_ids: arts.map((a: any) => a.id), 
+            date: today
         });
-        log(`✅ Tour "${json.titel}" aangemaakt.`);
+        checkDbError(insertError, "Opslaan Tour");
+
+        log(`✅ Tour "${json.titel}" OPGESLAGEN in DB.`);
     }
 
     // ========================================================================
-    // TAAK: MAAK 1 FOCUS & 1 GAME
+    // TAAK: EXTRAS
     // ========================================================================
     else if (task === 'extras') {
         // Focus
-        const { data: focusArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+        const { data: focusArt, error: fError } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+        checkDbError(fError, "Ophalen Focus Art");
+
         if (focusArt?.[0]) {
             const art = focusArt[0];
             const res = await model.generateContent(`Korte 'wist-je-dat' over: ${art.title}. Max 1 zin.`);
-            await supabase.from('focus_items').insert({
-                title: art.title, content: res.response.text().trim(), artwork_id: art.id, date: today, cover_image: art.image_url
+            
+            // LET OP: Check of 'cover_image' bestaat in je tabel! Zo niet, haal die regel weg.
+            const { error: insertFocus } = await supabase.from('focus_items').insert({
+                title: art.title, 
+                content: res.response.text().trim(), 
+                artwork_id: art.id, 
+                date: today, 
+                cover_image: art.image_url // <--- DIT IS VAAK DE BOOSDOENER ALS DE KOLOM NIET BESTAAT
             });
+            checkDbError(insertFocus, "Opslaan Focus Item");
+            
             usedArtworkIds.push(art.id);
-            log(`✅ Focus: ${art.title}`);
+            log(`✅ Focus: ${art.title} OPGESLAGEN.`);
         }
+
         // Game
-        const { data: gameArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+        const { data: gameArt, error: gError } = await supabase.rpc('get_random_artworks', { aantal: 1 });
+        checkDbError(gError, "Ophalen Game Art");
+
         if (gameArt?.[0]) {
-            await supabase.from('games').insert({ type: 'trivia', artwork_id: gameArt[0].id, date: today, question: `Vraag over ${gameArt[0].title}?` });
+            const { error: insertGame } = await supabase.from('games').insert({ 
+                type: 'trivia', 
+                artwork_id: gameArt[0].id, 
+                date: today, 
+                question: `Vraag over ${gameArt[0].title}?` 
+            });
+            checkDbError(insertGame, "Opslaan Game");
+
             usedArtworkIds.push(gameArt[0].id);
-            log(`✅ Game aangemaakt.`);
+            log(`✅ Game OPGESLAGEN.`);
         }
     }
 
-    // DB UPDATE
+    // DB UPDATE (COOLDOWN)
     if (usedArtworkIds.length > 0) {
-        await supabase.from('artworks').update({ last_used_at: new Date().toISOString() }).in('id', Array.from(new Set(usedArtworkIds)));
+        const { error: updateError } = await supabase
+            .from('artworks')
+            .update({ last_used_at: new Date().toISOString() })
+            .in('id', Array.from(new Set(usedArtworkIds)));
+        
+        checkDbError(updateError, "Updaten last_used_at");
+        log(`🔄 ${usedArtworkIds.length} items gemarkeerd als gebruikt.`);
     }
 
     return NextResponse.json({ success: true, logs });
 
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    console.error("CRITICAL FAILURE:", e);
+    // Stuur de echte error terug zodat je die in GitHub ziet
+    return NextResponse.json({ success: false, error: e.message, details: e }, { status: 500 });
   }
 }
