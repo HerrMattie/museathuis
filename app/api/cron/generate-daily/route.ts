@@ -8,10 +8,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const CONFIG = {
   SIZES: { 
-    SALON: 30, // Aantal werken voor een Salon
-    TOUR: 8    // Aantal werken voor een Tour
+    SALON: 30,
+    TOUR: 8
   },
-  AI_MODEL: "gemini-2.5-flash", // Of 1.5-flash
+  AI_MODEL: "gemini-2.5-flash",
 };
 
 const AI_REGISSEUR_PROMPT = `Je bent de Hoofd Curator. Antwoord ALTIJD met pure JSON. Geen markdown, geen uitleg.`;
@@ -38,14 +38,11 @@ function cleanAndParseJSON(text: string, fallback: any) {
     try {
         const start = text.indexOf('{');
         const end = text.lastIndexOf('}');
-        
         if (start === -1 || end === -1) throw new Error("Geen JSON haken gevonden");
-        
         const cleanJson = text.substring(start, end + 1);
         return JSON.parse(cleanJson);
     } catch (e) {
         console.error("JSON Parse Error:", e);
-        console.error("Ruwe tekst was:", text);
         return fallback;
     }
 }
@@ -94,9 +91,11 @@ export async function GET(request: NextRequest) {
         if (!arts || arts.length < 15) throw new Error(`Te weinig artworks (${arts?.length})`);
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
+        // 🖼️ FIX: Pak cover image van het eerste werk
+        const coverImage = arts[0].image_url || null;
+
         const fallbackTitle = `Expositie: ${arts[0].title} e.a.`;
         const fallbackSubtitle = `Een samengestelde collectie inclusief werk van ${arts[0].artist}.`;
-
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
         const prompt = `Collectie van ${arts.length} werken:\n${artList}\nVerzin een creatieve, artistieke titel en ondertitel. JSON format: { "titel": "...", "ondertitel": "..." }`;
         
@@ -107,6 +106,7 @@ export async function GET(request: NextRequest) {
             title: json.titel, 
             subtitle: json.ondertitel, 
             artwork_ids: arts.map((a: any) => a.id), 
+            cover_image: coverImage, // <--- HIER IS DE IMAGE FIX
             date: today,
             status: 'published',
             created_at: new Date().toISOString()
@@ -126,16 +126,19 @@ export async function GET(request: NextRequest) {
         if (!arts || arts.length < 4) throw new Error("Te weinig artworks");
         arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
+        // 🖼️ FIX: Pak hero image van het eerste werk
+        const heroImage = arts[0].image_url || null;
+
         const stopsData = arts.map((art: any, index: number) => ({
             artwork_id: art.id,
             order: index + 1,
             title: art.title,
-            artist: art.artist
+            artist: art.artist,
+            image_url: art.image_url // Ook handig voor de stops lijst
         }));
 
         const fallbackTitle = `Route langs ${arts[0].artist}`;
         const fallbackIntro = `Ontdek een selectie van ${arts.length} werken, beginnend bij ${arts[0].title}.`;
-
         const artList = arts.map((a: any) => `- "${a.title}"`).join("\n");
         const prompt = `Route met ${arts.length} werken:\n${artList}\nVerzin titel en intro. JSON format: { "titel": "...", "intro": "..." }`;
 
@@ -147,6 +150,7 @@ export async function GET(request: NextRequest) {
             intro: json.intro, 
             artwork_ids: arts.map((a: any) => a.id),
             stops_data: stopsData,
+            hero_image_url: heroImage, // <--- HIER IS DE IMAGE FIX
             date: today,
             status: 'published',
             created_at: new Date().toISOString()
@@ -157,10 +161,10 @@ export async function GET(request: NextRequest) {
     }
 
     // ------------------------------------------------------------------------
-    // TAAK: EXTRAS (FOCUS & GAMES)
+    // TAAK: EXTRAS
     // ------------------------------------------------------------------------
     else if (task === 'extras') {
-        // A. Focus Item
+        // Focus
         const { data: focusArt, error: fError } = await supabase.rpc('get_random_artworks', { aantal: 1 });
         checkDbError(fError, "Ophalen Focus Art");
 
@@ -181,13 +185,13 @@ export async function GET(request: NextRequest) {
             log(`✅ Focus: ${art.title}`);
         }
 
-        // B. Game
+        // Game
         const { data: gameArt, error: gError } = await supabase.rpc('get_random_artworks', { aantal: 1 });
         checkDbError(gError, "Ophalen Game Art");
 
         if (gameArt?.[0]) {
             const { error: insertGame } = await supabase.from('games').insert({ 
-                title: `Quiz: ${gameArt[0].title}`, // <--- DEZE REGEL IS TOEGEVOEGD (FIX) 🛠️
+                title: `Quiz: ${gameArt[0].title}`,
                 type: 'trivia', 
                 artwork_id: gameArt[0].id, 
                 date: today, 
@@ -201,16 +205,14 @@ export async function GET(request: NextRequest) {
     }
 
     // ------------------------------------------------------------------------
-    // 5. UPDATE "LAST USED"
+    // UPDATE LAST USED
     // ------------------------------------------------------------------------
     if (usedArtworkIds.length > 0) {
         const uniqueIds = Array.from(new Set(usedArtworkIds));
-        
         const { error: updateError } = await supabase
             .from('artworks')
             .update({ last_used_at: new Date().toISOString() })
             .in('id', uniqueIds);
-            
         checkDbError(updateError, "Updaten last_used_at");
         log(`🔄 ${uniqueIds.length} items gemarkeerd als gebruikt.`);
     }
