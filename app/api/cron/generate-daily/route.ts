@@ -94,7 +94,7 @@ export async function GET(req: Request) {
             .not('image_url', 'is', null) 
             .limit(200);
 
-        if (!rawPool || rawPool.length < 5) throw new Error(`Te weinig kunstwerken (${rawPool?.length}). Run eerst het enrich-script.`);
+        if (!rawPool || rawPool.length < 3) throw new Error(`Te weinig kunstwerken (${rawPool?.length}). Run eerst het enrich-script.`);
 
         // Filter op recent gebruik en hussel de lijst
         const artPool = rawPool.filter((a: any) => !a.last_used_at || parseISO(a.last_used_at) < cooldownDate);
