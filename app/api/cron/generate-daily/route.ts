@@ -94,25 +94,27 @@ export async function GET(req: Request) {
             }
         }
 
-        // ---------------------------------------------------------
-        // STAP B: HET MAGAZIJN
-        // ---------------------------------------------------------
-        const { data: rawPool, error: poolError } = await supabase
-            .from('artworks')
-            .select('id, title, artist, description, image_url, last_used_at, ai_metadata')
-            .is('status', 'published')
-            .not('image_url', 'is', null)
-            .limit(300);
+// ---------------------------------------------------------
+// STAP B: HET MAGAZIJN
+// ---------------------------------------------------------
+const { data: rawPool, error: poolError } = await supabase
+    .from('artworks')
+    .select('id, title, artist, description, image_url, last_used_at, ai_metadata')
+    .eq('status', 'published') // <--- HIER ZAT DE FOUT (.is veranderd naar .eq)
+    .not('image_url', 'is', null) 
+    .limit(300);
 
-        if (poolError || !rawPool) throw new Error("Kon geen kunstwerken ophalen.");
+// Voeg deze logs toe om te debuggen als het nog steeds misgaat:
+if (poolError) {
+    console.error("❌ Database Error:", poolError);
+}
+console.log(`📊 Aantal kunstwerken gevonden: ${rawPool?.length || 0}`);
 
-        const artPool = rawPool.filter((a: any) => {
-            if (!a.last_used_at) return true; 
-            return parseISO(a.last_used_at) < cooldownDate;
-        });
+if (poolError || !rawPool || rawPool.length === 0) {
+    // We gooien nu iets meer info in de error zodat je ziet wat er mis is
+    throw new Error(`Kon geen kunstwerken ophalen. (Status: published, Image: gevuld). Aantal: ${rawPool?.length}`);
+}
 
-        if (artPool.length < 40) console.warn("Weinig verse kunstwerken!");
-        const shuffledPool = artPool.sort(() => 0.5 - Math.random());
 
         // ---------------------------------------------------------
         // STAP C: DE CURATOR & TOUR (MET GEMINI)
