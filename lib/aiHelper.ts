@@ -2,14 +2,18 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
 
+/**
+ * Hoofdfunctie om AI aan te roepen.
+ * Bevat 'bulletproof' JSON parsing logica.
+ */
 export async function generateWithAI(prompt: string, jsonMode: boolean = false) {
   try {
     // 1. Instellingen: Forceer JSON mime-type voor betere resultaten
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash", // Of "gemini-2.0-flash" als beschikbaar
+        model: "gemini-1.5-flash", 
         generationConfig: {
             responseMimeType: jsonMode ? "application/json" : "text/plain",
-            temperature: 0.7 // Iets creativiteit, maar niet te gek
+            temperature: 0.7 
         }
     });
 
@@ -18,8 +22,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = false) 
     let text = response.text();
 
     if (jsonMode) {
-      // 2. SCHOONMAAK LOGICA (De cruciale fix)
-      // Soms zet Gemini er ```json ... ``` omheen, of tekst ervoor/erachter.
+      // 2. SCHOONMAAK LOGICA
       // We zoeken naar het eerste '{' en het laatste '}' (voor objecten)
       // of eerste '[' en laatste ']' (voor arrays).
       
@@ -45,7 +48,7 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = false) 
               return JSON.parse(jsonString);
           } catch (e) {
               console.error("JSON Parse Error op string:", jsonString);
-              return null; // Of gooi error
+              return null; 
           }
       } else {
           // Geen JSON haken gevonden? Probeer direct te parsen als fallback
@@ -61,7 +64,33 @@ export async function generateWithAI(prompt: string, jsonMode: boolean = false) 
     return text;
   } catch (error) {
     console.error("❌ AI Helper Error:", error);
-    // Gooi niet de hele app plat, return null zodat de cron door kan
     return null; 
   }
+}
+
+/**
+ * DE ONTBREKENDE FUNCTIE
+ * Deze werd gemist door het enrich-artwork script.
+ */
+export function getEnrichmentPrompt(title: string, artist: string) {
+  return `
+    Je bent een kunsthistoricus. Analyseer het kunstwerk "${title}" van ${artist}.
+    
+    Geef het resultaat terug als een JSON object met deze structuur:
+    {
+      "artistic_style": {
+        "movement": "Bijv. Impressionisme",
+        "period": "Bijv. Laat 19e eeuw"
+      },
+      "visual_analysis": {
+        "description": "Korte visuele beschrijving van wat je ziet",
+        "color_names": ["Rood", "Goud", "Donkerblauw"],
+        "composition": "Bijv. Driehoekig, Statisch, Dynamisch"
+      },
+      "description_tags": ["Portret", "Licht", "Religie", "Landschap"],
+      "fun_fact": "Een kort, verrassend feitje over dit werk of de schilder."
+    }
+    
+    Geef ALLEEN de JSON terug.
+  `;
 }
