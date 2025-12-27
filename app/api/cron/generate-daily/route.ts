@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // ============================================================================
-// 1. CONFIGURATIE
+// 1. CONFIGURATIE (STRENG & MODERN)
 // ============================================================================
 
 const CONFIG = {
@@ -14,10 +14,10 @@ const CONFIG = {
     FOCUS: 3    // 3 Focus items
   },
   SIZES: {
-    SALON: 30,  // EIS: 30 werken per salon
-    TOUR: 8     // EIS: 8 werken per tour
+    SALON: 30,  // 30 werken per salon
+    TOUR: 8     // 8 werken per tour
   },
-  // Fallback naar 1.5-flash als 2.5 nog niet beschikbaar is in jouw regio/tier
+  // We forceren 2.5 zoals gevraagd.
   AI_MODEL: "gemini-2.5-flash", 
 };
 
@@ -77,11 +77,12 @@ export async function GET(request: NextRequest) {
 
     for (let i = 1; i <= CONFIG.COUNTS.SALONS; i++) {
         try {
-            // 1. Haal 30 random items
+            // 1. Haal 30 random items (Pool Strategie)
             const { data: arts, error } = await supabase.rpc('get_random_artworks', { aantal: CONFIG.SIZES.SALON });
 
             if (error) throw error;
             
+            // Check op minimale grootte (bijv. 15)
             if (!arts || arts.length < 15) {
                 log(`Salon #${i}: Te weinig artworks beschikbaar (${arts?.length || 0}).`, 'WARN');
                 continue;
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
 
             arts.forEach((a: any) => usedArtworkIds.push(a.id));
 
-            // 2. AI Bedenkt thema
+            // 2. AI Bedenkt thema op basis van de gepakte kunst
             const artList = arts.map((a: any) => `- "${a.title}" (${a.artist})`).join("\n");
             const salonPrompt = `
                 Hier is een collectie van ${arts.length} kunstwerken:
@@ -113,14 +114,13 @@ export async function GET(request: NextRequest) {
                 themeData = { titel: `Salon ${i}`, ondertitel: "Een diverse collectie meesterwerken." };
             }
 
-            // Opslaan in DB (Haal comments weg zodra tabel bestaat)
+            // UNCOMMENT DIT OM OP TE SLAAN:
             /* await supabase.from('salons').insert({ 
                 title: themeData.titel,
                 subtitle: themeData.ondertitel,
                 artwork_ids: arts.map(a => a.id),
                 date: today
-            });
-            */
+            }); */
 
             log(`Salon #${i}: "${themeData.titel}" (${arts.length} werken)`, 'SUCCESS');
 
@@ -159,9 +159,13 @@ export async function GET(request: NextRequest) {
                     tourJson = { titel: "Highlight Tour", intro: "Ontdek deze bijzondere selectie." };
                  }
 
-                 /*
-                 await supabase.from('tours').insert({ ... });
-                 */
+                 // UNCOMMENT OM OP TE SLAAN:
+                 /* await supabase.from('tours').insert({ 
+                     title: tourJson.titel,
+                     intro: tourJson.intro,
+                     artwork_ids: tourArts.map(a => a.id),
+                     date: today
+                 }); */
 
                  log(`Tour #${t}: "${tourJson.titel}"`, 'SUCCESS');
                  tourArts.forEach((a: any) => usedArtworkIds.push(a.id));
@@ -174,7 +178,7 @@ export async function GET(request: NextRequest) {
     }
 
     // -----------------------------------------------------------------------
-    // STAP C: FOCUS ITEMS (Loop toegevoegd!)
+    // STAP C: 3 FOCUS ITEMS
     // -----------------------------------------------------------------------
     log(`--- Start Focus Items (Aantal: ${CONFIG.COUNTS.FOCUS}) ---`, 'INFO');
 
@@ -183,12 +187,15 @@ export async function GET(request: NextRequest) {
             const { data: focusArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
             if (focusArt && focusArt[0]) {
                 const art = focusArt[0];
-                
                 log(`Focus #${f}: ${art.title} (${art.artist})`, 'SUCCESS');
                 
-                /*
-                await supabase.from('focus_items').insert({ ... });
-                */
+                // UNCOMMENT OM OP TE SLAAN:
+                /* await supabase.from('focus_items').insert({ 
+                    title: art.title,
+                    content: "...",
+                    artwork_id: art.id,
+                    date: today
+                }); */
                 
                 usedArtworkIds.push(art.id);
             }
@@ -198,7 +205,7 @@ export async function GET(request: NextRequest) {
     }
 
     // -----------------------------------------------------------------------
-    // STAP D: GAMES (Loop toegevoegd!)
+    // STAP D: 3 GAMES
     // -----------------------------------------------------------------------
     log(`--- Start Games (Aantal: ${CONFIG.COUNTS.GAMES}) ---`, 'INFO');
 
@@ -218,19 +225,21 @@ export async function GET(request: NextRequest) {
 
 
     // -----------------------------------------------------------------------
-    // STAP E: UPDATE DB (DE FIX ZIT HIERONDER)
+    // STAP E: UPDATE DB & CLEANUP
     // -----------------------------------------------------------------------
     
     if (usedArtworkIds.length > 0) {
-        // FIX: Gebruik Array.from in plaats van [...new Set()] om TS errors te voorkomen
+        // HIER ZAT DE BUILD ERROR. NU OPGELOST MET Array.from()
         const uniqueIds = Array.from(new Set(usedArtworkIds));
         
         log(`${uniqueIds.length} artworks worden gemarkeerd als gebruikt.`, 'INFO');
         
-        await supabase
+        const { error: updateError } = await supabase
             .from('artworks')
             .update({ last_used_at: new Date().toISOString() })
             .in('id', uniqueIds);
+            
+        if (updateError) log(`DB Update Error: ${updateError.message}`, 'ERROR');
     }
 
     return NextResponse.json({
