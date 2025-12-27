@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { addDays, format, subDays, parseISO } from 'date-fns';
-import { generateWithAI } from '@/lib/aiHelper'; 
+import { generateWithAI } from '@/lib/aiHelper';
 import { WEEKLY_STRATEGY } from '@/lib/scheduleConfig';
 
 // 1. Config & Auth
-export const maxDuration = 60; // Gemini is snel, 60 sec is vaak genoeg
+export const maxDuration = 60; // Gemini is snel, maar we geven het 60 seconden
 export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY! 
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// HULPFUNCTIE: Maak context string
+// HULPFUNCTIE: Maak context string voor de AI
 const createArtContext = (artworks: any[]) => {
     return artworks.map(a => {
         const meta = a.ai_metadata;
@@ -25,23 +25,25 @@ const createArtContext = (artworks: any[]) => {
 };
 
 export async function GET(req: Request) {
-    // 2. Beveiliging
+    // 2. Beveiliging (Tijdelijk uitgeschakeld voor lokaal testen, zet // weg voor productie)
+    /*
     const authHeader = req.headers.get('authorization');
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    */
 
     try {
         const today = new Date();
         const COOLDOWN_DAYS = 60;
         const cooldownDate = subDays(today, COOLDOWN_DAYS);
 
-        // 3. Rollende Buffer (7 dagen vooruit)
+        // 3. Rollende Buffer (We plannen 7 dagen vooruit)
         const targetDate = addDays(today, 7); 
         const dateStr = format(targetDate, 'yyyy-MM-dd');
         const dayOfWeek = targetDate.getDay(); 
         
-        // CHECK: Is het voor MAANDAG?
+        // CHECK: Is de doeldatum een MAANDAG?
         const isMonday = dayOfWeek === 1;
 
         // Check of dag al bestaat
@@ -72,13 +74,12 @@ export async function GET(req: Request) {
                 JSON Output Format: { "salons": [{ "title": "...", "description": "...", "tags": ["..."] }] }
             `;
 
-            // We gebruiken hier je centrale generateWithAI helper
             const data: any = await generateWithAI(salonPrompt, true);
             const newSalons = data?.salons || [];
 
             for (const item of newSalons) {
                 // Placeholder plaatje
-                const img = `https://images.unsplash.com/photo-1541963463532-d68292c34b19?w=1600&q=80&auto=format&fit=crop`; // Veilige kunst fallback
+                const img = `https://images.unsplash.com/photo-1541963463532-d68292c34b19?w=1600&q=80&auto=format&fit=crop`; 
                 
                 const { data: insertedSalon } = await supabase.from('salons').insert({
                     title: item.title,
@@ -94,27 +95,40 @@ export async function GET(req: Request) {
             }
         }
 
-// ---------------------------------------------------------
-// STAP B: HET MAGAZIJN
-// ---------------------------------------------------------
-const { data: rawPool, error: poolError } = await supabase
-    .from('artworks')
-    .select('id, title, artist, description, image_url, last_used_at, ai_metadata')
-    .eq('status', 'published') // <--- HIER ZAT DE FOUT (.is veranderd naar .eq)
-    .not('image_url', 'is', null) 
-    .limit(300);
+        // ---------------------------------------------------------
+        // STAP B: HET MAGAZIJN (De Artwork Pool)
+        // ---------------------------------------------------------
+        const { data: rawPool, error: poolError } = await supabase
+            .from('artworks')
+            .select('id, title, artist, description, image_url, last_used_at, ai_metadata')
+            .eq('status', 'published') // <--- HIER ZAT DE FOUT (Gebruik .eq, niet .is)
+            .not('image_url', 'is', null) 
+            .limit(300);
 
-// Voeg deze logs toe om te debuggen als het nog steeds misgaat:
-if (poolError) {
-    console.error("❌ Database Error:", poolError);
-}
-console.log(`📊 Aantal kunstwerken gevonden: ${rawPool?.length || 0}`);
+        if (poolError) {
+            console.error("❌ Database Error:", poolError);
+            throw new Error(`Database error: ${poolError.message}`);
+        }
 
-if (poolError || !rawPool || rawPool.length === 0) {
-    // We gooien nu iets meer info in de error zodat je ziet wat er mis is
-    throw new Error(`Kon geen kunstwerken ophalen. (Status: published, Image: gevuld). Aantal: ${rawPool?.length}`);
-}
+        if (!rawPool || rawPool.length === 0) {
+            throw new Error("Geen kunstwerken gevonden met status 'published'.");
+        }
 
+        // Filter op cooldown (niet recent gebruikt)
+        const artPool = rawPool.filter((a: any) => {
+            if (!a.last_used_at) return true; 
+            return parseISO(a.last_used_at) < cooldownDate;
+        });
+
+        console.log(`📊 Beschikbare werken na filter: ${artPool.length}`);
+        
+        if (artPool.length < 8) {
+             // Als we echt te weinig hebben, pakken we de hele pool maar
+             console.warn("⚠️ Te weinig 'verse' werken, we negeren de cooldown.");
+        }
+        
+        // Hussel de lijst
+        const shuffledPool = (artPool.length > 8 ? artPool : rawPool).sort(() => 0.5 - Math.random());
 
         // ---------------------------------------------------------
         // STAP C: DE CURATOR & TOUR (MET GEMINI)
@@ -131,8 +145,11 @@ if (poolError || !rawPool || rawPool.length === 0) {
 
         const curationData: any = await generateWithAI(curationPrompt, true);
         const tourIds = curationData?.selected_ids || [];
+        
+        // Match ID's terug naar objecten
         const tourSelection = selectionPool.filter((a:any) => tourIds.includes(a.id));
         tourSelection.forEach((a:any) => usedArtworkIds.push(a.id));
+        
         const themeTitle = curationData?.theme_title || `Collectie van ${dateStr}`;
 
         if (tourSelection.length > 0) {
@@ -229,7 +246,7 @@ if (poolError || !rawPool || rawPool.length === 0) {
         }
 
         // ---------------------------------------------------------
-        // STAP F: OPSLAAN
+        // STAP F: OPSLAAN IN ROOSTER
         // ---------------------------------------------------------
         const scheduleData: any = {
             day_date: dateStr,
