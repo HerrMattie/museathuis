@@ -37,25 +37,23 @@ const supabase = createClient(
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
-// Probeer de max te rekken (Hobby=10s/60s, Pro=300s)
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
-const executionLogs: string[] = [];
-const log = (msg: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'WARN' = 'INFO') => {
-  const icon = type === 'INFO' ? '🔹' : type === 'SUCCESS' ? '✅' : type === 'ERROR' ? '❌' : '⚠️';
-  console.log(`${icon} ${msg}`);
-  executionLogs.push(`${icon} ${msg}`);
-};
-
 // ============================================================================
-// 3. HOOFD PROGRAMMA (OPSPLITSBAAR)
+// 3. HOOFD PROGRAMMA
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  // We verplaatsen de logs naar BINNEN de functie om Vercel cache issues te voorkomen
+  const executionLogs: string[] = [];
+  const log = (msg: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'WARN' = 'INFO') => {
+    const icon = type === 'INFO' ? '🔹' : type === 'SUCCESS' ? '✅' : type === 'ERROR' ? '❌' : '⚠️';
+    console.log(`${icon} ${msg}`);
+    executionLogs.push(`${icon} ${msg}`);
+  };
+
   const { searchParams } = new URL(request.url);
-  // Lees de parameter uit de URL (bijv: ?part=salons)
-  // Als er niets staat, doen we 'all' (maar dat raad ik af op Vercel)
   const part = searchParams.get('part') || 'all';
 
   const today = new Date().toISOString().split('T')[0];
@@ -71,7 +69,7 @@ export async function GET(request: NextRequest) {
   try {
 
     // ========================================================================
-    // DEEL 1: SALONS
+    // DEEL 1: SALONS (OPSLAAN AAN)
     // ========================================================================
     if (part === 'salons' || part === 'all') {
         log(`--- Start Salons (Aantal: ${CONFIG.COUNTS.SALONS}) ---`, 'INFO');
@@ -109,8 +107,18 @@ export async function GET(request: NextRequest) {
                 try { themeData = JSON.parse(text); } 
                 catch (e) { themeData = { titel: `Salon ${i}`, ondertitel: "Een diverse collectie." }; }
 
-                // UNCOMMENT: await supabase.from('salons').insert({...});
-                log(`Salon #${i}: "${themeData.titel}" (${arts.length} werken)`, 'SUCCESS');
+                // 3. OPSLAAN IN DB 💾
+                const { error: saveError } = await supabase.from('salons').insert({
+                    title: themeData.titel,
+                    subtitle: themeData.ondertitel, // Zorg dat je kolom 'subtitle' heet (of 'description')
+                    artwork_ids: arts.map((a: any) => a.id),
+                    date: today,
+                    created_at: new Date().toISOString()
+                });
+
+                if (saveError) throw saveError;
+
+                log(`Salon #${i}: "${themeData.titel}" Opgeslagen!`, 'SUCCESS');
 
             } catch (e: any) {
                 log(`Fout bij Salon #${i}: ${e.message}`, 'ERROR');
@@ -119,7 +127,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ========================================================================
-    // DEEL 2: TOURS
+    // DEEL 2: TOURS (OPSLAAN AAN)
     // ========================================================================
     if (part === 'tours' || part === 'all') {
         log(`--- Start Tours (Aantal: ${CONFIG.COUNTS.TOURS}) ---`, 'INFO');
@@ -145,8 +153,18 @@ export async function GET(request: NextRequest) {
                      try { tourJson = JSON.parse(rawText); } 
                      catch (e) { tourJson = { titel: "Highlight Tour", intro: "Ontdek deze selectie." }; }
 
-                     // UNCOMMENT: await supabase.from('tours').insert({...});
-                     log(`Tour #${t}: "${tourJson.titel}"`, 'SUCCESS');
+                     // OPSLAAN IN DB 💾
+                     const { error: saveError } = await supabase.from('tours').insert({
+                        title: tourJson.titel,
+                        intro: tourJson.intro, // Zorg dat kolom 'intro' of 'description' heet
+                        artwork_ids: tourArts.map((a: any) => a.id),
+                        date: today,
+                        created_at: new Date().toISOString()
+                     });
+
+                     if (saveError) throw saveError;
+
+                     log(`Tour #${t}: "${tourJson.titel}" Opgeslagen!`, 'SUCCESS');
                      tourArts.forEach((a: any) => usedArtworkIds.push(a.id));
                 }
             } catch (e: any) {
@@ -156,31 +174,54 @@ export async function GET(request: NextRequest) {
     }
 
     // ========================================================================
-    // DEEL 3: EXTRAS (Focus & Games)
+    // DEEL 3: EXTRAS (OPSLAAN AAN)
     // ========================================================================
     if (part === 'extras' || part === 'all') {
-        log(`--- Start Extras (Focus & Games) ---`, 'INFO');
+        log(`--- Start Extras ---`, 'INFO');
 
-        // Focus Items
+        // FOCUS ITEMS
         for (let f = 1; f <= CONFIG.COUNTS.FOCUS; f++) {
             try {
                 const { data: focusArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
                 if (focusArt && focusArt[0]) {
-                    log(`Focus #${f}: ${focusArt[0].title}`, 'SUCCESS');
-                    // UNCOMMENT: insert...
-                    usedArtworkIds.push(focusArt[0].id);
+                    const art = focusArt[0];
+                    
+                    // Laat AI een korte tekst schrijven
+                    const result = await model.generateContent(`Schrijf een korte, fascinerende 'wist-je-dat' over: ${art.title} van ${art.artist}. Max 1 zin.`);
+                    const content = result.response.text().trim();
+
+                    // OPSLAAN 💾
+                    await supabase.from('focus_items').insert({
+                        title: art.title,
+                        content: content,
+                        artwork_id: art.id,
+                        date: today,
+                        cover_image: art.image_url || null // Check of dit veld in je artworks tabel staat!
+                    });
+
+                    log(`Focus #${f}: ${art.title} Opgeslagen.`, 'SUCCESS');
+                    usedArtworkIds.push(art.id);
                 }
-            } catch (e) { log(`Focus fout`, 'ERROR'); }
+            } catch (e: any) { log(`Focus fout: ${e.message}`, 'ERROR'); }
         }
 
-        // Games
+        // GAMES (Optioneel: Opslaan als je een 'games' tabel hebt)
         for (let g = 1; g <= CONFIG.COUNTS.GAMES; g++) {
             try {
                 const { data: gameArt } = await supabase.rpc('get_random_artworks', { aantal: 1 });
-                const subject = gameArt && gameArt[0] ? gameArt[0].title : "Kunst";
-                log(`Game #${g} gegenereerd (${subject}).`, 'SUCCESS');
-                if(gameArt && gameArt[0]) usedArtworkIds.push(gameArt[0].id);
-            } catch (e) { log(`Game fout`, 'ERROR'); }
+                if(gameArt && gameArt[0]) {
+                    // OPSLAAN 💾 (Zet uit als je geen games tabel hebt)
+                    await supabase.from('games').insert({
+                        type: g === 1 ? 'trivia' : (g === 2 ? 'open_question' : 'puzzle'),
+                        artwork_id: gameArt[0].id,
+                        date: today,
+                        question: `Vraag over ${gameArt[0].title}?` // Placeholder, of laat AI genereren
+                    });
+
+                    log(`Game #${g} Opgeslagen.`, 'SUCCESS');
+                    usedArtworkIds.push(gameArt[0].id);
+                }
+            } catch (e) { log(`Game fout (mogelijk geen tabel)`, 'WARN'); }
         }
     }
 
@@ -188,8 +229,6 @@ export async function GET(request: NextRequest) {
     // AFSLUITING & UPDATE DB
     // ========================================================================
     
-    // We updaten direct de DB. 
-    // Omdat we taken splitsen, 'ziet' de volgende taak dat deze items al gebruikt zijn (last_used_at is niet null)
     if (usedArtworkIds.length > 0) {
         const uniqueIds = Array.from(new Set(usedArtworkIds));
         
